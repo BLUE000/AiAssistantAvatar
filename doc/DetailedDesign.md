@@ -9,7 +9,7 @@
 * **依存外部ライブラリ:**
   - **whisper.cpp:** ローカル音声認識用（プロジェクト内にソースコードを含める、もしくは事前ビルドした `.lib`/`.dll` をリンク）。
   - **Windows SDK (SAPI):** Windows標準音声認識用（COM APIを使用するため、Windows標準ライブラリ `sapi.h` および `ole32.lib` 等をリンク）。
-* **設定ファイル解析:** Qt標準の `QJsonDocument`, `QJsonObject` を使用し、外部依存を最小化する。
+* **設定ファイル解析:** Qt標準的 `QJsonDocument`, `QJsonObject` を使用し、外部依存を最小化する。
 
 ---
 
@@ -23,6 +23,10 @@ AiAssistantAvatar/
 │   ├── Requirements.md
 │   ├── BasicDesign.md
 │   └── DetailedDesign.md
+├── Lib/                         # サブプロジェクト (Git Submodule)
+│   ├── CMakeLists.txt
+│   ├── TransCipher/             # 暗号化/難読化ライブラリ
+│   └── TrustChain/              # 出自証明/改ざん検知ライブラリ
 ├── pic/                         # 画像およびアバター設定JSON
 │   ├── avatar_settings.json
 │   ├── idle.png
@@ -121,6 +125,7 @@ public slots:
     // UIからの直接命令を受け取るスロット (別スレッドからQueuedで呼ばれる)
     void on_startSTTRequested();
     void on_directInputSubmitted(const QString &text);
+    void on_resetSessionRequested();
 };
 ```
 
@@ -132,7 +137,7 @@ public slots:
 デスクトップ上にアバターを表示し、設定に基づき透過およびアンカー移動を行う。
 ```cpp
 #pragma once
-#include <QWidget>
+#include <QMainWindow>
 #include <QLabel>
 #include <QPixmap>
 #include <QPoint>
@@ -147,7 +152,7 @@ struct ImageSetting {
     int transparentY = 0;
 };
 
-class AvatarWindow : public QWidget {
+class AvatarWindow : public QMainWindow {
     Q_OBJECT
 private:
     QLabel *m_avatarLabel;
@@ -175,6 +180,7 @@ signals:
     // コアスレッドへの要求シグナル
     void startSTTRequested();
     void directInputSubmitted(const QString &text);
+    void resetSessionRequested();
 
 public slots:
     // コアから通知を受け取るスロット
@@ -268,18 +274,23 @@ class AIClientManager : public QObject {
 private:
     IAIClient *m_currentClient = nullptr;
     QString m_apiKey;
+    QList<QPair<QString, QString>> m_chatHistory; // ユーザー、AIの対話ペア
+    int m_maxHistoryCount = 10; // 自動リセット契機（10件＝5往復）
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
     void setAIProvider(const QString &provider); // "mistral" or "dummy"
+    QList<QPair<QString, QString>> getChatHistory() const;
 
 signals:
     void notifyEvent(const AppEvent &event);
+    void chatHistoryUpdated(const QList<QPair<QString, QString>> &history);
 
 public slots:
     void on_requestAI(const QString &prompt);
     void on_clientRequestFinished(const QString &responseText, bool success);
+    void resetSession(bool isManual);
 };
 ```
 
@@ -387,3 +398,48 @@ void AvatarWindow::updateWindowPosition() {
     this->move(newX, newY);
 }
 ```
+
+### 4.3 出自検証およびコピーライト動的スキャン仕様 (TrustChain & BinMarkManager)
+
+#### A. `TrustChain::Core` クラス (検証ロジック)
+オンラインサーバーへのトークン検証や、セキュリティ判定を処理する。
+```cpp
+namespace TrustChain {
+enum class AuthStatus {
+    Normal,         // 検証成功
+    Watermarked,    // 改ざん検知・オフライン・通信エラー
+    Terminated      // トークン無効化（ブラックリスト）
+};
+
+class Core {
+public:
+    Core();
+    AuthStatus verifyToken();
+    bool validateTokenSecurity(const QString &token) const;
+    static void terminateApplication(const QString &errorMessage = QString());
+};
+}
+```
+
+#### B. `TrustChain::QtHelper` クラス (UI連携 & スキャン)
+検証結果に基づいて、実行バイナリ末尾から `BinMarkManager` 署名をパースし、UIを更新する。
+```cpp
+namespace TrustChain {
+class QtHelper {
+public:
+    // UIへのウォーターマーク適用
+    static void applyWatermark(QMainWindow* window, AuthStatus status);
+    
+    // 指定ファイルの末尾10KBから BinMarkManager 形式の平文コピーライトを抽出
+    static QString extractCopyrightFromFile(const QString& filePath);
+};
+}
+```
+
+##### 抽出処理のアルゴリズム (extractCopyrightFromFile)
+1. `QFile` をバイナリ読み込みモードで開き、サイズを確認する。
+2. 末尾から `10240` バイト（10KB）分シーク（`seek`）して `QByteArray` に読み出す。
+3. `[BM_END]` のインデックスと、その手前の `[BM_START]` のインデックスを検索。
+4. 二つのタグの間のデータから `"Plain="` を検索し、その開始位置から改行文字（`\n`）までの範囲を切り出し。
+5. 前後の空白文字や `\r` を除去して `QString` として返却する。
+

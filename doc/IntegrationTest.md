@@ -23,6 +23,7 @@
 | **IT-EVT-01** | Twitch → Core | `TwitchReader` (Twitchスレッド) から `notifyEvent()` シグナルを発火する。 | コアスレッドで動作する `CoreModule::on_notify_events()` スロットが呼び出され、受信データが正しく処理されること。 | 自動テスト |
 | **IT-EVT-02** | STT → Core | `STTManager` (STTスレッド) から `notifyEvent()` シグナルを発火する。 | `CoreModule::on_notify_events()` がスレッドを越えて呼び出され、音声認識結果テキストが受信されること。 | 自動テスト |
 | **IT-EVT-03** | Core → UI | `CoreModule` から `notifyEventToUI()` シグナルを発火する。 | メイン（GUI）スレッドで動作する `AvatarWindow::on_notify_events()` が呼び出され、イベントの種類に応じた描画更新処理がキックされること。 | 自動テスト |
+| **IT-EVT-04** | Twitch認証連携 | `TwitchReader` 起動時にトークンがない場合に仮HTTPサーバーを起動し、取得したトークンでIRC接続する。 | ローカルHTTPサーバーが指定ポートで待機し、ブラウザリダイレクトからトークンを取得・保存して、自動接続フローへ移行すること。 | 結合テスト |
 
 ---
 
@@ -30,7 +31,7 @@
 
 | 試験ID | 対象モジュール | 試験内容 | 期待される結果 | 実施方法 |
 | :--- | :--- | :--- | :--- | :--- |
-| **IT-ABS-01** | STTエンジン切り替え | `STTManager::setEngine()` を呼び出し、"whisper" と "sapi" を交互に切り替える。 | `STTManager` 内部の `ISTTEngine` 具象クラス（`WhisperEngine` ⇔ `SAPIEngine`）が正しく切り替わり、それぞれの初期化・監視関数が呼ばれること。 | 自動テスト |
+| **IT-ABS-01** | STTエンジン切り替え | `STTManager::setEngine()` を呼び出し、"whisper" と "sapi" を交互に切り替える。 | `STTManager` 内部の `ISTTEngine` 具象クラス（`WhisperEngine` ⇔ `SAPIEngine`）が正しく切り替わり、それぞれの初期化・監視関数が呼ばれること. | 自動テスト |
 | **IT-ABS-02** | AIクライアント切り替え | `AIClientManager::setAIProvider()` を呼び出し、"mistral" と "dummy" を切り替える。 | `AIClientManager` 内部の `IAIClient` 具象クラス（`MistralAIClient` ⇔ `DummyAIClient`）が正しく切り替わり、それぞれの要求メソッドに委譲されること。 | 自動テスト |
 
 ---
@@ -40,6 +41,16 @@
 | 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-LAY-01** | アンカー位置補正 | アバターの状態を `idle` (anchorX: 120, anchorY: 180) から `thinking` (anchorX: 120, anchorY: 182) へ切り替える。 | デスクトップ上の目標位置を保つため、アンカー差分を考慮した座標に `AvatarWindow` の位置が正しく移動（`move()`）すること。 | 自動テスト |
+
+---
+
+### 2.5 セキュリティとライセンス連携
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-SEC-01** | 出自証明とウォーターマーク連携 | 起動時（`main.cpp`）から検証（`verifyToken()`）、結果取得、UI適用（`applyWatermark()`）までの流れを実行。 | 検証結果がUIに正しく伝達され、改ざん検知（`Watermarked`）時にバイナリの `BinMarkManager` 署名データに基づいた表示がタイトル・ステータスバーに反映されること。 | 結合テスト |
+| **IT-SEC-02** | セッションリセット連携 | UIから `resetSessionRequested` シグナルを発火し、コア経由で `AIClientManager` のリセットロジックと暗号化バックアップを実行する。 | 1. `AIClientManager::resetSession` が手動（`isManual == true`）で実行されること。<br>2. TransCipher 経由で暗号化ログファイルが生成されること。<br>3. UIバルーンに「会話履歴をリセットしました。」が通知されること。 | 結合テスト |
+
 
 ---
 

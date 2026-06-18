@@ -29,8 +29,8 @@ graph TD
 | モジュール名 | 主要クラス名 | 動作スレッド | 主な責務 |
 | :--- | :--- | :--- | :--- |
 | **UIモジュール** | `AvatarWindow`<br>`BalloonWidget` | メイン（GUI）スレッド | ・背景透過アバターウィンドウの描画<br>・テキストバルーンの表示および**直接テキスト入力欄（キーボード用）の提供**<br>・ユーザー操作（設定変更、ボタン押下、テキスト入力）の受付とコアへの要求発行<br>・イベント受信(`on_notify_events`)による表示更新 |
+| **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合にブラウザでOAuth画面を開き、リダイレクトを受ける一時HTTPサーバーを構築してアクセストークンを自動取得<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
-| **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・OAuthトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
 | **AIモジュール** | `AIClientManager`<br>`IAIClient` | AIスレッド | ・**【2段構成】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース |
 
@@ -123,10 +123,14 @@ classDiagram
     }
     class AIClientManager {
         -IAIClient* currentClient
+        -QList<QPair<QString, QString>> m_chatHistory
         +on_requestAI(QString text) void
         +setAIProvider(QString provider) void
+        +getChatHistory() QList<QPair<QString, QString>>
+        +resetSession(bool isManual) void
         <<signal>>
         +notifyEvent(AppEvent event)
+        +chatHistoryUpdated(QList<QPair<QString, QString>> history)
     }
     class IAIClient {
         <<interface>>
@@ -289,9 +293,93 @@ sequenceDiagram
     UI->>UI: バルーンにai_textを表示、アバターを通常アニメに変更
 ```
 
+### 5.3 起動時出自証明およびコピーライト動的適用シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Main as メインエントリー (main.cpp)
+    participant TC as TrustChain (Core)
+    participant UI as UIモジュール (AvatarWindow)
+    participant Helper as TrustChain (QtHelper)
+
+    Main->>TC: verifyToken() の実行
+    alt オンライン検証成功（公式ビルド）
+        TC-->>Main: AuthStatus::Normal を返却
+    else 検証失敗（非公式・オフライン・エラー）
+        TC-->>Main: AuthStatus::Watermarked を返却
+    else トークン無効化（ブラックリスト）
+        TC-->>Main: AuthStatus::Terminated を返却
+        Main->>TC: terminateApplication()
+        Note over Main,TC: アプリケーション強制シャットダウン (qFatal)
+    end
+
+    Main->>UI: AvatarWindow のインスタンス生成
+    Main->>Helper: applyWatermark(window, status)
+    
+    alt status == AuthStatus::Watermarked
+        Helper->>Helper: 自身 (.exe) から BinMarkManager 署名スキャン
+        alt 署名が存在する (Plain=...)
+            Helper-->>UI: タイトルバー・ステータスバーに抽出したコピーライトを設定
+        else 署名が存在しない
+            Helper-->>UI: タイトルバー・ステータスバーにフォールバックコピーライトを設定
+        end
+    end
+    Main->>UI: window.show() (通常どおり起動)
+```
+
+### 5.4 セッションリセットシーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー (手動) / システム (自動)
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant TC as 暗号化モジュール (TransCipher)
+
+    alt 手動リセットの場合
+        User->>UI: 右クリックメニューから「会話履歴をリセット」を選択
+        UI->>Core: resetSessionRequested() シグナル発火
+        Core->>AI: resetSession(true) 呼び出し
+    else 自動リセットの場合 (会話量が制限値に到達)
+        AI->>AI: 対話完了時、履歴数が規定値 (例: 10件) に到達したことを検知
+        AI->>AI: resetSession(false) を自動でトリガー
+    end
+
+    %% バックアップとクリア処理
+    AI->>TC: 現在の m_chatHistory を JSON化し TransCipher で暗号化
+    TC-->>AI: 暗号化データをファイル log/session_backup_<timestamp>.enc に保存
+    AI->>AI: メモリ上の m_chatHistory をクリア
+    AI->>AI: バックアップから最後の1往復分のみ抽出し、新セッション用に再ロード (文脈引き継ぎ)
+
+    %% イベント通知
+    alt 手動リセットの場合のみ
+        AI->>Core: notifyEvent (EventType::AIResponseReceived, text: "会話履歴をリセットしました。")
+        Core->>UI: notifyEventToUI (...)
+        UI->>UI: バルーンに「会話履歴をリセットしました。」を表示
+    else 自動リセットの場合
+        Note over AI,UI: UI通知は行わず、サイレントに新セッションを開始
+    end
+```
+
 ---
 
-## 6. 今後の課題（詳細設計に向けた検討）
+
+## 6. セキュリティとライセンス検証 (TrustChain & BinMarkManager)
+本システムは、配布バイナリの出自を保証し改ざんを検知するため、`TrustChain` モジュールを組み込む。
+
+1. **出自証明のライフサイクル**:
+   - ビルド時に、開発環境の Git コミットハッシュと GitHub リモートマスタを照合し、事前登録したトークン (`tc_43f73638ed2a119f983e999b`) とともにコンパイルマクロとしてバイナリに安全に注入する。
+   - 起動時に、注入された情報を用いて、オンライン検証サーバーへ認証を問い合わせる。
+2. **改ざん検知時のUI表示**:
+   - 改ざん（検証失敗、オフライン、非公式ビルド）検知時は、自身の実行バイナリ末尾から `BinMarkManager` 形式の平文コピーライトを動的抽出し、メインウィンドウ（`AvatarWindow`）のタイトルバーとステータスバーに強制的に表示する。
+   - アプリケーションとしての機能制限は一切加えず、表示の強制変更のみに留める。
+
+---
+
+## 7. 今後の課題（詳細設計に向けた検討）
 1. **ライブラリのビルド環境設定:**
    - Qt6 C++ および C++20 環境の構築。
    - `whisper.cpp` の C++ プロジェクトへの静的/動的リンク手法。
