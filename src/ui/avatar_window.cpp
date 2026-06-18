@@ -224,7 +224,28 @@ QPixmap AvatarWindow::applyTransparency(const QString &filePath, int tx, int ty)
         tx = 0; ty = 0;
     }
 
+    // 4隅のシード候補から「背景色らしい」色（最もグリーン成分が高い）を基準色とする
+    // これにより(0,0)がキャラクターの一部の場合も他の隅から正しい背景色を取得できる
+    QList<QPoint> corners = {
+        QPoint(tx, ty),
+        QPoint(0, 0),
+        QPoint(width - 1, 0),
+        QPoint(0, height - 1),
+        QPoint(width - 1, height - 1)
+    };
+
+    // 最もグリーン成分が高いピクセルを背景色として採用
     QRgb targetColor = image.pixel(tx, ty);
+    for (const QPoint &c : corners) {
+        QRgb col = image.pixel(c);
+        // グリーン > レッド かつ グリーン > ブルー という「緑背景らしさ」で選ぶ
+        if (qGreen(col) > qRed(col) && qGreen(col) > qBlue(col)) {
+            if (qGreen(col) > qGreen(targetColor)) {
+                targetColor = col;
+            }
+        }
+    }
+
     int tR = qRed(targetColor);
     int tG = qGreen(targetColor);
     int tB = qBlue(targetColor);
@@ -237,28 +258,38 @@ QPixmap AvatarWindow::applyTransparency(const QString &filePath, int tx, int ty)
                qAbs(qBlue(c)  - tB) <= kTolerance;
     };
 
-    // BFSによる Flood Fill 透過処理（トレランス付き）
+    // BFSによる Flood Fill（4隅すべてをシードとして開始）
     QQueue<QPoint> queue;
-    queue.enqueue(QPoint(tx, ty));
-
     QVector<QVector<bool>> visited(width, QVector<bool>(height, false));
-    visited[tx][ty] = true;
+
+    auto enqueueIfSeed = [&](QPoint p) {
+        if (p.x() < 0 || p.x() >= width || p.y() < 0 || p.y() >= height) return;
+        if (!visited[p.x()][p.y()] && isSimilar(image.pixel(p))) {
+            visited[p.x()][p.y()] = true;
+            queue.enqueue(p);
+        }
+    };
+
+    // 指定座標 + 4隅すべてからシード
+    enqueueIfSeed(QPoint(tx, ty));
+    enqueueIfSeed(QPoint(0, 0));
+    enqueueIfSeed(QPoint(width - 1, 0));
+    enqueueIfSeed(QPoint(0, height - 1));
+    enqueueIfSeed(QPoint(width - 1, height - 1));
 
     const int dx[] = {0, 0, 1, -1};
     const int dy[] = {1, -1, 0, 0};
 
     while (!queue.isEmpty()) {
         QPoint p = queue.dequeue();
+        image.setPixel(p, 0x00000000);
 
-        if (isSimilar(image.pixel(p))) {
-            // 色許容内なら完全透明にする
-            image.setPixel(p, 0x00000000);
-
-            for (int i = 0; i < 4; ++i) {
-                int nx = p.x() + dx[i];
-                int ny = p.y() + dy[i];
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height && !visited[nx][ny]) {
-                    visited[nx][ny] = true;
+        for (int i = 0; i < 4; ++i) {
+            int nx = p.x() + dx[i];
+            int ny = p.y() + dy[i];
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height && !visited[nx][ny]) {
+                visited[nx][ny] = true;
+                if (isSimilar(image.pixel(QPoint(nx, ny)))) {
                     queue.enqueue(QPoint(nx, ny));
                 }
             }
