@@ -117,6 +117,9 @@ signals:
     void requestSTTStart();
     void requestSTTStop();
     void requestAI(const QString &prompt);
+    void requestSessionReset(bool isManual);
+    void requestSessionImport(const QString &filePath);
+    void requestSessionExport(const QString &encPath, const QString &txtPath);
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -126,6 +129,8 @@ public slots:
     void on_startSTTRequested();
     void on_directInputSubmitted(const QString &text);
     void on_resetSessionRequested();
+    void on_importSessionRequested(const QString &filePath);
+    void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
 };
 ```
 
@@ -181,6 +186,8 @@ signals:
     void startSTTRequested();
     void directInputSubmitted(const QString &text);
     void resetSessionRequested();
+    void importSessionRequested(const QString &filePath);
+    void exportSessionRequested(const QString &encPath, const QString &txtPath);
 
 public slots:
     // コアから通知を受け取るスロット
@@ -253,7 +260,7 @@ class IAIClient : public QObject {
     Q_OBJECT
 public:
     virtual ~IAIClient() = default;
-    virtual void sendRequest(const QString &prompt) = 0;
+    virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext = QString()) = 0;
     virtual void setApiKey(const QString &apiKey) = 0;
 
 signals:
@@ -274,8 +281,19 @@ class AIClientManager : public QObject {
 private:
     IAIClient *m_currentClient = nullptr;
     QString m_apiKey;
+    QString m_transCipherKey;
     QList<QPair<QString, QString>> m_chatHistory; // ユーザー、AIの対話ペア
     int m_maxHistoryCount = 10; // 自動リセット契機（10件＝5往復）
+    QString m_sessionContext; // マークダウンのコンテキスト情報
+    bool m_isResetting = false; // 要約要求中かどうかのフラグ
+    bool m_isManualReset = false; // 手動リセット中かどうかのフラグ
+    QString m_lastPrompt; // 前回のプロンプト
+
+    void loadCredentials();
+    void loadSessionContext();
+    void saveSessionContext(const QString &context);
+    void saveObfuscatedLog(const QString &logText);
+    QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);
@@ -291,6 +309,8 @@ public slots:
     void on_requestAI(const QString &prompt);
     void on_clientRequestFinished(const QString &responseText, bool success);
     void resetSession(bool isManual);
+    bool importSessionBackup(const QString &filePath);
+    void exportSessionBackup(const QString &encPath, const QString &txtPath);
 };
 ```
 
@@ -310,7 +330,7 @@ private:
 public:
     explicit MistralAIClient(QObject *parent = nullptr);
     ~MistralAIClient() override;
-    void sendRequest(const QString &prompt) override;
+    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext = QString()) override;
     void setApiKey(const QString &apiKey) override;
 
 private slots:

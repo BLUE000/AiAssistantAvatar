@@ -128,6 +128,8 @@ classDiagram
         +setAIProvider(QString provider) void
         +getChatHistory() QList<QPair<QString, QString>>
         +resetSession(bool isManual) void
+        +importSessionBackup(QString filePath) bool
+        +exportSessionBackup(QString encPath, QString txtPath) void
         <<signal>>
         +notifyEvent(AppEvent event)
         +chatHistoryUpdated(QList<QPair<QString, QString>> history)
@@ -348,20 +350,82 @@ sequenceDiagram
         AI->>AI: resetSession(false) を自動でトリガー
     end
 
+    %% AIによるマークダウン要約の生成
+    AI->>AI: 履歴 m_chatHistory を元に「コンテキスト要約要求」をAI APIへ送信
+    Note over AI: 要約プロンプト: 「これまでの対話をマークダウンでまとめてください」
+    AI-->>AI: マークダウン要約テキストを受信
+    AI->>AI: 要約テキストを平文ファイル log/session_context.md に保存
+
     %% バックアップとクリア処理
     AI->>TC: 現在の m_chatHistory を JSON化し TransCipher で暗号化
     TC-->>AI: 暗号化データをファイル log/session_backup_<timestamp>.enc に保存
     AI->>AI: メモリ上の m_chatHistory をクリア
-    AI->>AI: バックアップから最後の1往復分のみ抽出し、新セッション用に再ロード (文脈引き継ぎ)
 
     %% イベント通知
     alt 手動リセットの場合のみ
-        AI->>Core: notifyEvent (EventType::AIResponseReceived, text: "会話履歴をリセットしました。")
+        AI->>Core: notifyEvent (EventType::AIResponseReceived, text: "会話履歴をクリアし、コンテキスト要約を保存しました。")
         Core->>UI: notifyEventToUI (...)
-        UI->>UI: バルーンに「会話履歴をリセットしました。」を表示
+        UI->>UI: バルーンに「会話履歴をクリアし、コンテキスト要約を保存しました。」を表示
     else 自動リセットの場合
         Note over AI,UI: UI通知は行わず、サイレントに新セッションを開始
     end
+```
+
+### 5.5 セッションインポートシーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant TC as 暗号化モジュール (TransCipher)
+
+    User->>UI: 右クリックメニューから「会話履歴をインポート...」を選択
+    UI->>UI: QFileDialog で .enc バックアップファイルを選択
+    UI->>Core: importSessionRequested(filePath) シグナル発火
+    Core->>AI: requestSessionImport(filePath) を中継
+    AI->>TC: TransCipher::decrypt() で指定ファイルを復号
+    TC-->>AI: 復号された JSON データを返却
+    alt 復号 & パース成功
+        AI->>AI: m_chatHistory を復号された会話履歴で上書き
+        AI->>AI: chatHistoryUpdated() シグナルで履歴同期
+        AI->>Core: notifyEvent (AIResponseReceived, "会話履歴をインポートしました。")
+    else 失敗（破損、鍵不一致等）
+        AI->>Core: notifyEvent (ErrorOccurred, "会話履歴のインポートに失敗しました。")
+    end
+    Core->>UI: notifyEventToUI (...)
+    UI->>UI: バルーンに結果メッセージを表示
+```
+
+### 5.6 セッションエクスポート（復号）シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant TC as 暗号化モジュール (TransCipher)
+
+    User->>UI: 右クリックメニューから「会話履歴をエクスポート...」を選択
+    UI->>UI: QFileDialog で復号対象の .enc ファイルを選択
+    UI->>UI: QFileDialog でエクスポート先 .txt パスを指定
+    UI->>Core: exportSessionRequested(encPath, txtPath) シグナル発火
+    Core->>AI: requestSessionExport(encPath, txtPath) を中継
+    AI->>TC: TransCipher::decrypt() で .enc ファイルを復号
+    TC-->>AI: 復号された JSON データを返却
+    alt 復号成功
+        AI->>AI: 人間が読みやすい平文テキスト形式にフォーマット
+        AI->>AI: 指定された .txt パスへ書き出し
+        AI->>Core: notifyEvent (AIResponseReceived, "会話履歴をエクスポートしました。")
+    else 失敗
+        AI->>Core: notifyEvent (ErrorOccurred, "会話履歴のエクスポートに失敗しました。")
+    end
+    Core->>UI: notifyEventToUI (...)
+    UI->>UI: バルーンに結果メッセージを表示
 ```
 
 ---

@@ -50,6 +50,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-SEC-01** | 出自証明とウォーターマーク連携 | 起動時（`main.cpp`）から検証（`verifyToken()`）、結果取得、UI適用（`applyWatermark()`）までの流れを実行。 | 検証結果がUIに正しく伝達され、改ざん検知（`Watermarked`）時にバイナリの `BinMarkManager` 署名データに基づいた表示がタイトル・ステータスバーに反映されること。 | 結合テスト |
 | **IT-SEC-02** | セッションリセット連携 | UIから `resetSessionRequested` シグナルを発火し、コア経由で `AIClientManager` のリセットロジックと暗号化バックアップを実行する。 | 1. `AIClientManager::resetSession` が手動（`isManual == true`）で実行されること。<br>2. TransCipher 経由で暗号化ログファイルが生成されること。<br>3. UIバルーンに「会話履歴をリセットしました。」が通知されること。 | 結合テスト |
+| **IT-SEC-03** | 会話履歴インポート連携 | UIから `importSessionRequested` シグナルを発火し、コア経由で `AIClientManager::importSessionBackup` を呼び出す。 | 1. ファイルが復号され会話履歴が復元されること。<br>2. UIバルーンに「会話履歴をインポートしました。」と結果が表示されること。 | 結合テスト |
+| **IT-SEC-04** | 会話履歴エクスポート連携 | UIから `exportSessionRequested` シグナルを発火し、コア経由で `AIClientManager::exportSessionBackup` を呼び出す。 | 1. 暗号ファイルが復号され、人間が読みやすい平文 `.txt` ファイルとしてエクスポートされること。<br>2. UIバルーンにエクスポート完了メッセージが表示されること。 | 結合テスト |
 
 
 ---
