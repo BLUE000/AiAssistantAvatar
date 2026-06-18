@@ -77,6 +77,42 @@
                 "Left04.png",
                 "Left05.png"
             ]
+        },
+        "right_short": {
+            "label": "右向き（短パターン）",
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0,
+            "frame_interval_ms": 150,
+            "loop": true,
+            "frames": [
+                "Right01.png",
+                "Right02.png",
+                "Right03.png",
+                "Right04.png",
+                "Right01.png"
+            ]
+        },
+        "right_long": {
+            "label": "右向き（長パターン）",
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0,
+            "frame_interval_ms": 150,
+            "loop": true,
+            "frames": [
+                "Right01.png",
+                "Right02.png",
+                "Right03.png",
+                "Right04.png",
+                "Right05.png",
+                "Right05.png",
+                "Right05.png",
+                "Right05.png",
+                "Right01.png"
+            ]
         }
     }
 }
