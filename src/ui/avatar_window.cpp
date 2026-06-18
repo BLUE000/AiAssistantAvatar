@@ -295,7 +295,7 @@ void AvatarWindow::switchToNextVariant() {
     QPixmap px = m_frontPixmapCache[m_currentFrontIndex];
     m_avatarLabel->setFixedSize(px.size());
     m_avatarLabel->setPixmap(px);
-    adjustSize(); // ステータスバーの有無を含めたウィンドウサイズを自動計算
+    adjustSize();
 
     int newX = m_desktopTargetPos.x() - m_frontVariants.anchorX;
     int newY = m_desktopTargetPos.y() - m_frontVariants.anchorY;
@@ -303,6 +303,72 @@ void AvatarWindow::switchToNextVariant() {
 
     if (m_balloon && m_balloon->isVisible()) {
         m_balloon->move(newX + px.width() - 40, newY - 60);
+    }
+}
+
+// -------------------------------------------------------
+// シーケンシャルアニメーション
+// -------------------------------------------------------
+void AvatarWindow::playAnimation(const QString &name) {
+    if (!m_animPixmapCache.contains(name) || m_animPixmapCache[name].isEmpty()) {
+        qWarning() << "playAnimation: animation not found or empty:" << name;
+        return;
+    }
+
+    // バリアントタイマーを一時停止
+    if (m_variantTimer) m_variantTimer->stop();
+
+    // 既存のアニメーションタイマーを停止
+    if (m_animTimer) m_animTimer->stop();
+
+    m_currentAnimation = name;
+    m_animFrameIndex   = 0;
+
+    // 最初のフレームを即座に表示
+    stepAnimationFrame();
+
+    // タイマー起動
+    int interval = m_animations[name].frameIntervalMs;
+    if (!m_animTimer) {
+        m_animTimer = new QTimer(this);
+        connect(m_animTimer, &QTimer::timeout, this, &AvatarWindow::stepAnimationFrame);
+    }
+    m_animTimer->start(interval);
+}
+
+void AvatarWindow::stepAnimationFrame() {
+    if (m_currentAnimation.isEmpty() || !m_animPixmapCache.contains(m_currentAnimation)) return;
+
+    const QVector<QPixmap> &frames = m_animPixmapCache[m_currentAnimation];
+    const AnimationSequence &seq   = m_animations[m_currentAnimation];
+    if (frames.isEmpty()) return;
+
+    // 現在フレームを表示
+    QPixmap px = frames[m_animFrameIndex];
+    m_avatarLabel->setFixedSize(px.size());
+    m_avatarLabel->setPixmap(px);
+    adjustSize();
+
+    int newX = m_desktopTargetPos.x() - seq.anchorX;
+    int newY = m_desktopTargetPos.y() - seq.anchorY;
+    this->move(newX, newY);
+    if (m_balloon && m_balloon->isVisible()) {
+        m_balloon->move(newX + px.width() - 40, newY - 60);
+    }
+
+    // 次のフレームへ進む
+    m_animFrameIndex++;
+    if (m_animFrameIndex >= frames.size()) {
+        if (seq.loop) {
+            m_animFrameIndex = 0;  // ループ
+        } else {
+            // 再生完了 → バリアントモードに復帰
+            if (m_animTimer) m_animTimer->stop();
+            m_currentAnimation.clear();
+            if (m_variantTimer && !m_frontVariants.isEmpty()) {
+                m_variantTimer->start(m_frontVariants.intervalMs);
+            }
+        }
     }
 }
 
@@ -355,16 +421,51 @@ void AvatarWindow::mouseMoveEvent(QMouseEvent *event) {
 void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
     QMenu menu(this);
     
-    QAction *actDirectInput = menu.addAction("直接テキスト入力");
-    QAction *actVoiceInput = menu.addAction("音声入力開始(STT)");
+    QAction *actDirectInput  = menu.addAction("直接テキスト入力");
+    QAction *actVoiceInput   = menu.addAction("音声入力開始(STT)");
     QAction *actResetHistory = menu.addAction("会話履歴をクリアして要約");
     QAction *actImportHistory = menu.addAction("会話履歴をインポート...");
     QAction *actExportHistory = menu.addAction("会話履歴をエクスポート...");
+
+    // アニメーションサブメニュー（定義があるときのみ表示）
+    QMenu *animMenu = nullptr;
+    QMap<QAction*, QString> animActionMap;
+    if (!m_animations.isEmpty()) {
+        menu.addSeparator();
+        animMenu = menu.addMenu("アニメーション");
+        for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
+            QString label = it.value().label.isEmpty() ? it.key() : it.value().label;
+            QAction *act  = animMenu->addAction(label);
+            animActionMap[act] = it.key();
+        }
+        // フロント（ランダム）に戻すアクション
+        if (!m_frontVariants.isEmpty()) {
+            animMenu->addSeparator();
+            QAction *actFront = animMenu->addAction("ランダム表示に戻す");
+            animActionMap[actFront] = "__front_variants__";
+        }
+    }
+
     menu.addSeparator();
     QAction *actQuit = menu.addAction("終了");
 
     QAction *selected = menu.exec(event->globalPos());
-    
+    if (!selected) return;
+
+    // アニメーション選択
+    if (animActionMap.contains(selected)) {
+        QString animName = animActionMap[selected];
+        if (animName == "__front_variants__") {
+            // アニメーション停止 → フロントバリアントに戻す
+            if (m_animTimer) m_animTimer->stop();
+            m_currentAnimation.clear();
+            if (m_variantTimer) m_variantTimer->start(m_frontVariants.intervalMs);
+        } else {
+            playAnimation(animName);
+        }
+        return;
+    }
+
     if (selected == actDirectInput) {
         bool ok;
         QString text = QInputDialog::getText(this, "AIへの直接命令", 

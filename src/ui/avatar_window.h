@@ -32,6 +32,18 @@ struct FrontVariantSettings {
     bool isEmpty() const { return entries.isEmpty(); }
 };
 
+// フレーム順に連続再生するアニメーションシーケンス
+struct AnimationSequence {
+    QString label;               // 表示名（メニュー用）
+    QVector<QString> frames;     // ファイルパスの順序リスト
+    int anchorX = 100;
+    int anchorY = 100;
+    int transparentX = 0;
+    int transparentY = 0;
+    int frameIntervalMs = 150;   // 1フレームあたりの表示時間（ms）
+    bool loop = true;            // ループ再生するか
+};
+
 // UIのバルーン（吹き出し）ウィジェットを先行宣言
 class BalloonWidget;
 
@@ -53,13 +65,22 @@ private:
     int m_currentFrontIndex = 0;                      // 現在表示中のインデックス
     bool m_isFrontVariantMode = false;                // バリアントモード中フラグ
     QTimer *m_variantTimer = nullptr;                 // 切り替えタイマー
+
+    // シーケンシャルアニメーション用
+    QMap<QString, AnimationSequence> m_animations;         // アニメーション定義（名前 -> シーケンス）
+    QMap<QString, QVector<QPixmap>> m_animPixmapCache;     // 各アニメーションのフレームキャッシュ
+    QString m_currentAnimation;                            // 現在再生中のアニメーション名
+    int m_animFrameIndex = 0;                              // 現在のフレームインデックス
+    QTimer *m_animTimer = nullptr;                         // アニメーションフレーム切り替えタイマー
     
     void loadSettings();
     void processAndCacheImages();
     QPixmap applyTransparency(const QString &filePath, int tx, int ty);
     void updateAvatarDisplay(const QString &state);
     void updateWindowPosition();
-    void switchToNextVariant();  // ランダムバリアント切り替え処理
+    void switchToNextVariant();    // ランダムバリアント切り替え
+    void playAnimation(const QString &name); // アニメーション再生開始
+    void stepAnimationFrame();     // 次フレームを表示（タイマーから呼び出し）
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

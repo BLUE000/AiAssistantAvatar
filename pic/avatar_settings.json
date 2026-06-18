@@ -40,5 +40,43 @@
             { "file": "Front04.png", "weight": 1 },
             { "file": "Front05.png", "weight": 1 }
         ]
+    },
+    "animations": {
+        "left_short": {
+            "label": "左向き（短パターン）",
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0,
+            "frame_interval_ms": 150,
+            "loop": true,
+            "frames": [
+                "Left05.png",
+                "Left01.png",
+                "Left02.png",
+                "Left03.png",
+                "Left05.png"
+            ]
+        },
+        "left_long": {
+            "label": "左向き（長パターン）",
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0,
+            "frame_interval_ms": 150,
+            "loop": true,
+            "frames": [
+                "Left05.png",
+                "Left01.png",
+                "Left02.png",
+                "Left03.png",
+                "Left04.png",
+                "Left04.png",
+                "Left04.png",
+                "Left04.png",
+                "Left05.png"
+            ]
+        }
     }
 }
