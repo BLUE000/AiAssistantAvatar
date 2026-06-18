@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QMouseEvent>
 #include <QMenu>
 #include <QInputDialog>
@@ -11,6 +12,8 @@
 #include <QQueue>
 #include <QDir>
 #include <QDebug>
+#include <QFileDialog>
+#include <QRandomGenerator>
 
 AvatarWindow::AvatarWindow(QWidget *parent)
     : QMainWindow(parent), m_currentState("idle") 
@@ -35,6 +38,16 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     loadSettings();
     processAndCacheImages();
     updateAvatarDisplay("idle");
+
+    // フロント画像ランダム切り替えタイマーの設定
+    if (!m_frontVariants.isEmpty()) {
+        m_variantTimer = new QTimer(this);
+        connect(m_variantTimer, &QTimer::timeout, this, &AvatarWindow::switchToNextVariant);
+        m_variantTimer->start(m_frontVariants.intervalMs);
+        m_isFrontVariantMode = true;
+        // 初期表示を即座にバリアント画像で上書き
+        switchToNextVariant();
+    }
 }
 
 AvatarWindow::~AvatarWindow() {
@@ -94,6 +107,31 @@ void AvatarWindow::loadSettings() {
                     setting.transparentX = stateObj["transparentX"].toInt(0);
                     setting.transparentY = stateObj["transparentY"].toInt(0);
                     m_imageSettings[state] = setting;
+                }
+            }
+
+            // フロントバリアント設定の読み込み
+            if (obj.contains("front_variants") && obj["front_variants"].isObject()) {
+                QJsonObject varObj = obj["front_variants"].toObject();
+                m_frontVariants.anchorX      = varObj["anchorX"].toInt(100);
+                m_frontVariants.anchorY      = varObj["anchorY"].toInt(100);
+                m_frontVariants.transparentX = varObj["transparentX"].toInt(0);
+                m_frontVariants.transparentY = varObj["transparentY"].toInt(0);
+                m_frontVariants.intervalMs   = varObj["interval_ms"].toInt(5000);
+
+                if (varObj.contains("files") && varObj["files"].isArray()) {
+                    QJsonArray filesArr = varObj["files"].toArray();
+                    for (const QJsonValue &v : filesArr) {
+                        // 各エントリはオブジェクト形式：{ "file": "Front01.png", "weight": 1 }
+                        if (v.isObject()) {
+                            QJsonObject entry = v.toObject();
+                            FrontVariantEntry e;
+                            e.filePath = "pic/" + entry["file"].toString();
+                            e.weight   = entry["weight"].toInt(1);
+                            if (e.weight < 1) e.weight = 1; // 最小重みを保証
+                            m_frontVariants.entries.append(e);
+                        }
+                    }
                 }
             }
         }
@@ -171,12 +209,71 @@ void AvatarWindow::processAndCacheImages() {
         QPixmap pixmap = applyTransparency(setting.filePath, setting.transparentX, setting.transparentY);
         m_pixmapCache[state] = pixmap;
     }
+
+    // フロントバリアント画像の事前キャッシュ + 累積重みテーブル構築
+    m_frontPixmapCache.clear();
+    m_weightCumulative.clear();
+    int cumulative = 0;
+    for (const FrontVariantEntry &entry : m_frontVariants.entries) {
+        if (QFile::exists(entry.filePath)) {
+            QPixmap px = applyTransparency(entry.filePath,
+                                           m_frontVariants.transparentX,
+                                           m_frontVariants.transparentY);
+            m_frontPixmapCache.append(px);
+            cumulative += entry.weight;
+            m_weightCumulative.append(cumulative);
+            qDebug() << "Cached front variant:" << entry.filePath << "weight:" << entry.weight;
+        } else {
+            qWarning() << "Front variant not found:" << entry.filePath;
+        }
+    }
 }
 
 void AvatarWindow::updateAvatarDisplay(const QString &state) {
     if (!m_pixmapCache.contains(state)) return;
     m_currentState = state;
+    m_isFrontVariantMode = false; // 状態切り替え時はバリアントモードを一時停止
     updateWindowPosition();
+}
+
+void AvatarWindow::switchToNextVariant() {
+    if (m_frontPixmapCache.isEmpty() || m_weightCumulative.isEmpty()) return;
+
+    // 累積重みテーブルを使った重み付きランダム選択
+    int totalWeight = m_weightCumulative.last();
+    int count       = m_frontPixmapCache.size();
+    int nextIndex   = m_currentFrontIndex;
+
+    // 重み合計が1以上の場合のみアイドル防止ループ
+    int maxTry = count * 10;
+    for (int i = 0; i < maxTry; ++i) {
+        int rnd = static_cast<int>(QRandomGenerator::global()->bounded(totalWeight));
+        // 下界バイナリサーチでインデックスを決定
+        int idx = 0;
+        for (int j = 0; j < m_weightCumulative.size(); ++j) {
+            if (rnd < m_weightCumulative[j]) { idx = j; break; }
+        }
+        if (count <= 1 || idx != m_currentFrontIndex) {
+            nextIndex = idx;
+            break;
+        }
+    }
+    m_currentFrontIndex = nextIndex;
+    m_isFrontVariantMode = true;
+
+    // バリアント画像をラベルに適用
+    QPixmap px = m_frontPixmapCache[m_currentFrontIndex];
+    this->resize(px.size());
+    m_avatarLabel->resize(px.size());
+    m_avatarLabel->setPixmap(px);
+
+    int newX = m_desktopTargetPos.x() - m_frontVariants.anchorX;
+    int newY = m_desktopTargetPos.y() - m_frontVariants.anchorY;
+    this->move(newX, newY);
+
+    if (m_balloon && m_balloon->isVisible()) {
+        m_balloon->move(newX + px.width() - 40, newY - 60);
+    }
 }
 
 void AvatarWindow::updateWindowPosition() {
@@ -230,6 +327,9 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
     
     QAction *actDirectInput = menu.addAction("直接テキスト入力");
     QAction *actVoiceInput = menu.addAction("音声入力開始(STT)");
+    QAction *actResetHistory = menu.addAction("会話履歴をクリアして要約");
+    QAction *actImportHistory = menu.addAction("会話履歴をインポート...");
+    QAction *actExportHistory = menu.addAction("会話履歴をエクスポート...");
     menu.addSeparator();
     QAction *actQuit = menu.addAction("終了");
 
@@ -245,6 +345,21 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
         }
     } else if (selected == actVoiceInput) {
         emit startSTTRequested();
+    } else if (selected == actResetHistory) {
+        emit resetSessionRequested();
+    } else if (selected == actImportHistory) {
+        QString filePath = QFileDialog::getOpenFileName(this, "会話履歴のインポート", "log", "Encrypted Backups (*.enc)");
+        if (!filePath.isEmpty()) {
+            emit importSessionRequested(filePath);
+        }
+    } else if (selected == actExportHistory) {
+        QString encPath = QFileDialog::getOpenFileName(this, "エクスポート元（暗号ファイル）の選択", "log", "Encrypted Backups (*.enc)");
+        if (!encPath.isEmpty()) {
+            QString txtPath = QFileDialog::getSaveFileName(this, "エクスポート先（テキストファイル）の選択", "log/decrypted_history.txt", "Text Files (*.txt)");
+            if (!txtPath.isEmpty()) {
+                emit exportSessionRequested(encPath, txtPath);
+            }
+        }
     } else if (selected == actQuit) {
         close();
     }

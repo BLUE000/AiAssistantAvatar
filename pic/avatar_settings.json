@@ -1,0 +1,44 @@
+{
+    "idle": {
+        "file": "Front01.png",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    },
+    "listening": {
+        "file": "Front03.png",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    },
+    "thinking": {
+        "file": "Front04.png",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    },
+    "speaking": {
+        "file": "Front05.png",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    },
+    "front_variants": {
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0,
+        "interval_ms": 5000,
+        "files": [
+            { "file": "Front01.png", "weight": 1 },
+            { "file": "Front02.png", "weight": 1 },
+            { "file": "Front03.png", "weight": 1 },
+            { "file": "Front04.png", "weight": 1 },
+            { "file": "Front05.png", "weight": 1 }
+        ]
+    }
+}
