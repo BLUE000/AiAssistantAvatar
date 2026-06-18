@@ -62,3 +62,19 @@ void CoreModule::on_directInputSubmitted(const QString &text) {
 
     emit requestAI(text);
 }
+
+void CoreModule::on_resetSessionRequested() {
+    qDebug() << "CoreModule: Session reset requested from UI.";
+    emit requestSessionReset(true); // 手動リセット
+}
+
+void CoreModule::on_importSessionRequested(const QString &filePath) {
+    qDebug() << "CoreModule: Session import requested from UI. File:" << filePath;
+    emit requestSessionImport(filePath);
+}
+
+void CoreModule::on_exportSessionRequested(const QString &encPath, const QString &txtPath) {
+    qDebug() << "CoreModule: Session export requested from UI. Enc:" << encPath << "Txt:" << txtPath;
+    emit requestSessionExport(encPath, txtPath);
+}
+

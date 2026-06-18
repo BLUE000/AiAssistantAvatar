@@ -24,7 +24,12 @@ FetchContent_MakeAvailable(googletest)
 set(TEST_SOURCES
     test_main.cpp
     test_twitch_reader.cpp
+    test_ai_client.cpp
     ../src/twitch/twitch_reader.cpp
+    ../src/ai/ai_client_manager.cpp
+    ../src/ai/iai_client.cpp
+    ../src/ai/mistral_ai_client.cpp
+    ../src/ai/dummy_ai_client.cpp
 )
 
 add_executable(AiAssistantAvatarTest ${TEST_SOURCES})
@@ -33,6 +38,10 @@ add_executable(AiAssistantAvatarTest ${TEST_SOURCES})
 target_include_directories(AiAssistantAvatarTest PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(AiAssistantAvatarTest PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
 )
 
 # リンク先ライブラリ
@@ -44,6 +53,7 @@ target_link_libraries(AiAssistantAvatarTest PRIVATE
     Qt6::Network
     Qt6::WebSockets
     Qt6::Test
+    TransCipher
 )
 
 add_test(NAME TwitchReaderTest COMMAND AiAssistantAvatarTest)

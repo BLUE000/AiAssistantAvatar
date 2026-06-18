@@ -57,6 +57,12 @@ int main(int argc, char *argv[]) {
                      core, &CoreModule::on_startSTTRequested, Qt::QueuedConnection);
     QObject::connect(&window, &AvatarWindow::directInputSubmitted,
                      core, &CoreModule::on_directInputSubmitted, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::resetSessionRequested,
+                     core, &CoreModule::on_resetSessionRequested, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::importSessionRequested,
+                     core, &CoreModule::on_importSessionRequested, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::exportSessionRequested,
+                     core, &CoreModule::on_exportSessionRequested, Qt::QueuedConnection);
 
     // Core -> UI
     QObject::connect(core, &CoreModule::notifyEventToUI,
@@ -71,6 +77,12 @@ int main(int argc, char *argv[]) {
                      stt, &STTManager::on_stopListening, Qt::QueuedConnection);
     QObject::connect(core, &CoreModule::requestAI,
                      ai, &AIClientManager::on_requestAI, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestSessionReset,
+                     ai, &AIClientManager::resetSession, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestSessionImport,
+                     ai, &AIClientManager::importSessionBackup, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestSessionExport,
+                     ai, &AIClientManager::exportSessionBackup, Qt::QueuedConnection);
 
     // SubModules -> Core (イベント通知)
     QObject::connect(twitch, &TwitchReader::notifyEvent,

@@ -21,7 +21,7 @@ void MistralAIClient::setApiKey(const QString &apiKey) {
     m_apiKey = apiKey;
 }
 
-void MistralAIClient::sendRequest(const QString &prompt) {
+void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext) {
     if (m_apiKey.isEmpty()) {
         emit requestFinished("Mistral APIキーが設定されていません。local_settings.json を確認してください。", false);
         return;
@@ -39,9 +39,28 @@ void MistralAIClient::sendRequest(const QString &prompt) {
     QJsonArray messages;
     QJsonObject systemMessage;
     systemMessage["role"] = "system";
-    systemMessage["content"] = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。";
+    
+    QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。";
+    if (!sessionContext.isEmpty()) {
+        systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
+    }
+    systemMessage["content"] = systemPrompt;
     messages.append(systemMessage);
 
+    // 過去の対話履歴を追加
+    for (const auto &pair : history) {
+        QJsonObject histUser;
+        histUser["role"] = "user";
+        histUser["content"] = pair.first;
+        messages.append(histUser);
+
+        QJsonObject histAssistant;
+        histAssistant["role"] = "assistant";
+        histAssistant["content"] = pair.second;
+        messages.append(histAssistant);
+    }
+
+    // 最新のプロンプトを追加
     QJsonObject userMessage;
     userMessage["role"] = "user";
     userMessage["content"] = prompt;
@@ -52,7 +71,7 @@ void MistralAIClient::sendRequest(const QString &prompt) {
     QJsonDocument doc(requestBody);
     QByteArray postData = doc.toJson();
 
-    qDebug() << "MistralAIClient: Sending POST request to Mistral API...";
+    qDebug() << "MistralAIClient: Sending POST request to Mistral API with" << history.size() << "history messages...";
     m_networkManager->post(request, postData);
 }
 

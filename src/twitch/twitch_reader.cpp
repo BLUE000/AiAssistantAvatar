@@ -9,6 +9,7 @@
 #include <QTcpSocket>
 #include <QUrlQuery>
 #include <QRegularExpression>
+#include <QCoreApplication>
 
 TwitchReader::TwitchReader(QObject *parent) 
     : QObject(parent), m_wakeWord("アバターさん") 
@@ -28,9 +29,25 @@ void TwitchReader::setSettings(const QString &channel, const QString &token, con
 }
 
 void TwitchReader::loadSettings() {
-    QFile file("local_settings.json");
+    m_configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(m_configPath)) {
+        m_configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+    }
+#endif
+    if (!QFile::exists(m_configPath)) {
+        m_configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
+    if (!QFile::exists(m_configPath)) {
+        m_configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    }
+    if (!QFile::exists(m_configPath)) {
+        m_configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+    }
+
+    QFile file(m_configPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "TwitchReader: local_settings.json not found or unable to open. Using defaults.";
+        qWarning() << "TwitchReader: local_settings.json not found or unable to open. Tried path:" << m_configPath;
         return;
     }
     QByteArray data = file.readAll();
@@ -43,13 +60,39 @@ void TwitchReader::loadSettings() {
         m_oauthToken = obj.value("twitch_oauth_token").toString().trimmed();
         m_channel = obj.value("twitch_channel").toString().trimmed();
         m_authPort = obj.value("twitch_port").toInt(48080);
+        m_wakeWord = obj.value("twitch_wakeword").toString("アバターさん").trimmed();
+        if (m_wakeWord.isEmpty()) {
+            m_wakeWord = "アバターさん";
+        }
+        m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed().toLower();
+        if (m_wakeWordMode.isEmpty()) {
+            m_wakeWordMode = "contains";
+        }
     }
 }
 
 void TwitchReader::saveTokenToSettings(const QString &token) {
     m_oauthToken = token;
     
-    QFile file("local_settings.json");
+    if (m_configPath.isEmpty()) {
+        m_configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+        if (!QFile::exists(m_configPath)) {
+            m_configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+        }
+#endif
+        if (!QFile::exists(m_configPath)) {
+            m_configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+        }
+        if (!QFile::exists(m_configPath)) {
+            m_configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+        }
+        if (!QFile::exists(m_configPath)) {
+            m_configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+        }
+    }
+
+    QFile file(m_configPath);
     QByteArray data;
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         data = file.readAll();
@@ -68,9 +111,9 @@ void TwitchReader::saveTokenToSettings(const QString &token) {
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         file.write(newDoc.toJson(QJsonDocument::Indented));
         file.close();
-        qDebug() << "TwitchReader: OAuth token saved to local_settings.json";
+        qDebug() << "TwitchReader: OAuth token saved to" << m_configPath;
     } else {
-        qWarning() << "TwitchReader: Failed to save OAuth token to local_settings.json";
+        qWarning() << "TwitchReader: Failed to save OAuth token to" << m_configPath;
     }
 }
 
@@ -303,11 +346,26 @@ void TwitchReader::on_stopReading() {
 void TwitchReader::injectTestComment(const QString &user, const QString &message) {
     qDebug() << "TwitchReader: Injected comment from" << user << ":" << message;
 
-    if (!m_wakeWord.isEmpty() && message.contains(m_wakeWord)) {
-        QString cleanMessage = message;
-        cleanMessage.replace(m_wakeWord, "");
-        cleanMessage = cleanMessage.trimmed();
+    if (m_wakeWord.isEmpty()) return;
 
+    bool isMatch = false;
+    QString cleanMessage = message;
+
+    if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
+        if (message.startsWith(m_wakeWord)) {
+            isMatch = true;
+            cleanMessage = message.mid(m_wakeWord.length()).trimmed();
+        }
+    } else {
+        if (message.contains(m_wakeWord)) {
+            isMatch = true;
+            cleanMessage = message;
+            cleanMessage.replace(m_wakeWord, "");
+            cleanMessage = cleanMessage.trimmed();
+        }
+    }
+
+    if (isMatch) {
         AppEvent event;
         event.type = EventType::TwitchCommentReceived;
         event.source = "TwitchReader";

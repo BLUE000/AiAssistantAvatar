@@ -20,7 +20,9 @@ void DummyAIClient::setApiKey(const QString &apiKey) {
     Q_UNUSED(apiKey);
 }
 
-void DummyAIClient::sendRequest(const QString &prompt) {
+void DummyAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext) {
+    Q_UNUSED(history);
+    Q_UNUSED(sessionContext);
     m_lastPrompt = prompt;
     qDebug() << "DummyAIClient: Simulating AI request processing for prompt:" << prompt;
     m_dummyTimer->start(2000); // 2秒後に応答

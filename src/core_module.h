@@ -17,6 +17,9 @@ signals:
     void requestSTTStart();
     void requestSTTStop();
     void requestAI(const QString &prompt);
+    void requestSessionReset(bool isManual); // セッションリセット要求シグナル
+    void requestSessionImport(const QString &filePath);
+    void requestSessionExport(const QString &encPath, const QString &txtPath);
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -25,4 +28,7 @@ public slots:
     // UIからの直接命令を受け取るスロット
     void on_startSTTRequested();
     void on_directInputSubmitted(const QString &text);
+    void on_resetSessionRequested(); // UIからのセッションリセット要求を受け取るスロット
+    void on_importSessionRequested(const QString &filePath);
+    void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
 };

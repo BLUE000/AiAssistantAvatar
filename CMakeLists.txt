@@ -56,6 +56,11 @@ target_include_directories(AiAssistantAvatar PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
+# 開発用の絶対プロジェクトパスをコンパイル時マクロとして定義
+target_compile_definitions(AiAssistantAvatar PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
 # Qtライブラリおよび独自ライブラリのリンク
 target_link_libraries(AiAssistantAvatar PRIVATE
     Qt6::Core

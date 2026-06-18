@@ -35,3 +35,24 @@ TEST(TwitchReaderTest, EmptyWakeWordDoesNotTrigger) {
     reader.injectTestComment("userA", "アバターさん、こんにちは！");
     EXPECT_EQ(spy.count(), 0);
 }
+
+TEST(TwitchReaderTest, CommandPrefixMode) {
+    TwitchReader reader;
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "!gpt");
+    reader.setWakeWordMode("prefix");
+
+    QSignalSpy spy(&reader, &TwitchReader::notifyEvent);
+
+    // 1. コマンドで始まっているメッセージ (正常系)
+    reader.injectTestComment("userA", "!gpt 今日の天気は？");
+    ASSERT_EQ(spy.count(), 1);
+    
+    AppEvent event = spy.takeFirst().at(0).value<AppEvent>();
+    EXPECT_EQ(event.type, EventType::TwitchCommentReceived);
+    EXPECT_EQ(event.text, "今日の天気は？");
+
+    // 2. コマンドが含まれているが、先頭ではないメッセージ (非トリガー)
+    reader.injectTestComment("userB", "昨日、!gpt を使ってみました。");
+    EXPECT_EQ(spy.count(), 0);
+}
+

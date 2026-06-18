@@ -1,12 +1,15 @@
 #pragma once
 #include <QObject>
+#include <QList>
+#include <QPair>
+#include <QString>
 
 class IAIClient : public QObject {
     Q_OBJECT
 public:
     explicit IAIClient(QObject *parent = nullptr);
     virtual ~IAIClient();
-    virtual void sendRequest(const QString &prompt) = 0;
+    virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString()) = 0;
     virtual void setApiKey(const QString &apiKey) = 0;
 
 signals:
