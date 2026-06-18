@@ -85,11 +85,13 @@ private:
     bool m_animAutoPlay = false;  // スケジューラー自動再生中フラグ
 
     // パターンスケジューラー
-    QVector<PatternSchedulerEntry> m_schedulerEntries;   // エントリリスト
-    QVector<int> m_schedulerWeights;                     // 累積重みテーブル
-    QString m_lastScheduledName;                         // 連続同一回避用
-    QTimer *m_schedulerTimer = nullptr;                  // 次のパターン指示タイマー
+    QVector<PatternSchedulerEntry> m_schedulerEntries;
+    QVector<int> m_schedulerWeights;
+    QString m_lastScheduledName;
+    QTimer *m_schedulerTimer = nullptr;
     bool m_schedulerEnabled = false;
+    bool m_schedulerPaused = false;   // AI 応答中は一時停止
+    QTimer *m_resumeTimer = nullptr;  // Speaking 後に自動再開するタイマー
     void loadSettings();
     void processAndCacheImages();
     QPixmap applyTransparency(const QString &filePath, int tx, int ty);
@@ -99,7 +101,9 @@ private:
     void switchVariantGroup(const QString &groupName);
     void playAnimation(const QString &name, bool autoPlay = false);
     void stepAnimationFrame();
-    void pickNextPattern();       // スケジューラーが次のパターンをランダム選択
+    void pickNextPattern();
+    void pauseScheduler();    // AI 処理中にスケジューラーを停止
+    void resumeScheduler();   // AI 処理完了後にスケジューラーを再開
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

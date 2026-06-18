@@ -464,6 +464,8 @@ void AvatarWindow::switchVariantGroup(const QString &groupName) {
 }
 
 void AvatarWindow::pickNextPattern() {
+    // スケジューラー一時停止中は何もしない
+    if (m_schedulerPaused) return;
     if (m_schedulerEntries.isEmpty() || m_schedulerWeights.isEmpty()) return;
 
     // 累積重みテーブルで重み付きランダム選択（連続同一回避）
@@ -485,13 +487,30 @@ void AvatarWindow::pickNextPattern() {
     qDebug() << "Scheduler: picked" << entry.type << entry.name;
 
     if (entry.type == "variant_group") {
-        // 1枚を静止表示して stay_ms 待機後に次へ
         switchVariantGroup(entry.name);
         if (m_schedulerTimer) m_schedulerTimer->start(entry.stayMs);
     } else if (entry.type == "animation") {
-        // 1回再生（autoPlay=true なので完了後に pickNextPattern が呼ばれる）
         playAnimation(entry.name, true);
     }
+}
+
+void AvatarWindow::pauseScheduler() {
+    if (!m_schedulerEnabled) return;
+    m_schedulerPaused = true;
+    if (m_schedulerTimer) m_schedulerTimer->stop();
+    if (m_variantTimer)   m_variantTimer->stop();
+    if (m_animTimer)      m_animTimer->stop();
+    if (m_resumeTimer)    m_resumeTimer->stop();
+    qDebug() << "Scheduler: paused for AI interaction";
+}
+
+void AvatarWindow::resumeScheduler() {
+    if (!m_schedulerEnabled) return;
+    m_schedulerPaused = false;
+    m_animAutoPlay = false;
+    qDebug() << "Scheduler: resumed";
+    // 少し間を置いてから次のパターンへ
+    QTimer::singleShot(500, this, &AvatarWindow::pickNextPattern);
 }
 
 // -------------------------------------------------------
@@ -723,6 +742,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
 
     switch (event.type) {
         case EventType::VoiceInputStarted:
+            pauseScheduler();
             updateAvatarDisplay("listening");
             showBalloon("マイクの音声を聩いています...");
             break;
@@ -733,6 +753,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             break;
 
         case EventType::DirectInputSubmitted:
+            pauseScheduler();
             updateAvatarDisplay("thinking");
             showBalloon("「" + event.text + "」を考え中...");
             break;
@@ -742,14 +763,36 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             showBalloon("AIの返答を待っています...");
             break;
 
-        case EventType::AIResponseReceived:
+        case EventType::AIResponseReceived: {
             updateAvatarDisplay("speaking");
             showBalloon(event.text);
+            // 応答テキストの長さに応じて表示時間を計算（最低5秒・最大30秒）
+            int readMs = qBound(5000, event.text.length() * 120, 30000);
+            if (!m_resumeTimer) {
+                m_resumeTimer = new QTimer(this);
+                m_resumeTimer->setSingleShot(true);
+                connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
+                    m_balloon->hide();
+                    resumeScheduler();
+                });
+            }
+            m_resumeTimer->start(readMs);
             break;
+        }
 
         case EventType::ErrorOccurred:
             updateAvatarDisplay("idle");
             showBalloon("エラーが発生しました: " + event.text);
+            // エラー時も一定時間後にスケジューラー再開
+            if (!m_resumeTimer) {
+                m_resumeTimer = new QTimer(this);
+                m_resumeTimer->setSingleShot(true);
+                connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
+                    m_balloon->hide();
+                    resumeScheduler();
+                });
+            }
+            m_resumeTimer->start(5000);
             break;
 
         default:
