@@ -41,18 +41,27 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     processAndCacheImages();
     updateAvatarDisplay("idle");
 
-    // 最初のバリアントグループを起動（front_variants を優先、なければ最初のグループ）
-    QString firstGroup;
-    if (m_allVariantGroups.contains("front_variants")) {
-        firstGroup = "front_variants";
-    } else if (!m_allVariantGroups.isEmpty()) {
-        firstGroup = m_allVariantGroups.firstKey();
-    }
+    // バリアントフレーム内切り替え用タイマーの準備
+    m_variantTimer = new QTimer(this);
+    connect(m_variantTimer, &QTimer::timeout, this, &AvatarWindow::switchToNextVariant);
 
-    if (!firstGroup.isEmpty()) {
-        m_variantTimer = new QTimer(this);
-        connect(m_variantTimer, &QTimer::timeout, this, &AvatarWindow::switchToNextVariant);
-        switchVariantGroup(firstGroup); // タイマー起動も内部で実行
+    if (m_schedulerEnabled && !m_schedulerEntries.isEmpty()) {
+        // パターンスケジューラーモード
+        m_schedulerTimer = new QTimer(this);
+        m_schedulerTimer->setSingleShot(true);
+        connect(m_schedulerTimer, &QTimer::timeout, this, &AvatarWindow::pickNextPattern);
+        pickNextPattern(); // 起動後即座に最初のパターンを選択
+    } else {
+        // スケジューラーなしの場合は従来通り front_variants を起動
+        QString firstGroup;
+        if (m_allVariantGroups.contains("front_variants")) {
+            firstGroup = "front_variants";
+        } else if (!m_allVariantGroups.isEmpty()) {
+            firstGroup = m_allVariantGroups.firstKey();
+        }
+        if (!firstGroup.isEmpty()) {
+            switchVariantGroup(firstGroup);
+        }
     }
 }
 
@@ -200,6 +209,31 @@ void AvatarWindow::loadSettings() {
                     if (!seq.frames.isEmpty()) {
                         m_animations[animName] = seq;
                         qDebug() << "Loaded animation:" << animName << "frames:" << seq.frames.size();
+                    }
+                }
+            }
+
+            // pattern_scheduler の読み込み
+            if (obj.contains("pattern_scheduler") && obj["pattern_scheduler"].isObject()) {
+                QJsonObject schedObj = obj["pattern_scheduler"].toObject();
+                m_schedulerEnabled = schedObj["enabled"].toBool(false);
+
+                if (m_schedulerEnabled && schedObj.contains("entries") && schedObj["entries"].isArray()) {
+                    int cumulative = 0;
+                    for (const QJsonValue &ev : schedObj["entries"].toArray()) {
+                        if (!ev.isObject()) continue;
+                        QJsonObject e = ev.toObject();
+                        PatternSchedulerEntry entry;
+                        entry.type   = e["type"].toString();
+                        entry.name   = e["name"].toString();
+                        entry.weight = e["weight"].toInt(1);
+                        entry.stayMs = e["stay_ms"].toInt(8000);
+                        if (entry.weight < 1) entry.weight = 1;
+                        m_schedulerEntries.append(entry);
+                        cumulative += entry.weight;
+                        m_schedulerWeights.append(cumulative);
+                        qDebug() << "Scheduler entry:" << entry.type << entry.name
+                                 << "weight:" << entry.weight << "stay_ms:" << entry.stayMs;
                     }
                 }
             }
@@ -410,7 +444,6 @@ void AvatarWindow::switchVariantGroup(const QString &groupName) {
         qWarning() << "switchVariantGroup: group not found:" << groupName;
         return;
     }
-    // アニメーション停止
     if (m_animTimer) m_animTimer->stop();
     m_currentAnimation.clear();
 
@@ -418,36 +451,70 @@ void AvatarWindow::switchVariantGroup(const QString &groupName) {
     m_currentFrontIndex = 0;
     m_isFrontVariantMode = true;
 
-    int intervalMs = m_allVariantGroups[groupName].intervalMs;
-    if (m_variantTimer) {
-        m_variantTimer->start(intervalMs);
+    // スケジューラーモードの場合は内部ローテーションタイマーを起動しない（スケジューラーが次を決める）
+    if (!m_schedulerEnabled) {
+        int intervalMs = m_allVariantGroups[groupName].intervalMs;
+        if (m_variantTimer) m_variantTimer->start(intervalMs);
+    } else {
+        if (m_variantTimer) m_variantTimer->stop();
     }
-    switchToNextVariant(); // 即座に初回表示
+
+    switchToNextVariant(); // 1枚を即座に表示
     qDebug() << "Switched to variant group:" << groupName;
+}
+
+void AvatarWindow::pickNextPattern() {
+    if (m_schedulerEntries.isEmpty() || m_schedulerWeights.isEmpty()) return;
+
+    // 累積重みテーブルで重み付きランダム選択（連続同一回避）
+    int total = m_schedulerWeights.last();
+    int count = m_schedulerEntries.size();
+    int selectedIdx = 0;
+
+    int maxTry = count * 10;
+    for (int i = 0; i < maxTry; ++i) {
+        int rnd = static_cast<int>(QRandomGenerator::global()->bounded(total));
+        for (int j = 0; j < m_schedulerWeights.size(); ++j) {
+            if (rnd < m_schedulerWeights[j]) { selectedIdx = j; break; }
+        }
+        if (count <= 1 || m_schedulerEntries[selectedIdx].name != m_lastScheduledName) break;
+    }
+
+    const PatternSchedulerEntry &entry = m_schedulerEntries[selectedIdx];
+    m_lastScheduledName = entry.name;
+    qDebug() << "Scheduler: picked" << entry.type << entry.name;
+
+    if (entry.type == "variant_group") {
+        // 1枚を静止表示して stay_ms 待機後に次へ
+        switchVariantGroup(entry.name);
+        if (m_schedulerTimer) m_schedulerTimer->start(entry.stayMs);
+    } else if (entry.type == "animation") {
+        // 1回再生（autoPlay=true なので完了後に pickNextPattern が呼ばれる）
+        playAnimation(entry.name, true);
+    }
 }
 
 // -------------------------------------------------------
 // シーケンシャルアニメーション
 // -------------------------------------------------------
-void AvatarWindow::playAnimation(const QString &name) {
+void AvatarWindow::playAnimation(const QString &name, bool autoPlay) {
     if (!m_animPixmapCache.contains(name) || m_animPixmapCache[name].isEmpty()) {
         qWarning() << "playAnimation: animation not found or empty:" << name;
+        // スケジューラーモードなら次に進む
+        if (autoPlay && m_schedulerEnabled) pickNextPattern();
         return;
     }
 
-    // バリアントタイマーを一時停止
     if (m_variantTimer) m_variantTimer->stop();
-
-    // 既存のアニメーションタイマーを停止
-    if (m_animTimer) m_animTimer->stop();
+    if (m_animTimer)    m_animTimer->stop();
+    if (m_schedulerTimer) m_schedulerTimer->stop();
 
     m_currentAnimation = name;
     m_animFrameIndex   = 0;
+    m_animAutoPlay     = autoPlay;
 
-    // 最初のフレームを即座に表示
     stepAnimationFrame();
 
-    // タイマー起動
     int interval = m_animations[name].frameIntervalMs;
     if (!m_animTimer) {
         m_animTimer = new QTimer(this);
@@ -479,14 +546,20 @@ void AvatarWindow::stepAnimationFrame() {
     // 次のフレームへ進む
     m_animFrameIndex++;
     if (m_animFrameIndex >= frames.size()) {
-        if (seq.loop) {
-            m_animFrameIndex = 0;  // ループ
+        if (seq.loop && !m_animAutoPlay) {
+            m_animFrameIndex = 0;  // 手動選択時はループ
         } else {
-            // 再生完了 → 現在アクティブなバリアントグループに復帰
+            // 再生完了
             if (m_animTimer) m_animTimer->stop();
             m_currentAnimation.clear();
-            if (!m_activeVariantGroupName.isEmpty()) {
-                switchVariantGroup(m_activeVariantGroupName);
+            if (m_animAutoPlay && m_schedulerEnabled) {
+                // スケジューラー自動模 → 次のパターンへ
+                QTimer::singleShot(300, this, &AvatarWindow::pickNextPattern);
+            } else {
+                // 手動選択時 → 現在のバリアントグループに戻る
+                if (!m_activeVariantGroupName.isEmpty()) {
+                    switchVariantGroup(m_activeVariantGroupName);
+                }
             }
         }
     }

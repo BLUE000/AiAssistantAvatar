@@ -129,5 +129,16 @@
                 "Right01.png"
             ]
         }
+    },
+    "pattern_scheduler": {
+        "enabled": true,
+        "entries": [
+            { "type": "variant_group", "name": "front_variants", "weight": 5, "stay_ms": 15000 },
+            { "type": "variant_group", "name": "back_variants",  "weight": 3, "stay_ms": 12000 },
+            { "type": "animation",     "name": "left_short",     "weight": 1 },
+            { "type": "animation",     "name": "left_long",      "weight": 1 },
+            { "type": "animation",     "name": "right_short",    "weight": 1 },
+            { "type": "animation",     "name": "right_long",     "weight": 1 }
+        ]
     }
 }

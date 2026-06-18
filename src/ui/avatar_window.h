@@ -35,14 +35,22 @@ struct FrontVariantSettings {
 
 // フレーム順に連続再生するアニメーションシーケンス
 struct AnimationSequence {
-    QString label;               // 表示名（メニュー用）
-    QVector<QString> frames;     // ファイルパスの順序リスト
+    QString label;
+    QVector<QString> frames;
     int anchorX = 100;
     int anchorY = 100;
     int transparentX = 0;
     int transparentY = 0;
-    int frameIntervalMs = 150;   // 1フレームあたりの表示時間（ms）
-    bool loop = true;            // ループ再生するか
+    int frameIntervalMs = 150;
+    bool loop = true;
+};
+
+// パターンスケジューラーの1エントリ
+struct PatternSchedulerEntry {
+    QString type;       // "variant_group" または "animation"
+    QString name;       // グループ名 / アニメーション名
+    int weight = 1;     // 選択重み
+    int stayMs = 8000;  // variant_group の場合の滞在時間（ms）
 };
 
 // UIのバルーン（吹き出し）ウィジェットを先行宣言
@@ -69,21 +77,29 @@ private:
     QTimer *m_variantTimer = nullptr;    // 切り替えタイマー
 
     // シーケンシャルアニメーション用
-    QMap<QString, AnimationSequence> m_animations;         // アニメーション定義（名前 -> シーケンス）
-    QMap<QString, QVector<QPixmap>> m_animPixmapCache;     // 各アニメーションのフレームキャッシュ
-    QString m_currentAnimation;                            // 現在再生中のアニメーション名
-    int m_animFrameIndex = 0;                              // 現在のフレームインデックス
-    QTimer *m_animTimer = nullptr;                         // アニメーションフレーム切り替えタイマー
-    
+    QMap<QString, AnimationSequence> m_animations;
+    QMap<QString, QVector<QPixmap>> m_animPixmapCache;
+    QString m_currentAnimation;
+    int m_animFrameIndex = 0;
+    QTimer *m_animTimer = nullptr;
+    bool m_animAutoPlay = false;  // スケジューラー自動再生中フラグ
+
+    // パターンスケジューラー
+    QVector<PatternSchedulerEntry> m_schedulerEntries;   // エントリリスト
+    QVector<int> m_schedulerWeights;                     // 累積重みテーブル
+    QString m_lastScheduledName;                         // 連続同一回避用
+    QTimer *m_schedulerTimer = nullptr;                  // 次のパターン指示タイマー
+    bool m_schedulerEnabled = false;
     void loadSettings();
     void processAndCacheImages();
     QPixmap applyTransparency(const QString &filePath, int tx, int ty);
     void updateAvatarDisplay(const QString &state);
     void updateWindowPosition();
-    void switchToNextVariant();    // ランダムバリアント切り替え
-    void switchVariantGroup(const QString &groupName); // バリアントグループを切り替え
-    void playAnimation(const QString &name); // アニメーション再生開始
-    void stepAnimationFrame();     // 次フレームを表示（タイマーから呼び出し）
+    void switchToNextVariant();
+    void switchVariantGroup(const QString &groupName);
+    void playAnimation(const QString &name, bool autoPlay = false);
+    void stepAnimationFrame();
+    void pickNextPattern();       // スケジューラーが次のパターンをランダム選択
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
