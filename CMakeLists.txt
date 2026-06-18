@@ -19,7 +19,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt6の検出
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network WebSockets)
 qt_standard_project_setup()
 
 # 依存サブフォルダ/ライブラリの登録
@@ -62,9 +62,14 @@ target_link_libraries(AiAssistantAvatar PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    Qt6::WebSockets
     TransCipher
 )
 
 # TrustChain セットアップ (魔法の3行の適用)
 trustchain_setup_target(AiAssistantAvatar)
 target_link_libraries(AiAssistantAvatar PRIVATE trustchain)
+
+# テストビルドの有効化
+enable_testing()
+add_subdirectory(test)
