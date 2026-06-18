@@ -435,7 +435,8 @@ void AvatarWindow::switchToNextVariant() {
     int newY = m_desktopTargetPos.y() - grp.anchorY;
     this->move(newX, newY);
     if (m_balloon && m_balloon->isVisible()) {
-        m_balloon->move(newX + px.width() - 40, newY - 60);
+        // 子ウィジェットのため親相対座標で追従
+        m_balloon->move(px.width() - m_balloon->width() + 20, -m_balloon->height() - 5);
     }
 }
 
@@ -559,7 +560,7 @@ void AvatarWindow::stepAnimationFrame() {
     int newY = m_desktopTargetPos.y() - seq.anchorY;
     this->move(newX, newY);
     if (m_balloon && m_balloon->isVisible()) {
-        m_balloon->move(newX + px.width() - 40, newY - 60);
+        m_balloon->move(px.width() - m_balloon->width() + 20, -m_balloon->height() - 5);
     }
 
     // 次のフレームへ進む
@@ -601,7 +602,7 @@ void AvatarWindow::updateWindowPosition() {
 
     // バルーン位置の追従 (アバターの右上付近に表示)
     if (m_balloon && m_balloon->isVisible()) {
-        m_balloon->move(newX + currentPixmap.width() - 40, newY - 60);
+        m_balloon->move(currentPixmap.width() - m_balloon->width() + 20, -m_balloon->height() - 5);
     }
 }
 
@@ -624,7 +625,7 @@ void AvatarWindow::mouseMoveEvent(QMouseEvent *event) {
         
         // バルーンの追従
         if (m_balloon && m_balloon->isVisible()) {
-            m_balloon->move(newPos.x() + width() - 40, newPos.y() - 60);
+            m_balloon->move(width() - m_balloon->width() + 20, -m_balloon->height() - 5);
         }
         event->accept();
     }
@@ -730,14 +731,16 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
     qDebug() << "AvatarWindow received event. Type:" << static_cast<int>(event.type) << "Text:" << event.text;
 
     // バルーンの表示位置を現在のウィンドウ位置から計算するラムダ
+    // BalloonWidget は Qt::SubWindow (子ウィジェット) のため move() は親相対座標
     auto showBalloon = [this](const QString &text) {
         m_balloon->showText(text);
-        // アバターの右上にバルーンを配置（表示/非表示に関わらず常に位置設定）
-        int bx = this->x() + this->width() - 40;
-        int by = this->y() - m_balloon->height() - 10;
-        // 画面上に収まるように調整
-        if (by < 0) by = this->y() + this->height() + 5;
+        // 親ウィジェット(AvatarWindow)の右上にバルーンを配置（相対座標）
+        int bx = this->width() - m_balloon->width() + 20;
+        int by = -m_balloon->height() - 5;
+        // 画面上部に収まらない場合はアバターの下に表示
+        if (this->y() + by < 0) by = this->height() + 5;
         m_balloon->move(bx, by);
+        m_balloon->raise(); // アバター画像の前面に表示
     };
 
     switch (event.type) {
