@@ -495,34 +495,49 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
         close();
     }
 }
-
 void AvatarWindow::on_notify_events(const AppEvent &event) {
     qDebug() << "AvatarWindow received event. Type:" << static_cast<int>(event.type) << "Text:" << event.text;
+
+    // バルーンの表示位置を現在のウィンドウ位置から計算するラムダ
+    auto showBalloon = [this](const QString &text) {
+        m_balloon->showText(text);
+        // アバターの右上にバルーンを配置（表示/非表示に関わらず常に位置設定）
+        int bx = this->x() + this->width() - 40;
+        int by = this->y() - m_balloon->height() - 10;
+        // 画面上に収まるように調整
+        if (by < 0) by = this->y() + this->height() + 5;
+        m_balloon->move(bx, by);
+    };
 
     switch (event.type) {
         case EventType::VoiceInputStarted:
             updateAvatarDisplay("listening");
-            m_balloon->showText("マイクの音声を聞いています...");
+            showBalloon("マイクの音声を聩いています...");
             break;
-        
+
         case EventType::VoiceInputCompleted:
             updateAvatarDisplay("thinking");
-            m_balloon->showText("認識結果: 「" + event.text + "」");
+            showBalloon("認識結果: 「" + event.text + "」");
             break;
-            
+
+        case EventType::DirectInputSubmitted:
+            updateAvatarDisplay("thinking");
+            showBalloon("「" + event.text + "」を考え中...");
+            break;
+
         case EventType::AIRequestSent:
             updateAvatarDisplay("thinking");
-            m_balloon->showText("AIの返答を待っています...");
+            showBalloon("AIの返答を待っています...");
             break;
-            
+
         case EventType::AIResponseReceived:
             updateAvatarDisplay("speaking");
-            m_balloon->showText(event.text);
+            showBalloon(event.text);
             break;
-            
+
         case EventType::ErrorOccurred:
             updateAvatarDisplay("idle");
-            m_balloon->showText("エラーが発生しました: " + event.text);
+            showBalloon("エラーが発生しました: " + event.text);
             break;
 
         default:
