@@ -22,12 +22,13 @@ struct FrontVariantEntry {
 };
 
 struct FrontVariantSettings {
-    QVector<FrontVariantEntry> entries;  // バリアントエントリ一覧
+    QString label;               // 表示名（メニュー用）
+    QVector<FrontVariantEntry> entries;
     int anchorX = 100;
     int anchorY = 100;
     int transparentX = 0;
     int transparentY = 0;
-    int intervalMs = 5000;   // 切り替え間隔（ms）
+    int intervalMs = 5000;
 
     bool isEmpty() const { return entries.isEmpty(); }
 };
@@ -58,13 +59,14 @@ private:
     QPoint m_desktopTargetPos;                        // アバター表示の基準目標座標
     QPoint m_dragPosition;                            // ドラッグ用一時座標
 
-    // フロント画像ランダム切り替え用
-    FrontVariantSettings m_frontVariants;             // フロントバリアント設定
-    QVector<QPixmap> m_frontPixmapCache;              // 前処理済みバリアント画像
-    QVector<int> m_weightCumulative;                  // 累積重みテーブル（重み付き選択用）
-    int m_currentFrontIndex = 0;                      // 現在表示中のインデックス
-    bool m_isFrontVariantMode = false;                // バリアントモード中フラグ
-    QTimer *m_variantTimer = nullptr;                 // 切り替えタイマー
+    // バリアントグループ（front_variants / back_variants 等）の汎用管理
+    QMap<QString, FrontVariantSettings> m_allVariantGroups;   // 全グループ定義
+    QMap<QString, QVector<QPixmap>> m_allVariantCaches;       // 全グループのキャッシュ
+    QMap<QString, QVector<int>> m_allVariantWeights;          // 全グループの累積重み
+    QString m_activeVariantGroupName;                         // 現在アクティブなグループ名
+    int m_currentFrontIndex = 0;         // 現在表示中のインデックス
+    bool m_isFrontVariantMode = false;   // バリアントモード中フラグ
+    QTimer *m_variantTimer = nullptr;    // 切り替えタイマー
 
     // シーケンシャルアニメーション用
     QMap<QString, AnimationSequence> m_animations;         // アニメーション定義（名前 -> シーケンス）
@@ -79,6 +81,7 @@ private:
     void updateAvatarDisplay(const QString &state);
     void updateWindowPosition();
     void switchToNextVariant();    // ランダムバリアント切り替え
+    void switchVariantGroup(const QString &groupName); // バリアントグループを切り替え
     void playAnimation(const QString &name); // アニメーション再生開始
     void stepAnimationFrame();     // 次フレームを表示（タイマーから呼び出し）
 

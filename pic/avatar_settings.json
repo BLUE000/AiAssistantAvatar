@@ -14,7 +14,7 @@
         "transparentY": 0
     },
     "thinking": {
-        "file": "Front04.png",
+        "file": "Thinking01.png",
         "anchorX": 100,
         "anchorY": 100,
         "transparentX": 0,
@@ -28,6 +28,7 @@
         "transparentY": 0
     },
     "front_variants": {
+        "label": "フロント（正面）",
         "anchorX": 100,
         "anchorY": 100,
         "transparentX": 0,
@@ -39,6 +40,20 @@
             { "file": "Front03.png", "weight": 1 },
             { "file": "Front04.png", "weight": 1 },
             { "file": "Front05.png", "weight": 1 }
+        ]
+    },
+    "back_variants": {
+        "label": "バック（後ろ）",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0,
+        "interval_ms": 5000,
+        "files": [
+            { "file": "Back01.png", "weight": 1 },
+            { "file": "Back02.png", "weight": 1 },
+            { "file": "Back03.png", "weight": 1 },
+            { "file": "Back04.png", "weight": 1 }
         ]
     },
     "animations": {

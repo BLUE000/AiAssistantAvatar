@@ -41,14 +41,18 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     processAndCacheImages();
     updateAvatarDisplay("idle");
 
-    // フロント画像ランダム切り替えタイマーの設定
-    if (!m_frontVariants.isEmpty()) {
+    // 最初のバリアントグループを起動（front_variants を優先、なければ最初のグループ）
+    QString firstGroup;
+    if (m_allVariantGroups.contains("front_variants")) {
+        firstGroup = "front_variants";
+    } else if (!m_allVariantGroups.isEmpty()) {
+        firstGroup = m_allVariantGroups.firstKey();
+    }
+
+    if (!firstGroup.isEmpty()) {
         m_variantTimer = new QTimer(this);
         connect(m_variantTimer, &QTimer::timeout, this, &AvatarWindow::switchToNextVariant);
-        m_variantTimer->start(m_frontVariants.intervalMs);
-        m_isFrontVariantMode = true;
-        // 初期表示を即座にバリアント画像で上書き
-        switchToNextVariant();
+        switchVariantGroup(firstGroup); // タイマー起動も内部で実行
     }
 }
 
@@ -138,27 +142,64 @@ void AvatarWindow::loadSettings() {
                 }
             }
 
-            // フロントバリアント設定の読み込み
-            if (obj.contains("front_variants") && obj["front_variants"].isObject()) {
-                QJsonObject varObj = obj["front_variants"].toObject();
-                m_frontVariants.anchorX      = varObj["anchorX"].toInt(100);
-                m_frontVariants.anchorY      = varObj["anchorY"].toInt(100);
-                m_frontVariants.transparentX = varObj["transparentX"].toInt(0);
-                m_frontVariants.transparentY = varObj["transparentY"].toInt(0);
-                m_frontVariants.intervalMs   = varObj["interval_ms"].toInt(5000);
+            // *_variants グループを汎用ロード
+            for (const QString &key : obj.keys()) {
+                if (!key.endsWith("_variants")) continue;
+                if (!obj[key].isObject()) continue;
+
+                QJsonObject varObj = obj[key].toObject();
+                FrontVariantSettings group;
+                group.label        = varObj["label"].toString(key);
+                group.anchorX      = varObj["anchorX"].toInt(100);
+                group.anchorY      = varObj["anchorY"].toInt(100);
+                group.transparentX = varObj["transparentX"].toInt(0);
+                group.transparentY = varObj["transparentY"].toInt(0);
+                group.intervalMs   = varObj["interval_ms"].toInt(5000);
 
                 if (varObj.contains("files") && varObj["files"].isArray()) {
-                    QJsonArray filesArr = varObj["files"].toArray();
-                    for (const QJsonValue &v : filesArr) {
-                        // 各エントリはオブジェクト形式：{ "file": "Front01.png", "weight": 1 }
+                    for (const QJsonValue &v : varObj["files"].toArray()) {
                         if (v.isObject()) {
                             QJsonObject entry = v.toObject();
                             FrontVariantEntry e;
                             e.filePath = picDir + "/" + entry["file"].toString();
                             e.weight   = entry["weight"].toInt(1);
                             if (e.weight < 1) e.weight = 1;
-                            m_frontVariants.entries.append(e);
+                            group.entries.append(e);
                         }
+                    }
+                }
+
+                if (!group.isEmpty()) {
+                    m_allVariantGroups[key] = group;
+                    qDebug() << "Loaded variant group:" << key << "entries:" << group.entries.size();
+                }
+            }
+
+            // animations セクションの読み込み
+            if (obj.contains("animations") && obj["animations"].isObject()) {
+                QJsonObject animsObj = obj["animations"].toObject();
+                for (const QString &animName : animsObj.keys()) {
+                    if (!animsObj[animName].isObject()) continue;
+                    QJsonObject animObj = animsObj[animName].toObject();
+
+                    AnimationSequence seq;
+                    seq.label           = animObj["label"].toString(animName);
+                    seq.anchorX         = animObj["anchorX"].toInt(100);
+                    seq.anchorY         = animObj["anchorY"].toInt(100);
+                    seq.transparentX    = animObj["transparentX"].toInt(0);
+                    seq.transparentY    = animObj["transparentY"].toInt(0);
+                    seq.frameIntervalMs = animObj["frame_interval_ms"].toInt(150);
+                    seq.loop            = animObj["loop"].toBool(true);
+
+                    if (animObj.contains("frames") && animObj["frames"].isArray()) {
+                        for (const QJsonValue &fv : animObj["frames"].toArray()) {
+                            seq.frames.append(picDir + "/" + fv.toString());
+                        }
+                    }
+
+                    if (!seq.frames.isEmpty()) {
+                        m_animations[animName] = seq;
+                        qDebug() << "Loaded animation:" << animName << "frames:" << seq.frames.size();
                     }
                 }
             }
@@ -243,22 +284,47 @@ void AvatarWindow::processAndCacheImages() {
         m_pixmapCache[state] = pixmap;
     }
 
-    // フロントバリアント画像の事前キャッシュ + 累積重みテーブル構築
-    m_frontPixmapCache.clear();
-    m_weightCumulative.clear();
-    int cumulative = 0;
-    for (const FrontVariantEntry &entry : m_frontVariants.entries) {
-        if (QFile::exists(entry.filePath)) {
-            QPixmap px = applyTransparency(entry.filePath,
-                                           m_frontVariants.transparentX,
-                                           m_frontVariants.transparentY);
-            m_frontPixmapCache.append(px);
-            cumulative += entry.weight;
-            m_weightCumulative.append(cumulative);
-            qDebug() << "Cached front variant:" << entry.filePath << "weight:" << entry.weight;
-        } else {
-            qWarning() << "Front variant not found:" << entry.filePath;
+    // バリアントグループの全キャッシュ構範
+    m_allVariantCaches.clear();
+    m_allVariantWeights.clear();
+    for (auto it = m_allVariantGroups.begin(); it != m_allVariantGroups.end(); ++it) {
+        const QString &groupName = it.key();
+        const FrontVariantSettings &grp = it.value();
+        QVector<QPixmap> cache;
+        QVector<int> weights;
+        int cumulative = 0;
+        for (const FrontVariantEntry &entry : grp.entries) {
+            if (QFile::exists(entry.filePath)) {
+                cache.append(applyTransparency(entry.filePath, grp.transparentX, grp.transparentY));
+                cumulative += entry.weight;
+                weights.append(cumulative);
+                qDebug() << "Cached variant [" << groupName << "]:" << entry.filePath;
+            } else {
+                qWarning() << "Variant image not found:" << entry.filePath;
+            }
         }
+        m_allVariantCaches[groupName] = cache;
+        m_allVariantWeights[groupName] = weights;
+    }
+
+    // アニメーションフレームの全キャッシュ
+    m_animPixmapCache.clear();
+    for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
+        const QString &animName = it.key();
+        const AnimationSequence &seq = it.value();
+        QVector<QPixmap> frames;
+        for (const QString &fp : seq.frames) {
+            if (QFile::exists(fp)) {
+                frames.append(applyTransparency(fp, seq.transparentX, seq.transparentY));
+            } else {
+                qWarning() << "Animation frame not found:" << fp;
+                QImage dummy(200, 200, QImage::Format_ARGB32);
+                dummy.fill(Qt::transparent);
+                frames.append(QPixmap::fromImage(dummy));
+            }
+        }
+        m_animPixmapCache[animName] = frames;
+        qDebug() << "Cached animation:" << animName << "(" << frames.size() << "frames)";
     }
 }
 
@@ -270,19 +336,22 @@ void AvatarWindow::updateAvatarDisplay(const QString &state) {
 }
 
 void AvatarWindow::switchToNextVariant() {
-    if (m_frontPixmapCache.isEmpty() || m_weightCumulative.isEmpty()) return;
+    if (!m_allVariantCaches.contains(m_activeVariantGroupName)) return;
+    const QVector<QPixmap> &cache   = m_allVariantCaches[m_activeVariantGroupName];
+    const QVector<int>     &weights = m_allVariantWeights[m_activeVariantGroupName];
+    const FrontVariantSettings &grp = m_allVariantGroups[m_activeVariantGroupName];
+    if (cache.isEmpty() || weights.isEmpty()) return;
 
-    // 累積重みテーブルを使った重み付きランダム選択
-    int totalWeight = m_weightCumulative.last();
-    int count       = m_frontPixmapCache.size();
+    int totalWeight = weights.last();
+    int count       = cache.size();
     int nextIndex   = m_currentFrontIndex;
 
     int maxTry = count * 10;
     for (int i = 0; i < maxTry; ++i) {
         int rnd = static_cast<int>(QRandomGenerator::global()->bounded(totalWeight));
         int idx = 0;
-        for (int j = 0; j < m_weightCumulative.size(); ++j) {
-            if (rnd < m_weightCumulative[j]) { idx = j; break; }
+        for (int j = 0; j < weights.size(); ++j) {
+            if (rnd < weights[j]) { idx = j; break; }
         }
         if (count <= 1 || idx != m_currentFrontIndex) {
             nextIndex = idx;
@@ -292,18 +361,38 @@ void AvatarWindow::switchToNextVariant() {
     m_currentFrontIndex = nextIndex;
     m_isFrontVariantMode = true;
 
-    QPixmap px = m_frontPixmapCache[m_currentFrontIndex];
+    QPixmap px = cache[m_currentFrontIndex];
     m_avatarLabel->setFixedSize(px.size());
     m_avatarLabel->setPixmap(px);
     adjustSize();
 
-    int newX = m_desktopTargetPos.x() - m_frontVariants.anchorX;
-    int newY = m_desktopTargetPos.y() - m_frontVariants.anchorY;
+    int newX = m_desktopTargetPos.x() - grp.anchorX;
+    int newY = m_desktopTargetPos.y() - grp.anchorY;
     this->move(newX, newY);
-
     if (m_balloon && m_balloon->isVisible()) {
         m_balloon->move(newX + px.width() - 40, newY - 60);
     }
+}
+
+void AvatarWindow::switchVariantGroup(const QString &groupName) {
+    if (!m_allVariantGroups.contains(groupName)) {
+        qWarning() << "switchVariantGroup: group not found:" << groupName;
+        return;
+    }
+    // アニメーション停止
+    if (m_animTimer) m_animTimer->stop();
+    m_currentAnimation.clear();
+
+    m_activeVariantGroupName = groupName;
+    m_currentFrontIndex = 0;
+    m_isFrontVariantMode = true;
+
+    int intervalMs = m_allVariantGroups[groupName].intervalMs;
+    if (m_variantTimer) {
+        m_variantTimer->start(intervalMs);
+    }
+    switchToNextVariant(); // 即座に初回表示
+    qDebug() << "Switched to variant group:" << groupName;
 }
 
 // -------------------------------------------------------
@@ -362,11 +451,11 @@ void AvatarWindow::stepAnimationFrame() {
         if (seq.loop) {
             m_animFrameIndex = 0;  // ループ
         } else {
-            // 再生完了 → バリアントモードに復帰
+            // 再生完了 → 現在アクティブなバリアントグループに復帰
             if (m_animTimer) m_animTimer->stop();
             m_currentAnimation.clear();
-            if (m_variantTimer && !m_frontVariants.isEmpty()) {
-                m_variantTimer->start(m_frontVariants.intervalMs);
+            if (!m_activeVariantGroupName.isEmpty()) {
+                switchVariantGroup(m_activeVariantGroupName);
             }
         }
     }
@@ -427,22 +516,37 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
     QAction *actImportHistory = menu.addAction("会話履歴をインポート...");
     QAction *actExportHistory = menu.addAction("会話履歴をエクスポート...");
 
+    // バリアントグループ切り替えサブメニュー（複数グループがあるときのみ）
+    QMap<QAction*, QString> variantActionMap;
+    if (m_allVariantGroups.size() > 1) {
+        menu.addSeparator();
+        QMenu *variantMenu = menu.addMenu("バリアント切り替え");
+        for (auto it = m_allVariantGroups.begin(); it != m_allVariantGroups.end(); ++it) {
+            QString label = it.value().label.isEmpty() ? it.key() : it.value().label;
+            if (it.key() == m_activeVariantGroupName) label += " ✔";
+            QAction *act = variantMenu->addAction(label);
+            variantActionMap[act] = it.key();
+        }
+    }
+
     // アニメーションサブメニュー（定義があるときのみ表示）
-    QMenu *animMenu = nullptr;
     QMap<QAction*, QString> animActionMap;
     if (!m_animations.isEmpty()) {
         menu.addSeparator();
-        animMenu = menu.addMenu("アニメーション");
+        QMenu *animMenu = menu.addMenu("アニメーション");
         for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
             QString label = it.value().label.isEmpty() ? it.key() : it.value().label;
             QAction *act  = animMenu->addAction(label);
             animActionMap[act] = it.key();
         }
-        // フロント（ランダム）に戻すアクション
-        if (!m_frontVariants.isEmpty()) {
+        // バリアントモードに戻すアクション
+        if (!m_allVariantGroups.isEmpty()) {
             animMenu->addSeparator();
-            QAction *actFront = animMenu->addAction("ランダム表示に戻す");
-            animActionMap[actFront] = "__front_variants__";
+            QString activeLabel = m_allVariantGroups.contains(m_activeVariantGroupName)
+                ? m_allVariantGroups[m_activeVariantGroupName].label
+                : m_activeVariantGroupName;
+            QAction *actReturn = animMenu->addAction("ランダム表示に戻す (" + activeLabel + ")");
+            animActionMap[actReturn] = "__variant__";
         }
     }
 
@@ -452,14 +556,18 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
     QAction *selected = menu.exec(event->globalPos());
     if (!selected) return;
 
+    // バリアントグループ切り替え
+    if (variantActionMap.contains(selected)) {
+        switchVariantGroup(variantActionMap[selected]);
+        return;
+    }
+
     // アニメーション選択
     if (animActionMap.contains(selected)) {
         QString animName = animActionMap[selected];
-        if (animName == "__front_variants__") {
-            // アニメーション停止 → フロントバリアントに戻す
-            if (m_animTimer) m_animTimer->stop();
-            m_currentAnimation.clear();
-            if (m_variantTimer) m_variantTimer->start(m_frontVariants.intervalMs);
+        if (animName == "__variant__") {
+            // アニメーション停止 → 現在のバリアントグループに戻る
+            switchVariantGroup(m_activeVariantGroupName);
         } else {
             playAnimation(animName);
         }
