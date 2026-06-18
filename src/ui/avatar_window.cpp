@@ -8,6 +8,7 @@
 #include <QMenu>
 #include <QInputDialog>
 #include <QGuiApplication>
+#include <QCoreApplication>
 #include <QScreen>
 #include <QQueue>
 #include <QDir>
@@ -54,10 +55,36 @@ AvatarWindow::~AvatarWindow() {
 }
 
 void AvatarWindow::loadSettings() {
-    QString configPath = "pic/avatar_settings.json";
-    
-    // ディレクトリ作成
-    QDir().mkpath("pic");
+    // picディレクトリのパスを実行後ディレクトリ基準で解決（フォールバック付き）
+    QString picDir = "pic";
+
+    // PROJECT_SOURCE_DIR マクロによるプロジェクトルートを最優先で確認
+#ifdef PROJECT_SOURCE_DIR
+    {
+        QString candidate = QString(PROJECT_SOURCE_DIR) + "/pic";
+        if (QDir(candidate).exists()) {
+            picDir = candidate;
+        }
+    }
+#endif
+    // 次に実行ファイルの隣に pic/ があるか確認
+    if (!QDir(picDir).exists()) {
+        QString candidate = QCoreApplication::applicationDirPath() + "/pic";
+        if (QDir(candidate).exists()) picDir = candidate;
+    }
+    if (!QDir(picDir).exists()) {
+        QString candidate = QCoreApplication::applicationDirPath() + "/../pic";
+        if (QDir(candidate).exists()) picDir = QDir(candidate).canonicalPath();
+    }
+    if (!QDir(picDir).exists()) {
+        QString candidate = QCoreApplication::applicationDirPath() + "/../../pic";
+        if (QDir(candidate).exists()) picDir = QDir(candidate).canonicalPath();
+    }
+
+    qDebug() << "AvatarWindow: picDir resolved to:" << picDir;
+    QDir().mkpath(picDir);
+
+    QString configPath = picDir + "/avatar_settings.json";
 
     // 設定ファイルが無い場合は初期デフォルトを作成
     if (!QFile::exists(configPath)) {
@@ -73,10 +100,10 @@ void AvatarWindow::loadSettings() {
             return obj;
         };
 
-        defaultSettings["idle"] = createSetting("idle.png");
+        defaultSettings["idle"]      = createSetting("idle.png");
         defaultSettings["listening"] = createSetting("listening.png");
-        defaultSettings["thinking"] = createSetting("thinking.png");
-        defaultSettings["speaking"] = createSetting("speaking.png");
+        defaultSettings["thinking"]  = createSetting("thinking.png");
+        defaultSettings["speaking"]  = createSetting("speaking.png");
 
         QJsonDocument doc(defaultSettings);
         QFile file(configPath);
@@ -101,7 +128,7 @@ void AvatarWindow::loadSettings() {
                 if (obj.contains(state) && obj[state].isObject()) {
                     QJsonObject stateObj = obj[state].toObject();
                     ImageSetting setting;
-                    setting.filePath = "pic/" + stateObj["file"].toString();
+                    setting.filePath = picDir + "/" + stateObj["file"].toString();
                     setting.anchorX = stateObj["anchorX"].toInt(100);
                     setting.anchorY = stateObj["anchorY"].toInt(100);
                     setting.transparentX = stateObj["transparentX"].toInt(0);
@@ -126,9 +153,9 @@ void AvatarWindow::loadSettings() {
                         if (v.isObject()) {
                             QJsonObject entry = v.toObject();
                             FrontVariantEntry e;
-                            e.filePath = "pic/" + entry["file"].toString();
+                            e.filePath = picDir + "/" + entry["file"].toString();
                             e.weight   = entry["weight"].toInt(1);
-                            if (e.weight < 1) e.weight = 1; // 最小重みを保証
+                            if (e.weight < 1) e.weight = 1;
                             m_frontVariants.entries.append(e);
                         }
                     }
