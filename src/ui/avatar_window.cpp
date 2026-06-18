@@ -25,7 +25,8 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     setAttribute(Qt::WA_NoSystemBackground);
 
     m_avatarLabel = new QLabel(this);
-    m_avatarLabel->setAlignment(Qt::AlignCenter);
+    m_avatarLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    setCentralWidget(m_avatarLabel); // QMainWindowレイアウトに登録（ステータスバーを含むサイズ自動考慮）
 
     // デフォルト目標位置（画面右下付近）の設定
     QScreen *primaryScreen = QGuiApplication::primaryScreen();
@@ -169,26 +170,33 @@ QPixmap AvatarWindow::applyTransparency(const QString &filePath, int tx, int ty)
     QImage image(filePath);
     if (image.isNull()) {
         qWarning() << "Failed to load image:" << filePath;
-        // 代替として空のダミーイメージを作成
         QImage dummy(200, 200, QImage::Format_ARGB32);
         dummy.fill(Qt::transparent);
         return QPixmap::fromImage(dummy);
     }
 
     image = image.convertToFormat(QImage::Format_ARGB32);
-    int width = image.width();
+    int width  = image.width();
     int height = image.height();
 
-    // 指定座標 (tx, ty) が画像範囲内か確認
     if (tx < 0 || tx >= width || ty < 0 || ty >= height) {
-        tx = 0;
-        ty = 0;
+        tx = 0; ty = 0;
     }
 
     QRgb targetColor = image.pixel(tx, ty);
-    QColor transColor(0, 0, 0, 0);
+    int tR = qRed(targetColor);
+    int tG = qGreen(targetColor);
+    int tB = qBlue(targetColor);
 
-    // BFSによる Flood Fill 透過処理
+    // 色許容範囲（アンチエイリアス端のグリーン混色ピクセルも透過する）
+    const int kTolerance = 40;
+    auto isSimilar = [&](QRgb c) -> bool {
+        return qAbs(qRed(c)   - tR) <= kTolerance &&
+               qAbs(qGreen(c) - tG) <= kTolerance &&
+               qAbs(qBlue(c)  - tB) <= kTolerance;
+    };
+
+    // BFSによる Flood Fill 透過処理（トレランス付き）
     QQueue<QPoint> queue;
     queue.enqueue(QPoint(tx, ty));
 
@@ -200,19 +208,17 @@ QPixmap AvatarWindow::applyTransparency(const QString &filePath, int tx, int ty)
 
     while (!queue.isEmpty()) {
         QPoint p = queue.dequeue();
-        
-        if (image.pixel(p) == targetColor) {
-            image.setPixelColor(p, transColor);
-            
+
+        if (isSimilar(image.pixel(p))) {
+            // 色許容内なら完全透明にする
+            image.setPixel(p, 0x00000000);
+
             for (int i = 0; i < 4; ++i) {
                 int nx = p.x() + dx[i];
                 int ny = p.y() + dy[i];
-                
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                    if (!visited[nx][ny]) {
-                        visited[nx][ny] = true;
-                        queue.enqueue(QPoint(nx, ny));
-                    }
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height && !visited[nx][ny]) {
+                    visited[nx][ny] = true;
+                    queue.enqueue(QPoint(nx, ny));
                 }
             }
         }
@@ -271,11 +277,9 @@ void AvatarWindow::switchToNextVariant() {
     int count       = m_frontPixmapCache.size();
     int nextIndex   = m_currentFrontIndex;
 
-    // 重み合計が1以上の場合のみアイドル防止ループ
     int maxTry = count * 10;
     for (int i = 0; i < maxTry; ++i) {
         int rnd = static_cast<int>(QRandomGenerator::global()->bounded(totalWeight));
-        // 下界バイナリサーチでインデックスを決定
         int idx = 0;
         for (int j = 0; j < m_weightCumulative.size(); ++j) {
             if (rnd < m_weightCumulative[j]) { idx = j; break; }
@@ -288,11 +292,10 @@ void AvatarWindow::switchToNextVariant() {
     m_currentFrontIndex = nextIndex;
     m_isFrontVariantMode = true;
 
-    // バリアント画像をラベルに適用
     QPixmap px = m_frontPixmapCache[m_currentFrontIndex];
-    this->resize(px.size());
-    m_avatarLabel->resize(px.size());
+    m_avatarLabel->setFixedSize(px.size());
     m_avatarLabel->setPixmap(px);
+    adjustSize(); // ステータスバーの有無を含めたウィンドウサイズを自動計算
 
     int newX = m_desktopTargetPos.x() - m_frontVariants.anchorX;
     int newY = m_desktopTargetPos.y() - m_frontVariants.anchorY;
@@ -309,9 +312,9 @@ void AvatarWindow::updateWindowPosition() {
     QPixmap currentPixmap = m_pixmapCache[m_currentState];
     ImageSetting setting = m_imageSettings[m_currentState];
 
-    this->resize(currentPixmap.size());
-    m_avatarLabel->resize(currentPixmap.size());
+    m_avatarLabel->setFixedSize(currentPixmap.size());
     m_avatarLabel->setPixmap(currentPixmap);
+    adjustSize(); // ステータスバーの有無を含めたウィンドウサイズを自動計算
 
     // アンカー基準による位置ズレ補正移動
     int newX = m_desktopTargetPos.x() - setting.anchorX;
