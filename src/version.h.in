@@ -1,0 +1,7 @@
+// version.h (CMakeが自動生成します。直接編集しないでください)
+#pragma once
+
+#define PROJECT_VERSION_MAJOR @AiAssistantAvatar_VERSION_MAJOR@
+#define PROJECT_VERSION_MINOR @AiAssistantAvatar_VERSION_MINOR@
+#define PROJECT_VERSION_PATCH @AiAssistantAvatar_VERSION_PATCH@
+#define PROJECT_VERSION "@AiAssistantAvatar_VERSION@"

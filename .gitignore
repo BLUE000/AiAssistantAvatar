@@ -1,3 +1,11 @@
 .ai_rules.md
 DecisionLog.md
 WIP_STATE.md
+
+# Project Local Settings & Build Artifacts
+trustchain_credentials.cmake
+local_env.cmake
+local_settings.json
+/build/
+*.user
+
