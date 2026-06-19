@@ -15,27 +15,78 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QRandomGenerator>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QStatusBar>
 
 AvatarWindow::AvatarWindow(QWidget *parent)
     : QMainWindow(parent), m_currentState("idle") 
 {
-    // 背景透過・枠なしウィンドウの設定
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::SubWindow);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_NoSystemBackground);
+    // 通常ウィンドウの設定（背景透過なし・枠あり）
+    setWindowFlags(Qt::WindowStaysOnTopHint);
+    
+    // ウィンドウサイズを縦方向に拡張 (幅400, 高さ480)
+    setFixedSize(400, 480);
 
-    m_avatarLabel = new QLabel(this);
-    m_avatarLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    setCentralWidget(m_avatarLabel); // QMainWindowレイアウトに登録（ステータスバーを含むサイズ自動考慮）
+    // 中央ウィジェットの作成とレイアウト設定
+    QWidget *centralWidget = new QWidget(this);
+    QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(10);
 
-    // デフォルト目標位置（画面右下付近）の設定
+    // アバター表示エリア（上部）
+    m_avatarLabel = new QLabel(centralWidget);
+    m_avatarLabel->setAlignment(Qt::AlignCenter);
+    m_avatarLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    mainLayout->addWidget(m_avatarLabel);
+
+    // 入力コントロールエリア（下部）
+    QHBoxLayout *controlLayout = new QHBoxLayout();
+    controlLayout->setSpacing(5);
+
+    m_inputEdit = new QLineEdit(centralWidget);
+    m_inputEdit->setPlaceholderText("メッセージを入力...");
+    connect(m_inputEdit, &QLineEdit::returnPressed, this, &AvatarWindow::onSendClicked);
+
+    m_sendButton = new QPushButton("送信", centralWidget);
+    connect(m_sendButton, &QPushButton::clicked, this, &AvatarWindow::onSendClicked);
+
+    m_sttButton = new QPushButton("音声", centralWidget);
+    connect(m_sttButton, &QPushButton::clicked, this, &AvatarWindow::onSttClicked);
+
+    m_menuButton = new QPushButton("⚙", centralWidget);
+    m_menuButton->setFixedWidth(30);
+    connect(m_menuButton, &QPushButton::clicked, this, &AvatarWindow::onMenuClicked);
+
+    controlLayout->addWidget(m_inputEdit);
+    controlLayout->addWidget(m_sendButton);
+    controlLayout->addWidget(m_sttButton);
+    controlLayout->addWidget(m_menuButton);
+
+    mainLayout->addLayout(controlLayout);
+
+    setCentralWidget(centralWidget);
+
+    // ステータスバーの初期化
+    statusBar()->showMessage("起動しました。待機中...");
+
+    // デフォルト目標位置（画面下部中央）の設定
     QScreen *primaryScreen = QGuiApplication::primaryScreen();
     QRect screenGeometry = primaryScreen->geometry();
-    m_desktopTargetPos = QPoint(screenGeometry.width() - 200, screenGeometry.height() - 250);
+    m_desktopTargetPos = QPoint(screenGeometry.width() / 2, screenGeometry.height() - 150);
 
     // バルーンの生成
     m_balloon = new BalloonWidget(this);
     m_balloon->hide();
+
+    // 初回右クリック/メニュー表示のもたつきを解消するためのダミープリロード
+    {
+        QMenu dummyMenu(this);
+        dummyMenu.addAction("dummy");
+        dummyMenu.ensurePolished();
+    }
 
     loadSettings();
     processAndCacheImages();
@@ -431,13 +482,9 @@ void AvatarWindow::switchToNextVariant() {
     m_avatarLabel->setPixmap(px);
     adjustSize();
 
-    int newX = m_desktopTargetPos.x() - grp.anchorX;
-    int newY = m_desktopTargetPos.y() - grp.anchorY;
-    this->move(newX, newY);
-    if (m_balloon && m_balloon->isVisible()) {
-        // 子ウィジェットのため親相対座標で追従
-        m_balloon->move(px.width() - m_balloon->width() + 20, -m_balloon->height() - 5);
-    }
+    // アニメーション切り替え時はウィンドウ位置を保持（ドラッグで移動させた位置は保存される）
+    // ウィンドウサイズが変わった場合はレイアウトが自動調整される
+    // バルーンはウィンドウ上部固定位置に表示（子ウィジェット座標系）
 }
 
 void AvatarWindow::switchVariantGroup(const QString &groupName) {
@@ -556,12 +603,9 @@ void AvatarWindow::stepAnimationFrame() {
     m_avatarLabel->setPixmap(px);
     adjustSize();
 
-    int newX = m_desktopTargetPos.x() - seq.anchorX;
-    int newY = m_desktopTargetPos.y() - seq.anchorY;
-    this->move(newX, newY);
-    if (m_balloon && m_balloon->isVisible()) {
-        m_balloon->move(px.width() - m_balloon->width() + 20, -m_balloon->height() - 5);
-    }
+    // アニメーション再生中はウィンドウ位置を保持（既に設定済みの位置を保存）
+    // ウィンドウサイズが変わった場合のみレイアウト調整
+    // バルーンはウィンドウ上部中央固定位置に表示
 
     // 次のフレームへ進む
     m_animFrameIndex++;
@@ -593,22 +637,31 @@ void AvatarWindow::updateWindowPosition() {
 
     m_avatarLabel->setFixedSize(currentPixmap.size());
     m_avatarLabel->setPixmap(currentPixmap);
-    adjustSize(); // ステータスバーの有無を含めたウィンドウサイズを自動計算
+    // adjustSize() は呼ばない（ウィンドウサイズを固定に保つ）
 
-    // アンカー基準による位置ズレ補正移動
-    int newX = m_desktopTargetPos.x() - setting.anchorX;
-    int newY = m_desktopTargetPos.y() - setting.anchorY;
-    this->move(newX, newY);
+    // ユーザーがドラッグで移動した場合はその位置を保持
+    if (m_userDraggedWindow && !m_lastWindowPos.isNull()) {
+        // ドラッグ後の位置を保持
+        this->move(m_lastWindowPos);
+    } else {
+        // ドラッグされていない場合のみ初期位置に配置
+        int newX = m_desktopTargetPos.x() - setting.anchorX;
+        int newY = m_desktopTargetPos.y() - setting.anchorY;
+        this->move(newX, newY);
+    }
 
-    // バルーン位置の追従 (アバターの右上付近に表示)
+    // バルーン位置の追従（ウィンドウ上部中央固定位置）
     if (m_balloon && m_balloon->isVisible()) {
-        m_balloon->move(currentPixmap.width() - m_balloon->width() + 20, -m_balloon->height() - 5);
+        int bx = (this->width() - m_balloon->width()) / 2;
+        int by = 5;
+        m_balloon->move(bx, by);
     }
 }
 
 void AvatarWindow::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
         m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+        m_userDraggedWindow = true;  // ドラッグ開始フラグを立てる
         event->accept();
     }
 }
@@ -623,15 +676,32 @@ void AvatarWindow::mouseMoveEvent(QMouseEvent *event) {
         
         move(newPos);
         
-        // バルーンの追従
+        // ドラッグ中は常に現在位置を保存（状態切り替え時に位置復元用）
+        m_lastWindowPos = pos();
+        
+        // バルーンの追従（ウィンドウ上部中央固定位置）
         if (m_balloon && m_balloon->isVisible()) {
-            m_balloon->move(width() - m_balloon->width() + 20, -m_balloon->height() - 5);
+            int bx = (this->width() - m_balloon->width()) / 2;
+            int by = 5;
+            m_balloon->move(bx, by);
         }
         event->accept();
     }
 }
 
+void AvatarWindow::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && m_userDraggedWindow) {
+        // ドラッグ完了時の最後のウィンドウ位置を保存
+        m_lastWindowPos = pos();
+        event->accept();
+    }
+}
+
 void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
+    showContextMenu(event->globalPos());
+}
+
+void AvatarWindow::showContextMenu(const QPoint &globalPos) {
     QMenu menu(this);
     
     QAction *actDirectInput  = menu.addAction("直接テキスト入力");
@@ -677,7 +747,7 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
     menu.addSeparator();
     QAction *actQuit = menu.addAction("終了");
 
-    QAction *selected = menu.exec(event->globalPos());
+    QAction *selected = menu.exec(globalPos);
     if (!selected) return;
 
     // バリアントグループ切り替え
@@ -727,18 +797,37 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
         close();
     }
 }
+
+void AvatarWindow::onSendClicked() {
+    if (!m_inputEdit) return;
+    QString text = m_inputEdit->text().trimmed();
+    if (!text.isEmpty()) {
+        emit directInputSubmitted(text);
+        m_inputEdit->clear();
+    }
+}
+
+void AvatarWindow::onSttClicked() {
+    emit startSTTRequested();
+}
+
+void AvatarWindow::onMenuClicked() {
+    if (!m_menuButton) return;
+    QPoint pos = m_menuButton->mapToGlobal(QPoint(0, m_menuButton->height()));
+    showContextMenu(pos);
+}
+
 void AvatarWindow::on_notify_events(const AppEvent &event) {
     qDebug() << "AvatarWindow received event. Type:" << static_cast<int>(event.type) << "Text:" << event.text;
 
     // バルーンの表示位置を現在のウィンドウ位置から計算するラムダ
     // BalloonWidget は Qt::SubWindow (子ウィジェット) のため move() は親相対座標
+    // ウィンドウ上部の固定位置に配置
     auto showBalloon = [this](const QString &text) {
         m_balloon->showText(text);
-        // 親ウィジェット(AvatarWindow)の右上にバルーンを配置（相対座標）
-        int bx = this->width() - m_balloon->width() + 20;
-        int by = -m_balloon->height() - 5;
-        // 画面上部に収まらない場合はアバターの下に表示
-        if (this->y() + by < 0) by = this->height() + 5;
+        // ウィンドウ内の上部中央に固定配置
+        int bx = (this->width() - m_balloon->width()) / 2;
+        int by = 5;  // ウィンドウ上部にマージン 5px
         m_balloon->move(bx, by);
         m_balloon->raise(); // アバター画像の前面に表示
     };
@@ -747,27 +836,29 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
         case EventType::VoiceInputStarted:
             pauseScheduler();
             updateAvatarDisplay("listening");
-            showBalloon("マイクの音声を聩いています...");
+            statusBar()->showMessage("音声入力中... 話しかけてください");
+            showBalloon("マイクの音声を聞いています...");
             break;
 
         case EventType::VoiceInputCompleted:
             updateAvatarDisplay("thinking");
-            showBalloon("認識結果: 「" + event.text + "」");
+            statusBar()->showMessage("音声認識完了: 応答生成中...");
             break;
 
         case EventType::DirectInputSubmitted:
             pauseScheduler();
             updateAvatarDisplay("thinking");
-            showBalloon("「" + event.text + "」を考え中...");
+            statusBar()->showMessage("テキスト送信完了: 応答生成中...");
             break;
 
         case EventType::AIRequestSent:
             updateAvatarDisplay("thinking");
-            showBalloon("AIの返答を待っています...");
+            statusBar()->showMessage("AIの返答を待っています...");
             break;
 
         case EventType::AIResponseReceived: {
             updateAvatarDisplay("speaking");
+            statusBar()->showMessage("AIが応答中");
             showBalloon(event.text);
             // 応答テキストの長さに応じて表示時間を計算（最低5秒・最大30秒）
             int readMs = qBound(5000, event.text.length() * 120, 30000);
@@ -777,6 +868,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
                     m_balloon->hide();
                     resumeScheduler();
+                    statusBar()->showMessage("待機中...");
                 });
             }
             m_resumeTimer->start(readMs);
@@ -785,6 +877,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
 
         case EventType::ErrorOccurred:
             updateAvatarDisplay("idle");
+            statusBar()->showMessage("エラーが発生しました: " + event.text);
             showBalloon("エラーが発生しました: " + event.text);
             // エラー時も一定時間後にスケジューラー再開
             if (!m_resumeTimer) {
@@ -793,6 +886,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
                     m_balloon->hide();
                     resumeScheduler();
+                    statusBar()->showMessage("待機中...");
                 });
             }
             m_resumeTimer->start(5000);

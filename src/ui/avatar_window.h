@@ -55,17 +55,26 @@ struct PatternSchedulerEntry {
 
 // UIのバルーン（吹き出し）ウィジェットを先行宣言
 class BalloonWidget;
+class QLineEdit;
+class QPushButton;
 
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
 private:
     QLabel *m_avatarLabel;
     BalloonWidget *m_balloon;
+    QLineEdit *m_inputEdit = nullptr;
+    QPushButton *m_sendButton = nullptr;
+    QPushButton *m_sttButton = nullptr;
+    QPushButton *m_menuButton = nullptr;
+
     QMap<QString, ImageSetting> m_imageSettings;      // 状態ごとの設定
     QMap<QString, QPixmap> m_pixmapCache;             // 透過処理済みのキャッシュ
     QString m_currentState;                           // "idle", "thinking" 等
     QPoint m_desktopTargetPos;                        // アバター表示の基準目標座標
     QPoint m_dragPosition;                            // ドラッグ用一時座標
+    QPoint m_lastWindowPos;                           // ドラッグ後の最後のウィンドウ位置を保存
+    bool m_userDraggedWindow = false;                 // ユーザーがドラッグで移動したかどうかのフラグ
 
     // バリアントグループ（front_variants / back_variants 等）の汎用管理
     QMap<QString, FrontVariantSettings> m_allVariantGroups;   // 全グループ定義
@@ -104,10 +113,17 @@ private:
     void pickNextPattern();
     void pauseScheduler();    // AI 処理中にスケジューラーを停止
     void resumeScheduler();   // AI 処理完了後にスケジューラーを再開
+    void showContextMenu(const QPoint &globalPos);
+
+private slots:
+    void onSendClicked();
+    void onSttClicked();
+    void onMenuClicked();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 public:
