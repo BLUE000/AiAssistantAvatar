@@ -24,6 +24,9 @@
 | **IT-EVT-02** | STT → Core | `STTManager` (STTスレッド) から `notifyEvent()` シグナルを発火する。 | `CoreModule::on_notify_events()` がスレッドを越えて呼び出され、音声認識結果テキストが受信されること。 | 自動テスト |
 | **IT-EVT-03** | Core → UI | `CoreModule` から `notifyEventToUI()` シグナルを発火する。 | メイン（GUI）スレッドで動作する `AvatarWindow::on_notify_events()` が呼び出され、イベントの種類に応じた描画更新処理がキックされること。 | 自動テスト |
 | **IT-EVT-04** | Twitch認証連携 | `TwitchReader` 起動時にトークンがない場合に仮HTTPサーバーを起動し、取得したトークンでIRC接続する。 | ローカルHTTPサーバーが指定ポートで待機し、ブラウザリダイレクトからトークンを取得・保存して、自動接続フローへ移行すること。 | 結合テスト |
+| **IT-EVT-05** | 設定更新連携 | UIから `settingsUpdated` シグナルを発火し、コア経由で `AIClientManager` および `TwitchReader` の `on_settingsUpdated` スロットを呼び出す。 | 各モジュールが `local_settings.json` から設定を再ロードし、動的に適用されること。 | 自動テスト / 結合テスト |
+| **IT-EVT-06** | Twitch再認可連携 | UIから `twitchReauthRequested` シグナルを発火し、コア経由で `TwitchReader::on_reauthorizeRequested` スロットを呼び出す。 | 現在の接続が切断され、トークンがクリアされた上で、一時HTTPサーバーが起動しブラウザでOAuth認可画面が開くこと。 | 結合テスト |
+| **IT-EVT-07** | WebSocketブロードキャスト | アバター切り替え時やAI応答時に、`QWebSocketServer` から接続中のWebSocketクライアントへプッシュ送信される。 | 送信されたJSONデータが、イベント種別（AvatarChanged, AIResponseReceivedなど）に応じた正しいフォーマットであること。 | 結合テスト |
 
 ---
 
@@ -49,9 +52,9 @@
 | 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-SEC-01** | 出自証明とウォーターマーク連携 | 起動時（`main.cpp`）から検証（`verifyToken()`）、結果取得、UI適用（`applyWatermark()`）までの流れを実行。 | 検証結果がUIに正しく伝達され、改ざん検知（`Watermarked`）時にバイナリの `BinMarkManager` 署名データに基づいた表示がタイトル・ステータスバーに反映されること。 | 結合テスト |
-| **IT-SEC-02** | セッションリセット連携 | UIから `resetSessionRequested` シグナルを発火し、コア経由で `AIClientManager` のリセットロジックと暗号化バックアップを実行する。 | 1. `AIClientManager::resetSession` が手動（`isManual == true`）で実行されること。<br>2. TransCipher 経由で暗号化ログファイルが生成されること。<br>3. UIバルーンに「会話履歴をリセットしました。」が通知されること。 | 結合テスト |
-| **IT-SEC-03** | 会話履歴インポート連携 | UIから `importSessionRequested` シグナルを発火し、コア経由で `AIClientManager::importSessionBackup` を呼び出す。 | 1. ファイルが復号され会話履歴が復元されること。<br>2. UIバルーンに「会話履歴をインポートしました。」と結果が表示されること。 | 結合テスト |
-| **IT-SEC-04** | 会話履歴エクスポート連携 | UIから `exportSessionRequested` シグナルを発火し、コア経由で `AIClientManager::exportSessionBackup` を呼び出す。 | 1. 暗号ファイルが復号され、人間が読みやすい平文 `.txt` ファイルとしてエクスポートされること。<br>2. UIバルーンにエクスポート完了メッセージが表示されること。 | 結合テスト |
+| **IT-SEC-02** | セッションリセット連携 | UIから `resetSessionRequested` シグナルを発火し、コア経由で `AIClientManager` のリセットロジックと暗号化バックアップを実行する。 | 1. `AIClientManager::resetSession` が手動（`isManual == true`）で実行されること。<br>2. TransCipher 経由で暗号化ログファイルが生成されること。<br>3. 右ペインに「会話履歴をリセットしました。」が通知されること。 | 結合テスト |
+| **IT-SEC-03** | 会話履歴インポート連携 | UIから `importSessionRequested` シグナルを発火し、コア経由で `AIClientManager::importSessionBackup` を呼び出す。 | 1. ファイルが復号され会話履歴が復元されること。<br>2. 右ペインに「会話履歴をインポートしました。」と結果が表示されること。 | 結合テスト |
+| **IT-SEC-04** | 会話履歴エクスポート連携 | UIから `exportSessionRequested` シグナルを発火し、コア経由で `AIClientManager::exportSessionBackup` を呼び出す。 | 1. 暗号ファイルが復号され、人間が読みやすい平文 `.txt` ファイルとしてエクスポートされること。<br>2. 右ペインにエクスポート完了メッセージが表示されること。 | 結合テスト |
 
 
 ---

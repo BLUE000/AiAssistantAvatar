@@ -100,6 +100,8 @@ classDiagram
 | **UT-SEC-06** | `AIClientManager::resetSession` (自動) | `resetSession(false)` を呼び出す。 | 1. 暗号化バックアップファイルが生成されること。<br>2. メモリの履歴がクリア（直近1往復分を除く）されること。<br>3. UI通知用シグナルは一切発火しないこと。 |
 | **UT-SEC-07** | `AIClientManager::importSessionBackup` | 有効な `.enc` バックアップファイルを指定してインポートを実行する。 | 1. メモリ上の履歴が復号されたデータで正しく上書きされること。<br>2. `chatHistoryUpdated` シグナルが発火すること。 |
 | **UT-SEC-08** | `AIClientManager::exportSessionBackup` | 有効な `.enc` バックアップファイルを指定し、エクスポート先の `.txt` ファイルパスを指定してエクスポートを実行する。 | 1. 指定された `.txt` ファイルに会話履歴が平文のテキスト形式で正しく書き出されること。<br>2. 完了時に通知イベントが発火すること。 |
+| **UT-SEC-09** | WebSocket配信用初期化 | `QWebSocketServer` を起動し、ダミーの WebSocket クライアントを接続させる。 | 接続確立直後に `Init` タイプの JSON データ（現在の状態とテキスト）がプッシュ送信されること。 |
+| **UT-SEC-10** | 設定動的適用 | `local_settings.json` の内容を書き換えた後、`on_settingsUpdated()` を呼び出す。 | 各モジュール（AIClientManager、TwitchReader）が設定ファイルを再読み込みし、プロバイダやウェイクワード設定が動的に更新されること。 |
 
 
 ---

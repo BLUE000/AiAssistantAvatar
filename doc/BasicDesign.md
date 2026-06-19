@@ -28,7 +28,7 @@ graph TD
 
 | モジュール名 | 主要クラス名 | 動作スレッド | 主な責務 |
 | :--- | :--- | :--- | :--- |
-| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
+| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認証）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
 | **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合にブラウザでOAuth画面を開き、リダイレクトを受ける一時HTTPサーバーを構築してアクセストークンを自動取得<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
@@ -425,7 +425,58 @@ sequenceDiagram
         AI->>Core: notifyEvent (ErrorOccurred, "会話履歴のエクスポートに失敗しました。")
     end
     Core->>UI: notifyEventToUI (...)
-    UI->>UI: バルーンに結果メッセージを表示
+    UI->>UI: 右ペインに結果メッセージを表示
+```
+
+### 5.7 設定更新およびTwitch再認可シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant Twitch as Twitchモジュール (TwitchReader)
+
+    %% 設定更新
+    User->>UI: 設定タブから設定を変更して「保存して適用」を押下
+    UI->>UI: local_settings.json に設定を上書き保存
+    UI->>Core: settingsUpdated() シグナル発火
+    Core->>AI: settingsUpdated() 中継
+    Core->>Twitch: settingsUpdated() 中継
+    AI->>AI: local_settings.json を再ロードしてクライアント再初期化
+    Twitch->>Twitch: local_settings.json を再ロードして監視設定を更新
+
+    %% Twitch再認可
+    User->>UI: 設定タブから「Twitch認証開始」を押下
+    UI->>Core: twitchReauthRequested() シグナル発火
+    Core->>Twitch: requestTwitchReauth() 中継
+    Twitch->>Twitch: 現在のWebSocket接続を切断し、OAuthトークンをクリア
+    Twitch->>Twitch: 一時HTTPサーバーを起動
+    Twitch->>User: ブラウザを起動してTwitch認証画面を表示
+```
+
+### 5.8 OBS配信連携用WebSocket配信シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor OBS as OBS Studio (ブラウザソース)
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+
+    OBS->>UI: avatar_obs.html ロード時に WebSocket 接続 (ws://localhost:58081)
+    UI-->>OBS: 初期状態の同期 (Init イベントデータ)
+
+    alt アバター状態変更時
+        UI->>UI: updateAvatarDisplay() 実行
+        UI->>OBS: QWebSocketServer経由でブロードキャスト (AvatarChanged JSON)
+    else AI応答受信時
+        Core->>UI: notifyEventToUI (AIResponseReceived, text)
+        UI->>UI: 右ペインに表示設定
+        UI->>OBS: QWebSocketServer経由でブロードキャスト (AIResponseReceived JSON)
+    end
 ```
 
 ---

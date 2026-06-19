@@ -120,6 +120,8 @@ signals:
     void requestSessionReset(bool isManual);
     void requestSessionImport(const QString &filePath);
     void requestSessionExport(const QString &encPath, const QString &txtPath);
+    void settingsUpdated();
+    void requestTwitchReauth();
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -131,6 +133,8 @@ public slots:
     void on_resetSessionRequested();
     void on_importSessionRequested(const QString &filePath);
     void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
+    void on_settingsUpdated();
+    void on_twitchReauthRequested();
 };
 ```
 
@@ -160,6 +164,10 @@ struct ImageSetting {
 class QLineEdit;
 class QPushButton;
 class QTextBrowser;
+class QTabWidget;
+class QComboBox;
+class QWebSocketServer;
+class QWebSocket;
 
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
@@ -168,10 +176,26 @@ private:
     
     // UIコントロール
     QWidget *m_leftPanel = nullptr;
+    QTabWidget *m_tabWidget = nullptr;
     QLineEdit *m_inputEdit = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_sttButton = nullptr;
     QPushButton *m_menuButton = nullptr;
+    
+    // 設定タブ用UI
+    QLineEdit *m_wsPortEdit = nullptr;
+    QLineEdit *m_twitchChannelEdit = nullptr;
+    QLineEdit *m_twitchClientIdEdit = nullptr;
+    QLineEdit *m_twitchPortEdit = nullptr;
+    QLineEdit *m_twitchWakeWordEdit = nullptr;
+    QComboBox *m_twitchWakeWordModeCombo = nullptr;
+    QComboBox *m_aiProviderCombo = nullptr;
+    QLineEdit *m_aiApiKeyEdit = nullptr;
+    
+    // OBS配信用WebSocketサーバー
+    QWebSocketServer *m_wsServer = nullptr;
+    QList<QWebSocket *> m_wsClients;
+
     QWidget *m_rightPanel = nullptr;
     QTextBrowser *m_responseBrowser = nullptr;
 
@@ -189,11 +213,22 @@ private:
     void updateAvatarDisplay(const QString &state);
     void updateWindowPosition();
     void showContextMenu(const QPoint &globalPos);
+    
+    void initSettingsTab(QWidget *parent);
+    void loadSettingsToUI();
+    void saveSettingsFromUI();
+    void startWebSocketServer();
+    void stopWebSocketServer();
+    void broadcastToOBS(const QJsonObject &json);
 
 private slots:
     void onSendClicked();
     void onSttClicked();
     void onMenuClicked();
+    void onSaveSettingsClicked();
+    void onTwitchReauthClicked();
+    void onNewWSConnection();
+    void onWSClientDisconnected();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -212,6 +247,8 @@ signals:
     void resetSessionRequested();
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
+    void settingsUpdated();
+    void twitchReauthRequested();
 
 public slots:
     // コアから通知を受け取るスロット
