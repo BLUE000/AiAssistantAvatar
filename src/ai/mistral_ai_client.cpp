@@ -40,7 +40,7 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     QJsonObject systemMessage;
     systemMessage["role"] = "system";
     
-    QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。";
+    QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。";
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
     }

@@ -84,7 +84,8 @@ enum class EventType {
     DirectInputSubmitted,    // キーボード直接入力
     AIRequestSent,          // AIへ送信開始
     AIResponseReceived,     // AIからの回答受信
-    ErrorOccurred           // エラー発生
+    ErrorOccurred,          // エラー発生
+    ChatHistoryReceived     // 会話履歴データ受信
 };
 
 struct AppEvent {
@@ -120,6 +121,7 @@ signals:
     void requestSessionReset(bool isManual);
     void requestSessionImport(const QString &filePath);
     void requestSessionExport(const QString &encPath, const QString &txtPath);
+    void requestChatHistory(); // 会話履歴要求シグナル
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -131,6 +133,7 @@ public slots:
     void on_resetSessionRequested();
     void on_importSessionRequested(const QString &filePath);
     void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
+    void on_requestChatHistory(); // 会話履歴要求を受け取るスロット
 };
 ```
 
@@ -138,8 +141,8 @@ public slots:
 
 ### 3.2 UIモジュール
 
-#### A. `AvatarWindow` クラス (透過メインウィンドウ)
-デスクトップ上にアバターを表示し、設定に基づき透過およびアンカー移動を行う。
+#### A. `AvatarWindow` クラス (通常メインウィンドウ)
+デスクトップ上にアバターを表示し、設定に基づきアンカー移動を行う。
 ```cpp
 #pragma once
 #include <QMainWindow>
@@ -157,25 +160,51 @@ struct ImageSetting {
     int transparentY = 0;
 };
 
+class QLineEdit;
+class QPushButton;
+class QTextBrowser;
+
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
 private:
     QLabel *m_avatarLabel;
+    BalloonWidget *m_balloon;
+    
+    // UIコントロール
+    QWidget *m_leftPanel = nullptr;
+    QLineEdit *m_inputEdit = nullptr;
+    QPushButton *m_sendButton = nullptr;
+    QPushButton *m_sttButton = nullptr;
+    QPushButton *m_menuButton = nullptr;
+    QPushButton *m_historyButton = nullptr;
+    QTextBrowser *m_historyBrowser = nullptr;
+
     QMap<QString, ImageSetting> m_imageSettings; // 状態ごとの設定
     QMap<QString, QPixmap> m_pixmapCache;        // 透過処理済みのキャッシュ
     QString m_currentState;                      // "idle", "thinking" 等
     QPoint m_desktopTargetPos;                   // アバター表示の基準目標座標
+    QPoint m_dragPosition;                       // ドラッグ用一時座標
+    QPoint m_lastWindowPos;                      // ドラッグ後の最後のウィンドウ位置を保存
+    bool m_userDraggedWindow = false;            // ユーザーがドラッグで移動したかどうかのフラグ
     
     void loadSettings();
     void processAndCacheImages();
     QPixmap applyTransparency(const QString &filePath, int tx, int ty);
     void updateAvatarDisplay(const QString &state);
     void updateWindowPosition();
+    void showContextMenu(const QPoint &globalPos);
+
+private slots:
+    void onSendClicked();
+    void onSttClicked();
+    void onMenuClicked();
+    void onHistoryClicked();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
-    void contextMenuEvent(QContextMenuEvent *event) override; // 直接入力ダイアログ等のメニュー
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 public:
     explicit AvatarWindow(QWidget *parent = nullptr);
@@ -188,10 +217,46 @@ signals:
     void resetSessionRequested();
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
+    void requestChatHistory();
 
 public slots:
     // コアから通知を受け取るスロット
     void on_notify_events(const AppEvent &event);
+};
+```
+
+---
+
+#### B. `BalloonWidget` クラス (テキストバルーン)
+アバターウィンドウ内でテキストメッセージを吹き出し形状で表示するウィジェット。ウィンドウ上部の固定位置に配置され、メッセージの長さに応じて動的にサイズが調整される。
+
+**特性:**
+- 親ウィジェット (`AvatarWindow`) の子として配置（相対座標）
+- ウィンドウ上部の固定位置に表示
+- 吹き出し形状: 角丸四角形（角丸半径 10px） + 左下三角形突起（アバター方向）
+- 背景色: 半透過白（ARGB 245, 245, 245, 240）
+- 枠線: グレー（ARGB 180, 180, 180, 200）、幅 1.5px
+- テキスト: 黒色、11pt、自動折り返し
+- サイズ範囲: 最小 220×80px、最大 350×250px
+
+```cpp
+#pragma once
+#include <QWidget>
+#include <QLabel>
+
+class BalloonWidget : public QWidget {
+    Q_OBJECT
+private:
+    QLabel *m_textLabel;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
+public:
+    explicit BalloonWidget(QWidget *parent = nullptr);
+    ~BalloonWidget();
+
+    void showText(const QString &text);
 };
 ```
 
@@ -311,6 +376,7 @@ public slots:
     void resetSession(bool isManual);
     bool importSessionBackup(const QString &filePath);
     void exportSessionBackup(const QString &encPath, const QString &txtPath);
+    void on_requestChatHistory();
 };
 ```
 

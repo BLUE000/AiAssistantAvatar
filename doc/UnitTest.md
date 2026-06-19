@@ -54,6 +54,7 @@ classDiagram
 | **UT-CORE-01** | `on_startSTTRequested()` | コールバック/スロットが呼び出される。 | コアから `requestSTTStart()` シグナルが発火すること。 |
 | **UT-CORE-02** | `on_directInputSubmitted()` | 引数に `"こんにちは"` を渡して呼び出す。 | 1. `notifyEventToUI` シグナルが `EventType::DirectInputSubmitted` で発火すること。<br>2. `requestAI("こんにちは")` シグナルが発火すること。 |
 | **UT-CORE-03** | `on_notify_events()` | `EventType::VoiceInputCompleted` (text: `"テスト命令"`) のイベントを受信する。 | 1. 内部ステータスが思考中になること。<br>2. `notifyEventToUI` が `EventType::AIRequestSent` で発火すること。<br>3. `requestAI("テスト命令")` シグナルが発火すること。 |
+| **UT-CORE-04** | `on_requestChatHistory()` | スロットが呼び出される。 | `requestChatHistory()` シグナルが正しく発火すること。 |
 
 ---
 
@@ -73,6 +74,7 @@ classDiagram
 | :--- | :--- | :--- | :--- |
 | **UT-AI-01** | `AIClientManager` & `MockAIClient` | `on_requestAI("AIへの問いかけ")` を呼び出す。 | 1. `AIClientManager::notifyEvent` が `EventType::AIRequestSent` で発火すること。<br>2. `MockAIClient` の `sendRequest` が引数 `"AIへの問いかけ"` で呼ばれること。 |
 | **UT-AI-02** | `AIClientManager` & `MockAIClient` | `MockAIClient` に応答 `"AIの答え"` をセットし、`on_requestAI()` を呼ぶ。 | `AIClientManager::notifyEvent` シグナルが `EventType::AIResponseReceived` (text: `"AIの答え"`) で発火すること。 |
+| **UT-AI-03** | `AIClientManager` (履歴マークダウン化) | 会話履歴が存在する状態で `on_requestChatHistory()` を呼び出す。 | `notifyEvent` シグナルが `EventType::ChatHistoryReceived` で発火し、`text` にマークダウン形式で整形された履歴が含まれること。 |
 
 ---
 
