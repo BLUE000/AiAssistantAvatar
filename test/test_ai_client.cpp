@@ -211,3 +211,39 @@ TEST_F(AIClientTest, ExportSessionBackupTest) {
     EXPECT_TRUE(content.contains("Exp A2"));
     EXPECT_TRUE(content.contains("=== 会話履歴エクスポート (復号済) ==="));
 }
+
+TEST_F(AIClientTest, ChatHistoryRequestTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // 1. 空の状態で履歴を要求
+    {
+        QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+        manager.on_requestChatHistory();
+
+        ASSERT_EQ(eventSpy.count(), 1);
+        AppEvent event = eventSpy.at(0).at(0).value<AppEvent>();
+        EXPECT_EQ(event.type, EventType::ChatHistoryReceived);
+        EXPECT_TRUE(event.text.contains("会話履歴はまだありません。"));
+    }
+
+    // 2. 履歴を設定した状態で履歴を要求
+    {
+        QList<QPair<QString, QString>> mockHistory;
+        mockHistory.append(QPair<QString, QString>("こんにちは", "こんにちは！何か御用ですか？"));
+        mockHistory.append(QPair<QString, QString>("調子はどう？", "ダミーなので元気です。"));
+        manager.setChatHistory(mockHistory);
+
+        QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+        manager.on_requestChatHistory();
+
+        ASSERT_EQ(eventSpy.count(), 1);
+        AppEvent event = eventSpy.at(0).at(0).value<AppEvent>();
+        EXPECT_EQ(event.type, EventType::ChatHistoryReceived);
+        EXPECT_TRUE(event.text.contains("## 会話履歴"));
+        EXPECT_TRUE(event.text.contains("こんにちは"));
+        EXPECT_TRUE(event.text.contains("ダミーなので元気です。"));
+        EXPECT_TRUE(event.text.contains("### [1]"));
+        EXPECT_TRUE(event.text.contains("### [2]"));
+    }
+}

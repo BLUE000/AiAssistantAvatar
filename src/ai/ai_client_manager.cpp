@@ -18,7 +18,7 @@ AIClientManager::AIClientManager(QObject *parent)
 {
     loadCredentials();
     loadSessionContext();
-    setAIProvider("dummy"); // 初期はdummy、準備ができたら設定ファイル等に基づき設定
+    setAIProvider(m_provider); // ロードされたプロバイダを設定
 }
 
 AIClientManager::~AIClientManager() {
@@ -84,6 +84,7 @@ void AIClientManager::loadCredentials() {
             QJsonObject obj = doc.object();
             m_apiKey = obj["mistral_api_key"].toString();
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
+            m_provider = obj["ai_provider"].toString("dummy");
             qDebug() << "AIClientManager: Loaded settings from" << configPath;
         }
     }
@@ -378,5 +379,29 @@ void AIClientManager::exportSessionBackup(const QString &encPath, const QString 
     qDebug() << "AIClientManager: Successfully exported decrypted history to" << txtPath;
     event.type = EventType::AIResponseReceived;
     event.text = QString("会話履歴をエクスポートしました:\n%1").arg(QFileInfo(txtPath).fileName());
+    emit notifyEvent(event);
+}
+
+void AIClientManager::on_requestChatHistory() {
+    qDebug() << "AIClientManager: Processing chat history request. History size:" << m_chatHistory.size();
+
+    QString md;
+    if (m_chatHistory.isEmpty()) {
+        md = "会話履歴はまだありません。";
+    } else {
+        md = "## 会話履歴\n\n";
+        for (int i = 0; i < m_chatHistory.size(); ++i) {
+            const auto &pair = m_chatHistory.at(i);
+            md += QString("### [%1]\n").arg(i + 1);
+            md += QString("**ユーザー**:\n%1\n\n").arg(pair.first);
+            md += QString("**AI**:\n%1\n\n").arg(pair.second);
+            md += "---\n\n";
+        }
+    }
+
+    AppEvent event;
+    event.type = EventType::ChatHistoryReceived;
+    event.source = "AIClientManager";
+    event.text = md;
     emit notifyEvent(event);
 }

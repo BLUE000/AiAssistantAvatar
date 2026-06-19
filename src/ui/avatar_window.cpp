@@ -20,6 +20,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QStatusBar>
+#include <QTextBrowser>
 
 AvatarWindow::AvatarWindow(QWidget *parent)
     : QMainWindow(parent), m_currentState("idle") 
@@ -27,36 +28,42 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     // 通常ウィンドウの設定（背景透過なし・枠あり）
     setWindowFlags(Qt::WindowStaysOnTopHint);
     
-    // ウィンドウサイズを縦方向に拡張 (幅400, 高さ480)
-    setFixedSize(400, 480);
+    // ウィンドウサイズを横方向に拡張 (幅750, 高さ480)
+    setFixedSize(750, 480);
 
-    // 中央ウィジェットの作成とレイアウト設定
+    // 中央ウィジェットの作成とメインレイアウト（横並び）
     QWidget *centralWidget = new QWidget(this);
-    QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
+    QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(10);
 
+    // 左パネル（アバター表示 + 下部チャット入力・操作ボタン）
+    m_leftPanel = new QWidget(centralWidget);
+    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftPanel);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(10);
+
     // アバター表示エリア（上部）
-    m_avatarLabel = new QLabel(centralWidget);
+    m_avatarLabel = new QLabel(m_leftPanel);
     m_avatarLabel->setAlignment(Qt::AlignCenter);
     m_avatarLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    mainLayout->addWidget(m_avatarLabel);
+    leftLayout->addWidget(m_avatarLabel);
 
     // 入力コントロールエリア（下部）
     QHBoxLayout *controlLayout = new QHBoxLayout();
     controlLayout->setSpacing(5);
 
-    m_inputEdit = new QLineEdit(centralWidget);
+    m_inputEdit = new QLineEdit(m_leftPanel);
     m_inputEdit->setPlaceholderText("メッセージを入力...");
     connect(m_inputEdit, &QLineEdit::returnPressed, this, &AvatarWindow::onSendClicked);
 
-    m_sendButton = new QPushButton("送信", centralWidget);
+    m_sendButton = new QPushButton("送信", m_leftPanel);
     connect(m_sendButton, &QPushButton::clicked, this, &AvatarWindow::onSendClicked);
 
-    m_sttButton = new QPushButton("音声", centralWidget);
+    m_sttButton = new QPushButton("音声", m_leftPanel);
     connect(m_sttButton, &QPushButton::clicked, this, &AvatarWindow::onSttClicked);
 
-    m_menuButton = new QPushButton("⚙", centralWidget);
+    m_menuButton = new QPushButton("⚙", m_leftPanel);
     m_menuButton->setFixedWidth(30);
     connect(m_menuButton, &QPushButton::clicked, this, &AvatarWindow::onMenuClicked);
 
@@ -65,7 +72,24 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     controlLayout->addWidget(m_sttButton);
     controlLayout->addWidget(m_menuButton);
 
-    mainLayout->addLayout(controlLayout);
+    leftLayout->addLayout(controlLayout);
+    mainLayout->addWidget(m_leftPanel);
+
+    // 右パネル（履歴表示 + 履歴取得ボタン）
+    m_rightPanel = new QWidget(centralWidget);
+    QVBoxLayout *rightLayout = new QVBoxLayout(m_rightPanel);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(10);
+
+    m_historyBrowser = new QTextBrowser(m_rightPanel);
+    m_historyBrowser->setPlaceholderText("会話履歴はここに表示されます。");
+    
+    m_historyButton = new QPushButton("履歴取得", m_rightPanel);
+    connect(m_historyButton, &QPushButton::clicked, this, &AvatarWindow::onHistoryClicked);
+
+    rightLayout->addWidget(m_historyBrowser);
+    rightLayout->addWidget(m_historyButton);
+    mainLayout->addWidget(m_rightPanel);
 
     setCentralWidget(centralWidget);
 
@@ -710,39 +734,7 @@ void AvatarWindow::showContextMenu(const QPoint &globalPos) {
     QAction *actImportHistory = menu.addAction("会話履歴をインポート...");
     QAction *actExportHistory = menu.addAction("会話履歴をエクスポート...");
 
-    // バリアントグループ切り替えサブメニュー（複数グループがあるときのみ）
-    QMap<QAction*, QString> variantActionMap;
-    if (m_allVariantGroups.size() > 1) {
-        menu.addSeparator();
-        QMenu *variantMenu = menu.addMenu("バリアント切り替え");
-        for (auto it = m_allVariantGroups.begin(); it != m_allVariantGroups.end(); ++it) {
-            QString label = it.value().label.isEmpty() ? it.key() : it.value().label;
-            if (it.key() == m_activeVariantGroupName) label += " ✔";
-            QAction *act = variantMenu->addAction(label);
-            variantActionMap[act] = it.key();
-        }
-    }
 
-    // アニメーションサブメニュー（定義があるときのみ表示）
-    QMap<QAction*, QString> animActionMap;
-    if (!m_animations.isEmpty()) {
-        menu.addSeparator();
-        QMenu *animMenu = menu.addMenu("アニメーション");
-        for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
-            QString label = it.value().label.isEmpty() ? it.key() : it.value().label;
-            QAction *act  = animMenu->addAction(label);
-            animActionMap[act] = it.key();
-        }
-        // バリアントモードに戻すアクション
-        if (!m_allVariantGroups.isEmpty()) {
-            animMenu->addSeparator();
-            QString activeLabel = m_allVariantGroups.contains(m_activeVariantGroupName)
-                ? m_allVariantGroups[m_activeVariantGroupName].label
-                : m_activeVariantGroupName;
-            QAction *actReturn = animMenu->addAction("ランダム表示に戻す (" + activeLabel + ")");
-            animActionMap[actReturn] = "__variant__";
-        }
-    }
 
     menu.addSeparator();
     QAction *actQuit = menu.addAction("終了");
@@ -750,23 +742,7 @@ void AvatarWindow::showContextMenu(const QPoint &globalPos) {
     QAction *selected = menu.exec(globalPos);
     if (!selected) return;
 
-    // バリアントグループ切り替え
-    if (variantActionMap.contains(selected)) {
-        switchVariantGroup(variantActionMap[selected]);
-        return;
-    }
 
-    // アニメーション選択
-    if (animActionMap.contains(selected)) {
-        QString animName = animActionMap[selected];
-        if (animName == "__variant__") {
-            // アニメーション停止 → 現在のバリアントグループに戻る
-            switchVariantGroup(m_activeVariantGroupName);
-        } else {
-            playAnimation(animName);
-        }
-        return;
-    }
 
     if (selected == actDirectInput) {
         bool ok;
@@ -815,6 +791,10 @@ void AvatarWindow::onMenuClicked() {
     if (!m_menuButton) return;
     QPoint pos = m_menuButton->mapToGlobal(QPoint(0, m_menuButton->height()));
     showContextMenu(pos);
+}
+
+void AvatarWindow::onHistoryClicked() {
+    emit requestChatHistory();
 }
 
 void AvatarWindow::on_notify_events(const AppEvent &event) {
@@ -890,6 +870,13 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 });
             }
             m_resumeTimer->start(5000);
+            break;
+
+        case EventType::ChatHistoryReceived:
+            if (m_historyBrowser) {
+                m_historyBrowser->setMarkdown(event.text);
+            }
+            statusBar()->showMessage("会話履歴を更新しました", 3000);
             break;
 
         default:

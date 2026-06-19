@@ -63,6 +63,8 @@ int main(int argc, char *argv[]) {
                      core, &CoreModule::on_importSessionRequested, Qt::QueuedConnection);
     QObject::connect(&window, &AvatarWindow::exportSessionRequested,
                      core, &CoreModule::on_exportSessionRequested, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::requestChatHistory,
+                     core, &CoreModule::on_requestChatHistory, Qt::QueuedConnection);
 
     // Core -> UI
     QObject::connect(core, &CoreModule::notifyEventToUI,
@@ -83,6 +85,8 @@ int main(int argc, char *argv[]) {
                      ai, &AIClientManager::importSessionBackup, Qt::QueuedConnection);
     QObject::connect(core, &CoreModule::requestSessionExport,
                      ai, &AIClientManager::exportSessionBackup, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestChatHistory,
+                     ai, &AIClientManager::on_requestChatHistory, Qt::QueuedConnection);
 
     // SubModules -> Core (イベント通知)
     QObject::connect(twitch, &TwitchReader::notifyEvent,
