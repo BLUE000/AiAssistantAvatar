@@ -36,7 +36,6 @@ set(SOURCES
     src/main.cpp
     src/core_module.cpp
     src/ui/avatar_window.cpp
-    src/ui/balloon_widget.cpp
     src/twitch/twitch_reader.cpp
     src/stt/stt_manager.cpp
     src/stt/istt_engine.cpp

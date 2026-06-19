@@ -31,11 +31,6 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             emit notifyEventToUI(event);
             break;
         }
-        case EventType::ChatHistoryReceived: {
-            // そのままUIにパス
-            emit notifyEventToUI(event);
-            break;
-        }
         default:
             // その他はUIに通知中継
             emit notifyEventToUI(event);
@@ -81,10 +76,5 @@ void CoreModule::on_importSessionRequested(const QString &filePath) {
 void CoreModule::on_exportSessionRequested(const QString &encPath, const QString &txtPath) {
     qDebug() << "CoreModule: Session export requested from UI. Enc:" << encPath << "Txt:" << txtPath;
     emit requestSessionExport(encPath, txtPath);
-}
-
-void CoreModule::on_requestChatHistory() {
-    qDebug() << "CoreModule: Chat history requested from UI.";
-    emit requestChatHistory();
 }
 

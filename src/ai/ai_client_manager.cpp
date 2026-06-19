@@ -381,27 +381,3 @@ void AIClientManager::exportSessionBackup(const QString &encPath, const QString 
     event.text = QString("会話履歴をエクスポートしました:\n%1").arg(QFileInfo(txtPath).fileName());
     emit notifyEvent(event);
 }
-
-void AIClientManager::on_requestChatHistory() {
-    qDebug() << "AIClientManager: Processing chat history request. History size:" << m_chatHistory.size();
-
-    QString md;
-    if (m_chatHistory.isEmpty()) {
-        md = "会話履歴はまだありません。";
-    } else {
-        md = "## 会話履歴\n\n";
-        for (int i = 0; i < m_chatHistory.size(); ++i) {
-            const auto &pair = m_chatHistory.at(i);
-            md += QString("### [%1]\n").arg(i + 1);
-            md += QString("**ユーザー**:\n%1\n\n").arg(pair.first);
-            md += QString("**AI**:\n%1\n\n").arg(pair.second);
-            md += "---\n\n";
-        }
-    }
-
-    AppEvent event;
-    event.type = EventType::ChatHistoryReceived;
-    event.source = "AIClientManager";
-    event.text = md;
-    emit notifyEvent(event);
-}

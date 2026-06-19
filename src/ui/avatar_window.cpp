@@ -1,5 +1,4 @@
 #include "avatar_window.h"
-#include "balloon_widget.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -75,20 +74,33 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     leftLayout->addLayout(controlLayout);
     mainLayout->addWidget(m_leftPanel);
 
-    // 右パネル（履歴表示 + 履歴取得ボタン）
+    // 右パネル（最新AI応答表示 - 吹き出し風装飾）
     m_rightPanel = new QWidget(centralWidget);
+    m_rightPanel->setObjectName("rightPanel");
+    m_rightPanel->setStyleSheet(
+        "QWidget#rightPanel {"
+        "  background-color: rgba(255, 255, 255, 220);"
+        "  border: 2px solid rgba(200, 200, 200, 180);"
+        "  border-radius: 15px;"
+        "}"
+    );
+
     QVBoxLayout *rightLayout = new QVBoxLayout(m_rightPanel);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(10);
+    rightLayout->setContentsMargins(15, 15, 15, 15);
+    rightLayout->setSpacing(0);
 
-    m_historyBrowser = new QTextBrowser(m_rightPanel);
-    m_historyBrowser->setPlaceholderText("会話履歴はここに表示されます。");
-    
-    m_historyButton = new QPushButton("履歴取得", m_rightPanel);
-    connect(m_historyButton, &QPushButton::clicked, this, &AvatarWindow::onHistoryClicked);
+    m_responseBrowser = new QTextBrowser(m_rightPanel);
+    m_responseBrowser->setStyleSheet(
+        "QTextBrowser {"
+        "  background-color: transparent;"
+        "  border: none;"
+        "  font-size: 11pt;"
+        "  color: #333333;"
+        "}"
+    );
+    m_responseBrowser->setPlaceholderText("ここにAIからの回答が表示されます。");
 
-    rightLayout->addWidget(m_historyBrowser);
-    rightLayout->addWidget(m_historyButton);
+    rightLayout->addWidget(m_responseBrowser);
     mainLayout->addWidget(m_rightPanel);
 
     setCentralWidget(centralWidget);
@@ -100,10 +112,6 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     QScreen *primaryScreen = QGuiApplication::primaryScreen();
     QRect screenGeometry = primaryScreen->geometry();
     m_desktopTargetPos = QPoint(screenGeometry.width() / 2, screenGeometry.height() - 150);
-
-    // バルーンの生成
-    m_balloon = new BalloonWidget(this);
-    m_balloon->hide();
 
     // 初回右クリック/メニュー表示のもたつきを解消するためのダミープリロード
     {
@@ -674,12 +682,6 @@ void AvatarWindow::updateWindowPosition() {
         this->move(newX, newY);
     }
 
-    // バルーン位置の追従（ウィンドウ上部中央固定位置）
-    if (m_balloon && m_balloon->isVisible()) {
-        int bx = (this->width() - m_balloon->width()) / 2;
-        int by = 5;
-        m_balloon->move(bx, by);
-    }
 }
 
 void AvatarWindow::mousePressEvent(QMouseEvent *event) {
@@ -703,12 +705,6 @@ void AvatarWindow::mouseMoveEvent(QMouseEvent *event) {
         // ドラッグ中は常に現在位置を保存（状態切り替え時に位置復元用）
         m_lastWindowPos = pos();
         
-        // バルーンの追従（ウィンドウ上部中央固定位置）
-        if (m_balloon && m_balloon->isVisible()) {
-            int bx = (this->width() - m_balloon->width()) / 2;
-            int by = 5;
-            m_balloon->move(bx, by);
-        }
         event->accept();
     }
 }
@@ -728,13 +724,9 @@ void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
 void AvatarWindow::showContextMenu(const QPoint &globalPos) {
     QMenu menu(this);
     
-    QAction *actDirectInput  = menu.addAction("直接テキスト入力");
-    QAction *actVoiceInput   = menu.addAction("音声入力開始(STT)");
     QAction *actResetHistory = menu.addAction("会話履歴をクリアして要約");
     QAction *actImportHistory = menu.addAction("会話履歴をインポート...");
     QAction *actExportHistory = menu.addAction("会話履歴をエクスポート...");
-
-
 
     menu.addSeparator();
     QAction *actQuit = menu.addAction("終了");
@@ -742,19 +734,7 @@ void AvatarWindow::showContextMenu(const QPoint &globalPos) {
     QAction *selected = menu.exec(globalPos);
     if (!selected) return;
 
-
-
-    if (selected == actDirectInput) {
-        bool ok;
-        QString text = QInputDialog::getText(this, "AIへの直接命令", 
-                                             "メッセージを入力してください:", 
-                                             QLineEdit::Normal, "", &ok);
-        if (ok && !text.isEmpty()) {
-            emit directInputSubmitted(text);
-        }
-    } else if (selected == actVoiceInput) {
-        emit startSTTRequested();
-    } else if (selected == actResetHistory) {
+    if (selected == actResetHistory) {
         emit resetSessionRequested();
     } else if (selected == actImportHistory) {
         QString filePath = QFileDialog::getOpenFileName(this, "会話履歴のインポート", "log", "Encrypted Backups (*.enc)");
@@ -793,60 +773,56 @@ void AvatarWindow::onMenuClicked() {
     showContextMenu(pos);
 }
 
-void AvatarWindow::onHistoryClicked() {
-    emit requestChatHistory();
-}
-
 void AvatarWindow::on_notify_events(const AppEvent &event) {
     qDebug() << "AvatarWindow received event. Type:" << static_cast<int>(event.type) << "Text:" << event.text;
-
-    // バルーンの表示位置を現在のウィンドウ位置から計算するラムダ
-    // BalloonWidget は Qt::SubWindow (子ウィジェット) のため move() は親相対座標
-    // ウィンドウ上部の固定位置に配置
-    auto showBalloon = [this](const QString &text) {
-        m_balloon->showText(text);
-        // ウィンドウ内の上部中央に固定配置
-        int bx = (this->width() - m_balloon->width()) / 2;
-        int by = 5;  // ウィンドウ上部にマージン 5px
-        m_balloon->move(bx, by);
-        m_balloon->raise(); // アバター画像の前面に表示
-    };
 
     switch (event.type) {
         case EventType::VoiceInputStarted:
             pauseScheduler();
             updateAvatarDisplay("listening");
             statusBar()->showMessage("音声入力中... 話しかけてください");
-            showBalloon("マイクの音声を聞いています...");
+            if (m_responseBrowser) {
+                m_responseBrowser->setMarkdown("*マイクの音声を聞いています...*");
+            }
             break;
 
         case EventType::VoiceInputCompleted:
             updateAvatarDisplay("thinking");
             statusBar()->showMessage("音声認識完了: 応答生成中...");
+            if (m_responseBrowser) {
+                m_responseBrowser->setMarkdown("*音声認識完了: 応答生成中...*");
+            }
             break;
 
         case EventType::DirectInputSubmitted:
             pauseScheduler();
             updateAvatarDisplay("thinking");
             statusBar()->showMessage("テキスト送信完了: 応答生成中...");
+            if (m_responseBrowser) {
+                m_responseBrowser->setMarkdown("*テキスト送信完了: 応答生成中...*");
+            }
             break;
 
         case EventType::AIRequestSent:
             updateAvatarDisplay("thinking");
             statusBar()->showMessage("AIの返答を待っています...");
+            if (m_responseBrowser) {
+                m_responseBrowser->setMarkdown("*AIの返答を待っています...*");
+            }
             break;
 
         case EventType::AIResponseReceived: {
             updateAvatarDisplay("speaking");
             statusBar()->showMessage("AIが応答中");
-            showBalloon(event.text);
+            if (m_responseBrowser) {
+                m_responseBrowser->setMarkdown(event.text);
+            }
             // 応答テキストの長さに応じて表示時間を計算（最低5秒・最大30秒）
             int readMs = qBound(5000, event.text.length() * 120, 30000);
             if (!m_resumeTimer) {
                 m_resumeTimer = new QTimer(this);
                 m_resumeTimer->setSingleShot(true);
                 connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
-                    m_balloon->hide();
                     resumeScheduler();
                     statusBar()->showMessage("待機中...");
                 });
@@ -858,25 +834,19 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
         case EventType::ErrorOccurred:
             updateAvatarDisplay("idle");
             statusBar()->showMessage("エラーが発生しました: " + event.text);
-            showBalloon("エラーが発生しました: " + event.text);
+            if (m_responseBrowser) {
+                m_responseBrowser->setMarkdown(QString("**エラーが発生しました**:\n%1").arg(event.text));
+            }
             // エラー時も一定時間後にスケジューラー再開
             if (!m_resumeTimer) {
                 m_resumeTimer = new QTimer(this);
                 m_resumeTimer->setSingleShot(true);
                 connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
-                    m_balloon->hide();
                     resumeScheduler();
                     statusBar()->showMessage("待機中...");
                 });
             }
             m_resumeTimer->start(5000);
-            break;
-
-        case EventType::ChatHistoryReceived:
-            if (m_historyBrowser) {
-                m_historyBrowser->setMarkdown(event.text);
-            }
-            statusBar()->showMessage("会話履歴を更新しました", 3000);
             break;
 
         default:

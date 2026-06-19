@@ -53,8 +53,6 @@ struct PatternSchedulerEntry {
     int stayMs = 8000;  // variant_group の場合の滞在時間（ms）
 };
 
-// UIのバルーン（吹き出し）ウィジェットを先行宣言
-class BalloonWidget;
 class QLineEdit;
 class QPushButton;
 class QTextBrowser;
@@ -63,15 +61,13 @@ class AvatarWindow : public QMainWindow {
     Q_OBJECT
 private:
     QLabel *m_avatarLabel;
-    BalloonWidget *m_balloon;
     QLineEdit *m_inputEdit = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_sttButton = nullptr;
     QPushButton *m_menuButton = nullptr;
     QWidget *m_leftPanel = nullptr;
     QWidget *m_rightPanel = nullptr;
-    QPushButton *m_historyButton = nullptr;
-    QTextBrowser *m_historyBrowser = nullptr;
+    QTextBrowser *m_responseBrowser = nullptr;
 
     QMap<QString, ImageSetting> m_imageSettings;      // 状態ごとの設定
     QMap<QString, QPixmap> m_pixmapCache;             // 透過処理済みのキャッシュ
@@ -124,7 +120,6 @@ private slots:
     void onSendClicked();
     void onSttClicked();
     void onMenuClicked();
-    void onHistoryClicked();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -143,7 +138,6 @@ signals:
     void resetSessionRequested(); // 会話履歴リセット要求シグナル
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
-    void requestChatHistory(); // 会話履歴要求シグナル
 
 public slots:
     // コアから通知を受け取るスロット
