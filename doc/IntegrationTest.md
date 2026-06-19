@@ -24,7 +24,6 @@
 | **IT-EVT-02** | STT → Core | `STTManager` (STTスレッド) から `notifyEvent()` シグナルを発火する。 | `CoreModule::on_notify_events()` がスレッドを越えて呼び出され、音声認識結果テキストが受信されること。 | 自動テスト |
 | **IT-EVT-03** | Core → UI | `CoreModule` から `notifyEventToUI()` シグナルを発火する。 | メイン（GUI）スレッドで動作する `AvatarWindow::on_notify_events()` が呼び出され、イベントの種類に応じた描画更新処理がキックされること。 | 自動テスト |
 | **IT-EVT-04** | Twitch認証連携 | `TwitchReader` 起動時にトークンがない場合に仮HTTPサーバーを起動し、取得したトークンでIRC接続する。 | ローカルHTTPサーバーが指定ポートで待機し、ブラウザリダイレクトからトークンを取得・保存して、自動接続フローへ移行すること。 | 結合テスト |
-| **IT-EVT-05** | 会話履歴取得連携 | UIから `requestChatHistory` シグナルを発火し、コア経由で `AIClientManager` の `on_requestChatHistory` スロットを呼び出す。 | 履歴データがマークダウン形式で `AppEvent` に包まれてUIに到達し、QTextBrowserに表示されること。 | 自動テスト / 結合テスト |
 
 ---
 

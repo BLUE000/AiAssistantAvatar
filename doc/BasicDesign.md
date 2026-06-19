@@ -28,7 +28,7 @@ graph TD
 
 | モジュール名 | 主要クラス名 | 動作スレッド | 主な責務 |
 | :--- | :--- | :--- | :--- |
-| **UIモジュール** | `AvatarWindow`<br>`BalloonWidget` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・テキストバルーンの表示、直接テキスト入力欄の提供<br>・会話履歴取得ボタンおよび履歴表示領域（QTextBrowser）の提供<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
+| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
 | **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合にブラウザでOAuth画面を開き、リダイレクトを受ける一時HTTPサーバーを構築してアクセストークンを自動取得<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
@@ -62,8 +62,7 @@ enum class EventType {
     VoiceInputCompleted,     // 音声認識が完了しテキストが得られた
     AIRequestSent,          // AIへのAPIリクエストを送信した
     AIResponseReceived,     // AIからの応答テキストを受信した
-    ErrorOccurred,          // エラーが発生した
-    ChatHistoryReceived     // 会話履歴データを受信した
+    ErrorOccurred           // エラーが発生した
 };
 
 struct AppEvent {
@@ -265,7 +264,7 @@ sequenceDiagram
     Core->>Core: on_notify_eventsで受信・履歴保存等
     Core->>UI: notifyEventToUI (AIResponseReceived, ai_text)
     UI->>UI: on_notify_eventsで受信
-    UI->>UI: バルーンにai_textを表示、アバターを通常アニメに変更
+    UI->>UI: 右ペインのテキストエリアにai_textをマークダウン表示、アバターを通常アニメに変更
 ```
 
 ### 5.2 テキスト直接入力からの処理フロー
@@ -293,7 +292,7 @@ sequenceDiagram
     Core->>Core: on_notify_eventsで受信・履歴保存等
     Core->>UI: notifyEventToUI (AIResponseReceived, ai_text)
     UI->>UI: on_notify_eventsで受信
-    UI->>UI: バルーンにai_textを表示、アバターを通常アニメに変更
+    UI->>UI: 右ペインのテキストエリアにai_textをマークダウン表示、アバターを通常アニメに変更
 ```
 
 ### 5.3 起動時出自証明およびコピーライト動的適用シーケンス
@@ -429,26 +428,9 @@ sequenceDiagram
     UI->>UI: バルーンに結果メッセージを表示
 ```
 
-### 5.7 会話履歴取得シーケンス
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as ユーザー
-    participant UI as UIモジュール (AvatarWindow)
-    participant Core as コアモジュール (CoreModule)
-    participant AI as AIモジュール (AIClientManager)
-
-    User->>UI: 「履歴取得」ボタンを押下
-    UI->>Core: requestChatHistory() シグナル発火
-    Core->>AI: requestChatHistory() 中継
-    AI->>AI: m_chatHistory をマークダウン形式に整形
-    AI->>Core: notifyEvent (ChatHistoryReceived, md_text)
-    Core->>UI: notifyEventToUI (...)
-    UI->>UI: QTextBrowser に履歴をマークダウン描画
-```
-
 ---
+
+
 
 
 ## 6. セキュリティとライセンス検証 (TrustChain & BinMarkManager)
