@@ -141,7 +141,7 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     // デフォルト目標位置（画面下部中央）の設定
     QScreen *primaryScreen = QGuiApplication::primaryScreen();
     QRect screenGeometry = primaryScreen->geometry();
-    m_desktopTargetPos = QPoint(screenGeometry.width() / 2, screenGeometry.height() - 150);
+    m_desktopTargetPos = QPoint(screenGeometry.width() / 2, screenGeometry.height() / 2);
 
     // 初回右クリック/メニュー表示のもたつきを解消するためのダミープリロード
     {
@@ -705,15 +705,15 @@ void AvatarWindow::updateWindowPosition() {
     m_avatarLabel->setPixmap(currentPixmap);
     // adjustSize() は呼ばない（ウィンドウサイズを固定に保つ）
 
-    // ユーザーがドラッグで移動した場合はその位置を保持
-    if (m_userDraggedWindow && !m_lastWindowPos.isNull()) {
-        // ドラッグ後の位置を保持
+    // ユーザーがドラッグで移動した、または初期配置済みの場合はその位置を保持
+    if (!m_lastWindowPos.isNull()) {
         this->move(m_lastWindowPos);
     } else {
-        // ドラッグされていない場合のみ初期位置に配置
+        // ドラッグされておらず、まだ初期配置されていない場合のみ計算位置に配置
         int newX = m_desktopTargetPos.x() - setting.anchorX;
         int newY = m_desktopTargetPos.y() - setting.anchorY;
         this->move(newX, newY);
+        m_lastWindowPos = QPoint(newX, newY);
     }
 
 }
@@ -892,8 +892,18 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             break;
 
         case EventType::SettingsUpdated:
+            if (event.extraData.contains("twitch_oauth_token")) {
+                m_twitchOAuthToken = event.extraData.value("twitch_oauth_token").toString();
+            }
+            if (event.extraData.contains("twitch_channel")) {
+                QString channel = event.extraData.value("twitch_channel").toString();
+                if (!channel.isEmpty()) {
+                    m_twitchChannelEdit->setText(channel);
+                }
+            }
+            saveSettingsFromUI();
             loadSettingsToUI();
-            statusBar()->showMessage("Twitch OAuth設定が更新され、UIに反映されました。");
+            statusBar()->showMessage("Twitch OAuth設定が更新され、保存・適用されました。");
             break;
 
         default:
@@ -995,6 +1005,7 @@ void AvatarWindow::loadSettingsToUI() {
 
             m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
             m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
+            m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
         }
     }
 }
@@ -1036,6 +1047,7 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["ai_provider"] = m_aiProviderCombo->currentText();
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
     obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
+    obj["twitch_oauth_token"] = m_twitchOAuthToken;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
 
     QJsonDocument newDoc(obj);

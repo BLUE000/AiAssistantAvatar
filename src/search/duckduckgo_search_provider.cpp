@@ -19,10 +19,15 @@ void DuckDuckGoSearchProvider::search(const QString &query) {
     url.setQuery(urlQuery);
 
     QNetworkRequest request(url);
-    // User-Agentを偽装
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-    request.setRawHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-    request.setRawHeader("Accept-Language", "ja,en-US;q=0.7,en;q=0.3");
+    // 最新のUser-Agentに変更し、Sec-Fetchヘッダーなどを追加してブラウザ挙動を精緻に偽装
+    request.setRawHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
+    request.setRawHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    request.setRawHeader("Accept-Language", "ja,en-US;q=0.9,en;q=0.8");
+    request.setRawHeader("Sec-Fetch-Dest", "document");
+    request.setRawHeader("Sec-Fetch-Mode", "navigate");
+    request.setRawHeader("Sec-Fetch-Site", "none");
+    request.setRawHeader("Sec-Fetch-User", "?1");
+    request.setRawHeader("Upgrade-Insecure-Requests", "1");
 
     qDebug() << "DuckDuckGoSearchProvider: Fetching HTML for query:" << query;
     m_networkManager->get(request);

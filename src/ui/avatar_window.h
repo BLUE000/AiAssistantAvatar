@@ -83,6 +83,7 @@ private:
     QComboBox *m_aiProviderCombo = nullptr;
     QLineEdit *m_aiApiKeyEdit = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
+    QString m_twitchOAuthToken;
 
     // OBS配信用WebSocketサーバー
     QWebSocketServer *m_wsServer = nullptr;

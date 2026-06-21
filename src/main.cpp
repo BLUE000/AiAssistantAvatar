@@ -1,6 +1,10 @@
 #include <QApplication>
 #include <QThread>
 #include <QDebug>
+#include <QFile>
+#include <QTextStream>
+#include <QDateTime>
+#include <QMutex>
 #include "app_event.h"
 #include "core_module.h"
 #include "ui/avatar_window.h"
@@ -12,7 +16,33 @@
 #include "TrustChainCore.hpp"
 #include "TrustChainQt.hpp"
 
+void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    static QMutex mutex;
+    QMutexLocker locker(&mutex);
+    
+    QFile file("app_debug.log");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        QTextStream stream(&file);
+        QString timeStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
+        QString typeStr = "DEBUG";
+        switch (type) {
+            case QtDebugMsg: typeStr = "DEBUG"; break;
+            case QtInfoMsg: typeStr = "INFO"; break;
+            case QtWarningMsg: typeStr = "WARN"; break;
+            case QtCriticalMsg: typeStr = "CRIT"; break;
+            case QtFatalMsg: typeStr = "FATAL"; break;
+        }
+        stream << QString("[%1] [%2] %3\n").arg(timeStr).arg(typeStr).arg(msg);
+        file.close();
+    }
+    
+    // 標準出力にも出力
+    fprintf(stderr, "%s\n", msg.toLocal8Bit().constData());
+    fflush(stderr);
+}
+
 int main(int argc, char *argv[]) {
+    qInstallMessageHandler(messageHandler);
     QApplication app(argc, argv);
 
     // 1. メタタイプの登録 (スレッド間で AppEvent を渡すために必須)

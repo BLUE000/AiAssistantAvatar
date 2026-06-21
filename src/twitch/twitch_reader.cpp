@@ -77,49 +77,8 @@ void TwitchReader::loadSettings() {
 }
 
 void TwitchReader::saveTokenToSettings(const QString &token) {
-    m_oauthToken = token;
-    
-    if (m_configPath.isEmpty()) {
-        m_configPath = "local_settings.json";
-#ifdef PROJECT_SOURCE_DIR
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-        }
-#endif
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-        }
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-        }
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-        }
-    }
-
-    QFile file(m_configPath);
-    QByteArray data;
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        data = file.readAll();
-        file.close();
-    }
-
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    QJsonObject obj;
-    if (!doc.isNull() && doc.isObject()) {
-        obj = doc.object();
-    }
-    
-    obj["twitch_oauth_token"] = token;
-    
-    QJsonDocument newDoc(obj);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.write(newDoc.toJson(QJsonDocument::Indented));
-        file.close();
-        qDebug() << "TwitchReader: OAuth token saved to" << m_configPath;
-    } else {
-        qWarning() << "TwitchReader: Failed to save OAuth token to" << m_configPath;
-    }
+    Q_UNUSED(token);
+    // スレッド競合を防ぐため、ファイル直接書き込みは廃止。UIスレッド側のイベント受信によって安全に保存されます。
 }
 
 void TwitchReader::startOAuthServer() {
@@ -132,7 +91,7 @@ void TwitchReader::startOAuthServer() {
     m_authServer = new QTcpServer(this);
     connect(m_authServer, &QTcpServer::newConnection, this, &TwitchReader::handleNewConnection);
 
-    if (!m_authServer->listen(QHostAddress::LocalHost, m_authPort)) {
+    if (!m_authServer->listen(QHostAddress::Any, m_authPort)) {
         qCritical() << "TwitchReader: Failed to start OAuth local server on port" << m_authPort;
         AppEvent event;
         event.type = EventType::ErrorOccurred;
@@ -385,55 +344,9 @@ void TwitchReader::injectTestComment(const QString &user, const QString &message
 }
 
 void TwitchReader::saveOAuthDataToSettings(const QString &token, const QString &channel) {
-    m_oauthToken = token;
-    if (!channel.isEmpty()) {
-        m_channel = channel;
-    }
-    
-    if (m_configPath.isEmpty()) {
-        m_configPath = "local_settings.json";
-#ifdef PROJECT_SOURCE_DIR
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-        }
-#endif
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-        }
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-        }
-        if (!QFile::exists(m_configPath)) {
-            m_configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-        }
-    }
-
-    QFile file(m_configPath);
-    QByteArray data;
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        data = file.readAll();
-        file.close();
-    }
-
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    QJsonObject obj;
-    if (!doc.isNull() && doc.isObject()) {
-        obj = doc.object();
-    }
-    
-    obj["twitch_oauth_token"] = token;
-    if (!channel.isEmpty()) {
-        obj["twitch_channel"] = channel;
-    }
-    
-    QJsonDocument newDoc(obj);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.write(newDoc.toJson(QJsonDocument::Indented));
-        file.close();
-        qDebug() << "TwitchReader: OAuth token and channel saved to" << m_configPath;
-    } else {
-        qWarning() << "TwitchReader: Failed to save OAuth data to" << m_configPath;
-    }
+    Q_UNUSED(token);
+    Q_UNUSED(channel);
+    // スレッド競合を防ぐため、ファイル直接書き込みは廃止。UIスレッド側のイベント受信によって安全に保存されます。
 }
 
 void TwitchReader::fetchChannelName(const QString &token) {
@@ -443,43 +356,52 @@ void TwitchReader::fetchChannelName(const QString &token) {
     request.setRawHeader("Client-Id", m_clientId.toUtf8());
 
     connect(manager, &QNetworkAccessManager::finished, this, [this, token, manager](QNetworkReply *reply) {
+        QString channelName;
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray response = reply->readAll();
             QJsonDocument doc = QJsonDocument::fromJson(response);
             if (!doc.isNull() && doc.isObject()) {
                 QJsonArray dataArray = doc.object().value("data").toArray();
                 if (!dataArray.isEmpty()) {
-                    QString channelName = dataArray.at(0).toObject().value("login").toString();
+                    channelName = dataArray.at(0).toObject().value("login").toString();
                     qDebug() << "TwitchReader: Retrieved channel name from Twitch Helix API:" << channelName;
-                    saveOAuthDataToSettings(token, channelName);
-                    
-                    // トークンとチャンネルが揃ったので接続開始
-                    connectToTwitch();
-
-                    // UIに設定が更新されたことを通知する
-                    AppEvent event;
-                    event.type = EventType::SettingsUpdated;
-                    event.source = "TwitchReader";
-                    event.text = "Twitch OAuth設定が更新されました。";
-                    emit notifyEvent(event);
-                    
-                    reply->deleteLater();
-                    manager->deleteLater();
-                    return;
                 }
             }
-            qWarning() << "TwitchReader: Helix API response was valid JSON but missing user data.";
+            if (channelName.isEmpty()) {
+                qWarning() << "TwitchReader: Helix API response was valid JSON but missing user data.";
+            }
         } else {
             qWarning() << "TwitchReader: Failed to fetch channel name from Helix API:" << reply->errorString();
         }
 
-        // 取得失敗時も、最悪トークンだけは保存して既存の設定チャンネル名で接続を試みる
-        saveOAuthDataToSettings(token, "");
+        m_oauthToken = token;
+        if (!channelName.isEmpty()) {
+            m_channel = channelName;
+        }
+
+        // トークンとチャンネルが揃った（あるいはトークンのみ）ので接続開始
         connectToTwitch();
+
+        // UIに設定が更新されたことを通知する
+        AppEvent event;
+        event.type = EventType::SettingsUpdated;
+        event.source = "TwitchReader";
+        event.text = "Twitch OAuth設定が更新されました。";
+        
+        QVariantMap meta;
+        meta["twitch_oauth_token"] = token;
+        if (!channelName.isEmpty()) {
+            meta["twitch_channel"] = channelName;
+        }
+        event.extraData = meta;
+        
+        emit notifyEvent(event);
 
         reply->deleteLater();
         manager->deleteLater();
     });
+
+    manager->get(request);
 }
 
 void TwitchReader::on_settingsUpdated() {
@@ -495,17 +417,27 @@ void TwitchReader::on_twitchReauthRequested() {
     on_stopReading();
     
     // トークンをクリア
-    saveTokenToSettings("");
+    m_oauthToken = "";
+    
+    // UIにトークンがクリアされたことを通知して保存させる
+    AppEvent event;
+    event.type = EventType::SettingsUpdated;
+    event.source = "TwitchReader";
+    event.text = "Twitchトークンがクリアされました。";
+    QVariantMap meta;
+    meta["twitch_oauth_token"] = "";
+    event.extraData = meta;
+    emit notifyEvent(event);
     
     m_isRunning = true;
     
     if (m_clientId.isEmpty() || m_clientId == "YOUR_TWITCH_CLIENT_ID") {
         qCritical() << "TwitchReader: Client ID is missing. Cannot start OAuth process.";
-        AppEvent event;
-        event.type = EventType::ErrorOccurred;
-        event.source = "TwitchReader";
-        event.text = "Twitch クライアントIDが設定されていないため、認証を開始できません。";
-        emit notifyEvent(event);
+        AppEvent errEvent;
+        errEvent.type = EventType::ErrorOccurred;
+        errEvent.source = "TwitchReader";
+        errEvent.text = "Twitch クライアントIDが設定されていないため、認証を開始できません。";
+        emit notifyEvent(errEvent);
         return;
     }
     startOAuthServer();
