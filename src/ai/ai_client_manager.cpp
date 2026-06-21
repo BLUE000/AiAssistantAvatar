@@ -83,6 +83,7 @@ void AIClientManager::loadCredentials() {
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
             m_apiKey = obj["mistral_api_key"].toString();
+            m_tavilyApiKey = obj["tavily_api_key"].toString();
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
             m_provider = obj["ai_provider"].toString("dummy");
             qDebug() << "AIClientManager: Loaded settings from" << configPath;
@@ -109,6 +110,7 @@ void AIClientManager::setAIProvider(const QString &provider) {
     }
 
     m_currentClient->setApiKey(m_apiKey);
+    m_currentClient->setTavilyApiKey(m_tavilyApiKey);
 
     connect(m_currentClient, &IAIClient::requestFinished,
             this, &AIClientManager::on_clientRequestFinished);
@@ -386,4 +388,8 @@ void AIClientManager::on_settingsUpdated() {
     qDebug() << "AIClientManager: Settings updated. Reloading credentials.";
     loadCredentials();
     setAIProvider(m_provider);
+    if (m_currentClient) {
+        m_currentClient->setApiKey(m_apiKey);
+        m_currentClient->setTavilyApiKey(m_tavilyApiKey);
+    }
 }

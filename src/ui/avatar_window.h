@@ -82,6 +82,7 @@ private:
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
     QLineEdit *m_aiApiKeyEdit = nullptr;
+    QLineEdit *m_tavilyApiKeyEdit = nullptr;
 
     // OBS配信用WebSocketサーバー
     QWebSocketServer *m_wsServer = nullptr;

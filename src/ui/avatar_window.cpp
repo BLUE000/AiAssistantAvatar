@@ -924,6 +924,9 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_aiApiKeyEdit = new QLineEdit(parent);
     m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
 
+    m_tavilyApiKeyEdit = new QLineEdit(parent);
+    m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
+
     layout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
     layout->addRow("Twitch チャンネル:", m_twitchChannelEdit);
     layout->addRow("Twitch クライアントID:", m_twitchClientIdEdit);
@@ -932,6 +935,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     layout->addRow("ウェイクワード判定:", m_twitchWakeWordModeCombo);
     layout->addRow("AI プロバイダ:", m_aiProviderCombo);
     layout->addRow("AI API キー:", m_aiApiKeyEdit);
+    layout->addRow("Tavily API キー (任意):", m_tavilyApiKeyEdit);
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
     QPushButton *btnSave = new QPushButton("設定を保存して適用", parent);
@@ -990,6 +994,7 @@ void AvatarWindow::loadSettingsToUI() {
             if (provIdx >= 0) m_aiProviderCombo->setCurrentIndex(provIdx);
 
             m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
+            m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
         }
     }
 }
@@ -1030,6 +1035,7 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
     obj["ai_provider"] = m_aiProviderCombo->currentText();
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
+    obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
 
     QJsonDocument newDoc(obj);
