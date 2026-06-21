@@ -25,9 +25,10 @@ TwitchReader::~TwitchReader() {
     on_stopReading();
 }
 
-void TwitchReader::setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord) {
+void TwitchReader::setSettings(const QString &channel, const QString &token, const QString &clientSecret, const QString &clientId, const QString &wakeWord) {
     m_channel = channel;
     m_oauthToken = token;
+    m_clientSecret = clientSecret;
     m_clientId = clientId;
     m_wakeWord = wakeWord;
     qDebug() << "TwitchReader: Settings updated manually. Channel:" << channel << "WakeWord:" << wakeWord;
@@ -62,7 +63,9 @@ void TwitchReader::loadSettings() {
     if (!doc.isNull() && doc.isObject()) {
         QJsonObject obj = doc.object();
         m_clientId = obj.value("twitch_client_id").toString().trimmed();
+        m_clientSecret = obj.value("twitch_client_secret").toString().trimmed();
         m_oauthToken = obj.value("twitch_oauth_token").toString().trimmed();
+        m_refreshToken = obj.value("twitch_refresh_token").toString().trimmed();
         m_channel = obj.value("twitch_channel").toString().trimmed();
         m_authPort = obj.value("twitch_port").toInt(48080);
         m_wakeWord = obj.value("twitch_wakeword").toString("アバターさん").trimmed();
@@ -76,8 +79,9 @@ void TwitchReader::loadSettings() {
     }
 }
 
-void TwitchReader::saveTokenToSettings(const QString &token) {
-    Q_UNUSED(token);
+void TwitchReader::saveTokenToSettings(const QString &accessToken, const QString &refreshToken) {
+    Q_UNUSED(accessToken);
+    Q_UNUSED(refreshToken);
     // スレッド競合を防ぐため、ファイル直接書き込みは廃止。UIスレッド側のイベント受信によって安全に保存されます。
 }
 
@@ -102,12 +106,13 @@ void TwitchReader::startOAuthServer() {
     }
     qDebug() << "TwitchReader: OAuth local server listening on port" << m_authPort;
 
-    // Twitch認証URLをブラウザで開く
+    // Twitch認証URLをブラウザで開く（Authorization Code Flow & force_verify=true）
     QString authUrl = QString("https://id.twitch.tv/oauth2/authorize"
                               "?client_id=%1"
                               "&redirect_uri=http://localhost:%2/"
-                              "&response_type=token"
-                              "&scope=chat:read")
+                              "&response_type=code"
+                              "&scope=chat:read+chat:edit"
+                              "&force_verify=true")
                       .arg(m_clientId)
                       .arg(m_authPort);
 
@@ -134,65 +139,166 @@ void TwitchReader::handleNewConnection() {
         QString path = requestParts.at(1);
         qDebug() << "TwitchReader: Received HTTP request path:" << path;
 
-        if (path.startsWith("/token")) {
-            QUrl url("http://localhost" + path);
-            QUrlQuery query(url.query());
-            QString token = query.queryItemValue("access_token");
+        QUrl url("http://localhost" + path);
+        QUrlQuery query(url.query());
 
-            if (!token.isEmpty()) {
-                qDebug() << "TwitchReader: Successfully received access token. Resolving channel name...";
-                fetchChannelName(token);
+        if (query.hasQueryItem("code")) {
+            QString code = query.queryItemValue("code");
+            qDebug() << "TwitchReader: Successfully received Authorization Code:" << code;
 
-                QByteArray html = "HTTP/1.1 200 OK\r\n"
-                                  "Content-Type: text/html; charset=utf-8\r\n"
-                                  "Connection: close\r\n\r\n"
-                                  "<html><head><title>Authentication Successful</title></head>"
-                                  "<body><h2 style='color: green; font-family: sans-serif; text-align: center; margin-top: 50px;'>認証に成功しました！</h2>"
-                                  "<p style='text-align: center; font-family: sans-serif; color: #555;'>このブラウザタブを閉じて、アプリケーションに戻ってください。</p></body></html>";
-                socket->write(html);
-                socket->disconnectFromHost();
-
-                // サーバー停止のみをタイマーで実行（IRC接続は fetchChannelName 内で処理）
-                QTimer::singleShot(1000, this, [this]() {
-                    if (m_authServer) {
-                        m_authServer->close();
-                        m_authServer->deleteLater();
-                        m_authServer = nullptr;
-                    }
-                });
-            } else {
-                QByteArray html = "HTTP/1.1 400 Bad Request\r\n"
-                                  "Content-Type: text/html; charset=utf-8\r\n"
-                                  "Connection: close\r\n\r\n"
-                                  "<html><body><h2>Error: Missing access token.</h2></body></html>";
-                socket->write(html);
-                socket->disconnectFromHost();
-            }
-        } else {
-            // Implicit flow のハッシュフラグメントを処理するための HTML (JavaScript) を返却
             QByteArray html = "HTTP/1.1 200 OK\r\n"
                               "Content-Type: text/html; charset=utf-8\r\n"
                               "Connection: close\r\n\r\n"
-                              "<html><head>"
-                              "<script>"
-                              "  const hash = window.location.hash;"
-                              "  if (hash) {"
-                              "    const params = new URLSearchParams(hash.substring(1));"
-                              "    const token = params.get('access_token');"
-                              "    if (token) {"
-                              "      window.location.href = '/token?access_token=' + token;"
-                              "    } else {"
-                              "      document.write('アクセストークンの取得に失敗しました。');"
-                              "    }"
-                              "  } else {"
-                              "    document.write('認証待機中...');"
-                              "  }"
-                              "</script>"
-                              "</head><body></body></html>";
+                              "<html><head><title>Authentication Successful</title></head>"
+                              "<body><h2 style='color: green; font-family: sans-serif; text-align: center; margin-top: 50px;'>認証コードを受信しました！</h2>"
+                              "<p style='text-align: center; font-family: sans-serif; color: #555;'>アプリでトークン取得を開始します。このブラウザタブを閉じて、アプリケーションに戻ってください。</p></body></html>";
+            socket->write(html);
+            socket->disconnectFromHost();
+
+            // コードを用いてトークンを取得
+            QTimer::singleShot(10, this, [this, code]() {
+                requestTokensWithCode(code);
+            });
+
+            // サーバー停止をタイマーで実行
+            QTimer::singleShot(1000, this, [this]() {
+                if (m_authServer) {
+                    m_authServer->close();
+                    m_authServer->deleteLater();
+                    m_authServer = nullptr;
+                }
+            });
+        } else {
+            QByteArray html = "HTTP/1.1 200 OK\r\n"
+                              "Content-Type: text/html; charset=utf-8\r\n"
+                              "Connection: close\r\n\r\n"
+                              "<html><body><h2>Error: Missing authorization code.</h2>"
+                              "<p>認証コードが取得できませんでした。認可し直してください。</p></body></html>";
             socket->write(html);
             socket->disconnectFromHost();
         }
     });
+}
+
+void TwitchReader::requestTokensWithCode(const QString &code) {
+    if (!m_networkManager) {
+        m_networkManager = new QNetworkAccessManager(this);
+    }
+    
+    QUrl url("https://id.twitch.tv/oauth2/token");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery postData;
+    postData.addQueryItem("client_id", m_clientId);
+    postData.addQueryItem("client_secret", m_clientSecret);
+    postData.addQueryItem("code", code);
+    postData.addQueryItem("grant_type", "authorization_code");
+    postData.addQueryItem("redirect_uri", QString("http://localhost:%1/").arg(m_authPort));
+
+    QNetworkReply *reply = m_networkManager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());
+    reply->setProperty("type", "authorization_code");
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onTokenRequestFinished(reply);
+    });
+}
+
+void TwitchReader::refreshTwitchToken() {
+    if (m_refreshToken.isEmpty()) {
+        qWarning() << "TwitchReader: Cannot refresh token because refresh token is empty.";
+        AppEvent event;
+        event.type = EventType::ErrorOccurred;
+        event.source = "TwitchReader";
+        event.text = "Twitch リフレッシュトークンがありません。再認証を行ってください。";
+        emit notifyEvent(event);
+        return;
+    }
+
+    if (!m_networkManager) {
+        m_networkManager = new QNetworkAccessManager(this);
+    }
+
+    qDebug() << "TwitchReader: Refreshing Twitch Access Token...";
+
+    QUrl url("https://id.twitch.tv/oauth2/token");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery postData;
+    postData.addQueryItem("grant_type", "refresh_token");
+    postData.addQueryItem("refresh_token", m_refreshToken);
+    postData.addQueryItem("client_id", m_clientId);
+    postData.addQueryItem("client_secret", m_clientSecret);
+
+    QNetworkReply *reply = m_networkManager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());
+    reply->setProperty("type", "refresh_token");
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onTokenRequestFinished(reply);
+    });
+}
+
+void TwitchReader::onTokenRequestFinished(QNetworkReply *reply) {
+    reply->deleteLater();
+    QString reqType = reply->property("type").toString();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        qWarning() << "TwitchReader: Token request/refresh failed:" << reply->errorString();
+        QByteArray errData = reply->readAll();
+        qWarning() << "Response:" << errData;
+
+        AppEvent event;
+        event.type = EventType::ErrorOccurred;
+        event.source = "TwitchReader";
+        if (reqType == "refresh_token") {
+            event.text = "Twitch トークンの自動更新に失敗しました。再認証を行ってください。";
+        } else {
+            event.text = "Twitch トークンの取得に失敗しました: " + reply->errorString();
+        }
+        emit notifyEvent(event);
+        return;
+    }
+
+    QByteArray responseData = reply->readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+    if (doc.isNull() || !doc.isObject()) {
+        qWarning() << "TwitchReader: Token response is invalid JSON.";
+        return;
+    }
+
+    QJsonObject obj = doc.object();
+    QString accessToken = obj.value("access_token").toString();
+    QString refreshToken = obj.value("refresh_token").toString();
+
+    if (accessToken.isEmpty()) {
+        qWarning() << "TwitchReader: Token response missing access_token.";
+        return;
+    }
+
+    m_oauthToken = accessToken;
+    if (!refreshToken.isEmpty()) {
+        m_refreshToken = refreshToken;
+    }
+
+    qDebug() << "TwitchReader: Token obtained/refreshed successfully. Type:" << reqType;
+
+    if (reqType == "authorization_code") {
+        fetchChannelName(accessToken);
+    } else {
+        // リフレッシュ時の接続
+        connectToTwitch();
+
+        // UIにトークンが自動更新されたことを通知して保存させる
+        AppEvent event;
+        event.type = EventType::SettingsUpdated;
+        event.source = "TwitchReader";
+        event.text = "Twitch OAuthトークンが自動更新されました。";
+        
+        QVariantMap meta;
+        meta["twitch_oauth_token"] = m_oauthToken;
+        meta["twitch_refresh_token"] = m_refreshToken;
+        event.extraData = meta;
+        emit notifyEvent(event);
+    }
 }
 
 void TwitchReader::connectToTwitch() {
@@ -343,8 +449,9 @@ void TwitchReader::injectTestComment(const QString &user, const QString &message
     }
 }
 
-void TwitchReader::saveOAuthDataToSettings(const QString &token, const QString &channel) {
-    Q_UNUSED(token);
+void TwitchReader::saveOAuthDataToSettings(const QString &accessToken, const QString &refreshToken, const QString &channel) {
+    Q_UNUSED(accessToken);
+    Q_UNUSED(refreshToken);
     Q_UNUSED(channel);
     // スレッド競合を防ぐため、ファイル直接書き込みは廃止。UIスレッド側のイベント受信によって安全に保存されます。
 }
@@ -379,7 +486,7 @@ void TwitchReader::fetchChannelName(const QString &token) {
             m_channel = channelName;
         }
 
-        // トークンとチャンネルが揃った（あるいはトークンのみ）ので接続開始
+        // トークンとチャンネルが揃ったので接続開始
         connectToTwitch();
 
         // UIに設定が更新されたことを通知する
@@ -390,6 +497,7 @@ void TwitchReader::fetchChannelName(const QString &token) {
         
         QVariantMap meta;
         meta["twitch_oauth_token"] = token;
+        meta["twitch_refresh_token"] = m_refreshToken;
         if (!channelName.isEmpty()) {
             meta["twitch_channel"] = channelName;
         }
@@ -418,6 +526,7 @@ void TwitchReader::on_twitchReauthRequested() {
     
     // トークンをクリア
     m_oauthToken = "";
+    m_refreshToken = "";
     
     // UIにトークンがクリアされたことを通知して保存させる
     AppEvent event;
@@ -426,6 +535,7 @@ void TwitchReader::on_twitchReauthRequested() {
     event.text = "Twitchトークンがクリアされました。";
     QVariantMap meta;
     meta["twitch_oauth_token"] = "";
+    meta["twitch_refresh_token"] = "";
     event.extraData = meta;
     emit notifyEvent(event);
     

@@ -6,7 +6,7 @@ TEST(TwitchReaderTest, SetSettingsAndWakeWordDetection) {
     TwitchReader reader;
     
     // 設定の初期化
-    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "アバターさん");
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_secret", "dummy_client_id", "アバターさん");
 
     QSignalSpy spy(&reader, &TwitchReader::notifyEvent);
 
@@ -28,7 +28,7 @@ TEST(TwitchReaderTest, SetSettingsAndWakeWordDetection) {
 
 TEST(TwitchReaderTest, EmptyWakeWordDoesNotTrigger) {
     TwitchReader reader;
-    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", ""); // 空のウェイクワード
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_secret", "dummy_client_id", ""); // 空のウェイクワード
 
     QSignalSpy spy(&reader, &TwitchReader::notifyEvent);
     
@@ -38,7 +38,7 @@ TEST(TwitchReaderTest, EmptyWakeWordDoesNotTrigger) {
 
 TEST(TwitchReaderTest, CommandPrefixMode) {
     TwitchReader reader;
-    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "!gpt");
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_secret", "dummy_client_id", "!gpt");
     reader.setWakeWordMode("prefix");
 
     QSignalSpy spy(&reader, &TwitchReader::notifyEvent);

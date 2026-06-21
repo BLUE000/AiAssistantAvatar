@@ -16,6 +16,7 @@
 #include <QRandomGenerator>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QStatusBar>
@@ -28,6 +29,9 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QFileInfo>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 
 AvatarWindow::AvatarWindow(QWidget *parent)
     : QMainWindow(parent), m_currentState("idle") 
@@ -179,6 +183,10 @@ AvatarWindow::AvatarWindow(QWidget *parent)
 
     // OBS配信用WebSocketサーバーの開始
     startWebSocketServer();
+
+    // WebHook用NetworkManagerの初期化
+    m_webhookNetworkManager = new QNetworkAccessManager(this);
+    connect(m_webhookNetworkManager, &QNetworkAccessManager::finished, this, &AvatarWindow::onWebHookReplyFinished);
 }
 
 AvatarWindow::~AvatarWindow() {
@@ -859,6 +867,14 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             resObj["responseText"] = event.text;
             broadcastToOBS(resObj);
 
+            // WebHookへの通知
+            if (m_webhookEnabled && !m_webhookUrl.isEmpty()) {
+                QJsonObject whObj;
+                whObj["event"] = "ai_response";
+                whObj["text"] = event.text;
+                sendWebHookNotification(whObj);
+            }
+
             // 応答テキストの長さに応じて表示時間を計算（最低5秒・最大30秒）
             int readMs = qBound(5000, event.text.length() * 120, 30000);
             if (!m_resumeTimer) {
@@ -895,6 +911,9 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             if (event.extraData.contains("twitch_oauth_token")) {
                 m_twitchOAuthToken = event.extraData.value("twitch_oauth_token").toString();
             }
+            if (event.extraData.contains("twitch_refresh_token")) {
+                m_twitchRefreshToken = event.extraData.value("twitch_refresh_token").toString();
+            }
             if (event.extraData.contains("twitch_channel")) {
                 QString channel = event.extraData.value("twitch_channel").toString();
                 if (!channel.isEmpty()) {
@@ -921,6 +940,9 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     
     m_twitchClientIdEdit = new QLineEdit(parent);
     m_twitchClientIdEdit->setEchoMode(QLineEdit::Password);
+
+    m_twitchClientSecretEdit = new QLineEdit(parent);
+    m_twitchClientSecretEdit->setEchoMode(QLineEdit::Password);
     
     m_twitchPortEdit = new QLineEdit(parent);
     m_twitchWakeWordEdit = new QLineEdit(parent);
@@ -937,15 +959,21 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_tavilyApiKeyEdit = new QLineEdit(parent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
 
+    m_webhookUrlEdit = new QLineEdit(parent);
+    m_webhookEnabledCheckbox = new QCheckBox(parent);
+
     layout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
     layout->addRow("Twitch チャンネル:", m_twitchChannelEdit);
     layout->addRow("Twitch クライアントID:", m_twitchClientIdEdit);
+    layout->addRow("Twitch クライアントシークレット:", m_twitchClientSecretEdit);
     layout->addRow("Twitch OAuth用ポート:", m_twitchPortEdit);
     layout->addRow("Twitch ウェイクワード:", m_twitchWakeWordEdit);
     layout->addRow("ウェイクワード判定:", m_twitchWakeWordModeCombo);
     layout->addRow("AI プロバイダ:", m_aiProviderCombo);
     layout->addRow("AI API キー:", m_aiApiKeyEdit);
     layout->addRow("Tavily API キー (任意):", m_tavilyApiKeyEdit);
+    layout->addRow("WebHook URL (通知先):", m_webhookUrlEdit);
+    layout->addRow("WebHook 通知を有効にする:", m_webhookEnabledCheckbox);
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
     QPushButton *btnSave = new QPushButton("設定を保存して適用", parent);
@@ -992,6 +1020,7 @@ void AvatarWindow::loadSettingsToUI() {
             m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(58081)));
             m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
             m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
+            m_twitchClientSecretEdit->setText(obj.value("twitch_client_secret").toString());
             m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(48080)));
             m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString("アバターさん"));
             
@@ -1006,6 +1035,15 @@ void AvatarWindow::loadSettingsToUI() {
             m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
             m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
+            m_twitchClientSecret = obj.value("twitch_client_secret").toString();
+            m_twitchRefreshToken = obj.value("twitch_refresh_token").toString();
+            
+            m_webhookUrlEdit->setText(obj.value("webhook_url").toString());
+            m_webhookUrl = obj.value("webhook_url").toString();
+            
+            bool whEnabled = obj.value("webhook_enabled").toBool(false);
+            m_webhookEnabledCheckbox->setChecked(whEnabled);
+            m_webhookEnabled = whEnabled;
         }
     }
 }
@@ -1038,9 +1076,14 @@ void AvatarWindow::saveSettingsFromUI() {
         }
     }
 
+    m_twitchClientSecret = m_twitchClientSecretEdit->text().trimmed();
+    m_webhookUrl = m_webhookUrlEdit->text().trimmed();
+    m_webhookEnabled = m_webhookEnabledCheckbox->isChecked();
+
     obj["websocket_port"] = m_wsPortEdit->text().trimmed().toInt();
     obj["twitch_channel"] = m_twitchChannelEdit->text().trimmed();
     obj["twitch_client_id"] = m_twitchClientIdEdit->text().trimmed();
+    obj["twitch_client_secret"] = m_twitchClientSecret;
     obj["twitch_port"] = m_twitchPortEdit->text().trimmed().toInt();
     obj["twitch_wakeword"] = m_twitchWakeWordEdit->text().trimmed();
     obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
@@ -1048,6 +1091,9 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
     obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
     obj["twitch_oauth_token"] = m_twitchOAuthToken;
+    obj["twitch_refresh_token"] = m_twitchRefreshToken;
+    obj["webhook_url"] = m_webhookUrl;
+    obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
 
     QJsonDocument newDoc(obj);
@@ -1221,4 +1267,43 @@ void AvatarWindow::notifyAvatarChanged() {
     obj["anchorY"] = anchorY;
 
     broadcastToOBS(obj);
+
+    // WebHookへの通知
+    if (m_webhookEnabled && !m_webhookUrl.isEmpty()) {
+        QJsonObject whObj;
+        whObj["event"] = "avatar_changed";
+        whObj["state"] = m_currentState;
+        whObj["image"] = filename;
+        whObj["anchorX"] = anchorX;
+        whObj["anchorY"] = anchorY;
+        sendWebHookNotification(whObj);
+    }
+}
+
+void AvatarWindow::sendWebHookNotification(const QJsonObject &json) {
+    if (!m_webhookEnabled || m_webhookUrl.isEmpty()) return;
+
+    QUrl url(m_webhookUrl);
+    if (!url.isValid()) {
+        qWarning() << "AvatarWindow: WebHook URL is invalid:" << m_webhookUrl;
+        return;
+    }
+
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QByteArray data = QJsonDocument(json).toJson(QJsonDocument::Compact);
+    m_webhookNetworkManager->post(request, data);
+}
+
+void AvatarWindow::onWebHookReplyFinished(QNetworkReply *reply) {
+    if (reply) {
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "AvatarWindow: WebHook notification failed:" << reply->errorString();
+        } else {
+            qDebug() << "AvatarWindow: WebHook notification sent successfully. Code:"
+                     << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        }
+        reply->deleteLater();
+    }
 }

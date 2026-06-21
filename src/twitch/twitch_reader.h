@@ -2,6 +2,8 @@
 #include <QObject>
 #include <QWebSocket>
 #include <QTcpServer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include "../app_event.h"
 
 class TwitchReader : public QObject {
@@ -10,27 +12,34 @@ private:
     bool m_isRunning = false;
     QString m_channel;
     QString m_oauthToken;
+    QString m_refreshToken;
     QString m_clientId;
+    QString m_clientSecret;
     QString m_wakeWord; // UIで設定変更可能
     QString m_wakeWordMode; // "contains" または "prefix" / "command"
     int m_authPort = 48080;
 
     QWebSocket *m_webSocket = nullptr;
     QTcpServer *m_authServer = nullptr;
+    QNetworkAccessManager *m_networkManager = nullptr;
     QString m_configPath;
 
     void loadSettings();
-    void saveTokenToSettings(const QString &token);
-    void saveOAuthDataToSettings(const QString &token, const QString &channel);
+    void saveTokenToSettings(const QString &accessToken, const QString &refreshToken);
+    void saveOAuthDataToSettings(const QString &accessToken, const QString &refreshToken, const QString &channel);
     void fetchChannelName(const QString &token);
     void startOAuthServer();
     void connectToTwitch();
+    
+    // トークン取得・リフレッシュ用内部メソッド
+    void refreshTwitchToken();
+    void requestTokensWithCode(const QString &code);
 
 public:
     explicit TwitchReader(QObject *parent = nullptr);
     ~TwitchReader();
 
-    void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord);
+    void setSettings(const QString &channel, const QString &token, const QString &clientSecret, const QString &clientId, const QString &wakeWord);
     void setWakeWordMode(const QString &mode) { m_wakeWordMode = mode.trimmed().toLower(); }
 
 signals:
@@ -53,5 +62,8 @@ private slots:
     void onWebSocketConnected();
     void onWebSocketDisconnected();
     void onTextMessageReceived(const QString &message);
+
+    // トークン要求完了時のハンドラ
+    void onTokenRequestFinished(QNetworkReply *reply);
 };
 

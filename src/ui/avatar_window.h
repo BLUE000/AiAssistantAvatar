@@ -60,6 +60,9 @@ class QTabWidget;
 class QComboBox;
 class QWebSocketServer;
 class QWebSocket;
+class QCheckBox;
+class QNetworkAccessManager;
+class QNetworkReply;
 
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
@@ -77,13 +80,24 @@ private:
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
+    QLineEdit *m_twitchClientSecretEdit = nullptr;
     QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
     QLineEdit *m_aiApiKeyEdit = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
+    QLineEdit *m_webhookUrlEdit = nullptr;
+    QCheckBox *m_webhookEnabledCheckbox = nullptr;
+
     QString m_twitchOAuthToken;
+    QString m_twitchClientSecret;
+    QString m_twitchRefreshToken;
+    QString m_webhookUrl;
+    bool m_webhookEnabled = false;
+
+    // WebHook送信用NetworkManager
+    QNetworkAccessManager *m_webhookNetworkManager = nullptr;
 
     // OBS配信用WebSocketサーバー
     QWebSocketServer *m_wsServer = nullptr;
@@ -148,6 +162,7 @@ private:
     void stopWebSocketServer();
     void broadcastToOBS(const QJsonObject &json);
     void notifyAvatarChanged();
+    void sendWebHookNotification(const QJsonObject &json);
 
 private slots:
     void onSendClicked();
@@ -157,6 +172,7 @@ private slots:
     void onTwitchReauthClicked();
     void onNewWSConnection();
     void onWSClientDisconnected();
+    void onWebHookReplyFinished(QNetworkReply *reply);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
