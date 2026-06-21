@@ -49,4 +49,5 @@ public slots:
     void resetSession(bool isManual); // セッションリセット機能
     bool importSessionBackup(const QString &filePath);
     void exportSessionBackup(const QString &encPath, const QString &txtPath);
+    void on_settingsUpdated();
 };

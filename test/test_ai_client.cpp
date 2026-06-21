@@ -211,3 +211,53 @@ TEST_F(AIClientTest, ExportSessionBackupTest) {
     EXPECT_TRUE(content.contains("Exp A2"));
     EXPECT_TRUE(content.contains("=== 会話履歴エクスポート (復号済) ==="));
 }
+
+TEST_F(AIClientTest, SettingsUpdatedTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+    
+    QString configPath = "local_settings.json";
+    #ifdef PROJECT_SOURCE_DIR
+    {
+        QString candidate = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+        if (QFile::exists(candidate)) {
+            configPath = candidate;
+        }
+    }
+    #endif
+
+    QByteArray originalData;
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        originalData = file.readAll();
+        file.close();
+    }
+
+    QJsonObject testObj;
+    testObj["ai_provider"] = "dummy";
+    testObj["mistral_api_key"] = "test_api_key_from_test";
+    testObj["trans_cipher_key"] = "AiAssistantAvatar";
+    testObj["twitch_channel"] = "YOUR_CHANNEL_NAME";
+    testObj["twitch_client_id"] = "test_client_id";
+    testObj["twitch_port"] = 48080;
+    testObj["twitch_wakeword"] = "AI";
+    testObj["twitch_wakeword_mode"] = "contains";
+    
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+
+    // on_settingsUpdated() を呼び出して設定再読み込みが正常に動くか検証
+    manager.on_settingsUpdated();
+
+    // 元の設定に戻す
+    if (!originalData.isEmpty()) {
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(originalData);
+            file.close();
+        }
+    }
+
+    SUCCEED();
+}

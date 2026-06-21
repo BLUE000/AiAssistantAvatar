@@ -20,6 +20,8 @@ signals:
     void requestSessionReset(bool isManual); // セッションリセット要求シグナル
     void requestSessionImport(const QString &filePath);
     void requestSessionExport(const QString &encPath, const QString &txtPath);
+    void settingsUpdated(); // 設定更新通知シグナル
+    void requestTwitchReauth(); // Twitch再認可要求シグナル
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -31,4 +33,6 @@ public slots:
     void on_resetSessionRequested(); // UIからのセッションリセット要求を受け取るスロット
     void on_importSessionRequested(const QString &filePath);
     void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
+    void on_settingsUpdated(); // 設定更新を受け取るスロット
+    void on_twitchReauthRequested(); // Twitch再認可要求を受け取るスロット
 };

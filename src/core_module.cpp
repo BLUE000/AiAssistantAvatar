@@ -78,3 +78,14 @@ void CoreModule::on_exportSessionRequested(const QString &encPath, const QString
     emit requestSessionExport(encPath, txtPath);
 }
 
+void CoreModule::on_settingsUpdated() {
+    qDebug() << "CoreModule: Settings updated, propagating to submodules.";
+    emit settingsUpdated();
+}
+
+void CoreModule::on_twitchReauthRequested() {
+    qDebug() << "CoreModule: Twitch reauth requested, propagating to TwitchReader.";
+    emit requestTwitchReauth();
+}
+
+

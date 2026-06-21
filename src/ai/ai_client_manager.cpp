@@ -381,3 +381,9 @@ void AIClientManager::exportSessionBackup(const QString &encPath, const QString 
     event.text = QString("会話履歴をエクスポートしました:\n%1").arg(QFileInfo(txtPath).fileName());
     emit notifyEvent(event);
 }
+
+void AIClientManager::on_settingsUpdated() {
+    qDebug() << "AIClientManager: Settings updated. Reloading credentials.";
+    loadCredentials();
+    setAIProvider(m_provider);
+}

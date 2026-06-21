@@ -21,6 +21,8 @@ private:
 
     void loadSettings();
     void saveTokenToSettings(const QString &token);
+    void saveOAuthDataToSettings(const QString &token, const QString &channel);
+    void fetchChannelName(const QString &token);
     void startOAuthServer();
     void connectToTwitch();
 
@@ -37,6 +39,8 @@ signals:
 public slots:
     void on_startReading();
     void on_stopReading();
+    void on_settingsUpdated();
+    void on_twitchReauthRequested();
     
     // テスト用の擬似コメント注入用スロット
     void injectTestComment(const QString &user, const QString &message);

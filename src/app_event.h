@@ -9,7 +9,8 @@ enum class EventType {
     DirectInputSubmitted,    // キーボード直接入力
     AIRequestSent,          // AIへ送信開始
     AIResponseReceived,     // AIからの回答受信
-    ErrorOccurred           // エラー発生
+    ErrorOccurred,          // エラー発生
+    SettingsUpdated         // 設定更新
 };
 
 struct AppEvent {

@@ -11,3 +11,5 @@ local_settings.json
 /scratch/
 *.user
 test_output.txt
+/DecisionLog/
+

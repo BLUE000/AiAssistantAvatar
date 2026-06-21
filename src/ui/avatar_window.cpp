@@ -20,6 +20,14 @@
 #include <QHBoxLayout>
 #include <QStatusBar>
 #include <QTextBrowser>
+#include <QTabWidget>
+#include <QComboBox>
+#include <QFormLayout>
+#include <QWebSocketServer>
+#include <QWebSocket>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QFileInfo>
 
 AvatarWindow::AvatarWindow(QWidget *parent)
     : QMainWindow(parent), m_currentState("idle") 
@@ -30,39 +38,52 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     // ウィンドウサイズを横方向に拡張 (幅750, 高さ480)
     setFixedSize(750, 480);
 
-    // 中央ウィジェットの作成とメインレイアウト（横並び）
+    // 中央ウィジェットの作成とメインレイアウト
     QWidget *centralWidget = new QWidget(this);
-    QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(10, 10, 10, 10);
-    mainLayout->setSpacing(10);
+    QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0); // ウィンドウ全体に広げるためマージンを0に
+    mainLayout->setSpacing(0);
 
-    // 左パネル（アバター表示 + 下部チャット入力・操作ボタン）
-    m_leftPanel = new QWidget(centralWidget);
-    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftPanel);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(10);
+    // QTabWidgetを中央に配置（ウィンドウ全体にかける）
+    m_tabWidget = new QTabWidget(centralWidget);
+    m_tabWidget->setTabPosition(QTabWidget::South); // タブバーを下側に配置
+    m_chatTab = new QWidget(m_tabWidget);
+    m_settingsTab = new QWidget(m_tabWidget);
+
+    // ----------------------------------------------------
+    // チャットタブのレイアウト（従来の左右2ペイン）
+    // ----------------------------------------------------
+    QHBoxLayout *chatMainLayout = new QHBoxLayout(m_chatTab);
+    chatMainLayout->setContentsMargins(10, 10, 10, 10);
+    chatMainLayout->setSpacing(10);
+
+    // チャットタブの左側ペイン（アバター表示 + 下部チャット入力・操作ボタン）
+    QWidget *chatLeftPanel = new QWidget(m_chatTab);
+    QVBoxLayout *chatLeftLayout = new QVBoxLayout(chatLeftPanel);
+    chatLeftLayout->setContentsMargins(0, 0, 0, 0);
+    chatLeftLayout->setSpacing(10);
 
     // アバター表示エリア（上部）
-    m_avatarLabel = new QLabel(m_leftPanel);
+    m_avatarLabel = new QLabel(chatLeftPanel);
     m_avatarLabel->setAlignment(Qt::AlignCenter);
     m_avatarLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    leftLayout->addWidget(m_avatarLabel);
+    chatLeftLayout->addWidget(m_avatarLabel);
 
     // 入力コントロールエリア（下部）
     QHBoxLayout *controlLayout = new QHBoxLayout();
     controlLayout->setSpacing(5);
 
-    m_inputEdit = new QLineEdit(m_leftPanel);
+    m_inputEdit = new QLineEdit(chatLeftPanel);
     m_inputEdit->setPlaceholderText("メッセージを入力...");
     connect(m_inputEdit, &QLineEdit::returnPressed, this, &AvatarWindow::onSendClicked);
 
-    m_sendButton = new QPushButton("送信", m_leftPanel);
+    m_sendButton = new QPushButton("送信", chatLeftPanel);
     connect(m_sendButton, &QPushButton::clicked, this, &AvatarWindow::onSendClicked);
 
-    m_sttButton = new QPushButton("音声", m_leftPanel);
+    m_sttButton = new QPushButton("音声", chatLeftPanel);
     connect(m_sttButton, &QPushButton::clicked, this, &AvatarWindow::onSttClicked);
 
-    m_menuButton = new QPushButton("⚙", m_leftPanel);
+    m_menuButton = new QPushButton("⚙", chatLeftPanel);
     m_menuButton->setFixedWidth(30);
     connect(m_menuButton, &QPushButton::clicked, this, &AvatarWindow::onMenuClicked);
 
@@ -71,11 +92,11 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     controlLayout->addWidget(m_sttButton);
     controlLayout->addWidget(m_menuButton);
 
-    leftLayout->addLayout(controlLayout);
-    mainLayout->addWidget(m_leftPanel);
+    chatLeftLayout->addLayout(controlLayout);
+    chatMainLayout->addWidget(chatLeftPanel);
 
-    // 右パネル（最新AI応答表示 - 吹き出し風装飾）
-    m_rightPanel = new QWidget(centralWidget);
+    // チャットタブの右側ペイン（最新AI応答表示 - 吹き出し風装飾）
+    m_rightPanel = new QWidget(m_chatTab);
     m_rightPanel->setObjectName("rightPanel");
     m_rightPanel->setStyleSheet(
         "QWidget#rightPanel {"
@@ -101,8 +122,17 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     m_responseBrowser->setPlaceholderText("ここにAIからの回答が表示されます。");
 
     rightLayout->addWidget(m_responseBrowser);
-    mainLayout->addWidget(m_rightPanel);
+    chatMainLayout->addWidget(m_rightPanel);
 
+    m_tabWidget->addTab(m_chatTab, "チャット");
+
+    // ----------------------------------------------------
+    // 設定タブのレイアウト（フォーム）
+    // ----------------------------------------------------
+    initSettingsTab(m_settingsTab);
+    m_tabWidget->addTab(m_settingsTab, "設定");
+
+    mainLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
 
     // ステータスバーの初期化
@@ -146,9 +176,13 @@ AvatarWindow::AvatarWindow(QWidget *parent)
             switchVariantGroup(firstGroup);
         }
     }
+
+    // OBS配信用WebSocketサーバーの開始
+    startWebSocketServer();
 }
 
 AvatarWindow::~AvatarWindow() {
+    stopWebSocketServer();
 }
 
 void AvatarWindow::loadSettings() {
@@ -812,11 +846,19 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             break;
 
         case EventType::AIResponseReceived: {
+            m_lastResponseText = event.text;
             updateAvatarDisplay("speaking");
             statusBar()->showMessage("AIが応答中");
             if (m_responseBrowser) {
                 m_responseBrowser->setMarkdown(event.text);
             }
+
+            // OBSへの通知
+            QJsonObject resObj;
+            resObj["type"] = "AIResponseReceived";
+            resObj["responseText"] = event.text;
+            broadcastToOBS(resObj);
+
             // 応答テキストの長さに応じて表示時間を計算（最低5秒・最大30秒）
             int readMs = qBound(5000, event.text.length() * 120, 30000);
             if (!m_resumeTimer) {
@@ -849,7 +891,316 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             m_resumeTimer->start(5000);
             break;
 
+        case EventType::SettingsUpdated:
+            loadSettingsToUI();
+            statusBar()->showMessage("Twitch OAuth設定が更新され、UIに反映されました。");
+            break;
+
         default:
             break;
     }
+}
+
+void AvatarWindow::initSettingsTab(QWidget *parent) {
+    QFormLayout *layout = new QFormLayout(parent);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(10);
+
+    m_wsPortEdit = new QLineEdit(parent);
+    m_twitchChannelEdit = new QLineEdit(parent);
+    
+    m_twitchClientIdEdit = new QLineEdit(parent);
+    m_twitchClientIdEdit->setEchoMode(QLineEdit::Password);
+    
+    m_twitchPortEdit = new QLineEdit(parent);
+    m_twitchWakeWordEdit = new QLineEdit(parent);
+    
+    m_twitchWakeWordModeCombo = new QComboBox(parent);
+    m_twitchWakeWordModeCombo->addItems({"contains", "prefix"});
+    
+    m_aiProviderCombo = new QComboBox(parent);
+    m_aiProviderCombo->addItems({"mistral", "dummy"});
+    
+    m_aiApiKeyEdit = new QLineEdit(parent);
+    m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
+
+    layout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
+    layout->addRow("Twitch チャンネル:", m_twitchChannelEdit);
+    layout->addRow("Twitch クライアントID:", m_twitchClientIdEdit);
+    layout->addRow("Twitch OAuth用ポート:", m_twitchPortEdit);
+    layout->addRow("Twitch ウェイクワード:", m_twitchWakeWordEdit);
+    layout->addRow("ウェイクワード判定:", m_twitchWakeWordModeCombo);
+    layout->addRow("AI プロバイダ:", m_aiProviderCombo);
+    layout->addRow("AI API キー:", m_aiApiKeyEdit);
+
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    QPushButton *btnSave = new QPushButton("設定を保存して適用", parent);
+    btnSave->setFixedHeight(35);
+    connect(btnSave, &QPushButton::clicked, this, &AvatarWindow::onSaveSettingsClicked);
+    
+    QPushButton *btnReauth = new QPushButton("Twitch認証開始", parent);
+    btnReauth->setFixedHeight(35);
+    connect(btnReauth, &QPushButton::clicked, this, &AvatarWindow::onTwitchReauthClicked);
+
+    btnLayout->addWidget(btnSave);
+    btnLayout->addWidget(btnReauth);
+    layout->addRow(btnLayout);
+
+    loadSettingsToUI();
+}
+
+void AvatarWindow::loadSettingsToUI() {
+    QString configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+    }
+#endif
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+    }
+
+    if (!QFile::exists(configPath)) return;
+
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray data = file.readAll();
+        file.close();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isNull() && doc.isObject()) {
+            QJsonObject obj = doc.object();
+            m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(58081)));
+            m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
+            m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
+            m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(48080)));
+            m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString("アバターさん"));
+            
+            QString mode = obj.value("twitch_wakeword_mode").toString("contains");
+            int modeIdx = m_twitchWakeWordModeCombo->findText(mode);
+            if (modeIdx >= 0) m_twitchWakeWordModeCombo->setCurrentIndex(modeIdx);
+
+            QString provider = obj.value("ai_provider").toString("dummy");
+            int provIdx = m_aiProviderCombo->findText(provider);
+            if (provIdx >= 0) m_aiProviderCombo->setCurrentIndex(provIdx);
+
+            m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
+        }
+    }
+}
+
+void AvatarWindow::saveSettingsFromUI() {
+    QString configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+    }
+#endif
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+    }
+
+    QJsonObject obj;
+    QFile file(configPath);
+    if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray data = file.readAll();
+        file.close();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isNull() && doc.isObject()) {
+            obj = doc.object();
+        }
+    }
+
+    obj["websocket_port"] = m_wsPortEdit->text().trimmed().toInt();
+    obj["twitch_channel"] = m_twitchChannelEdit->text().trimmed();
+    obj["twitch_client_id"] = m_twitchClientIdEdit->text().trimmed();
+    obj["twitch_port"] = m_twitchPortEdit->text().trimmed().toInt();
+    obj["twitch_wakeword"] = m_twitchWakeWordEdit->text().trimmed();
+    obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
+    obj["ai_provider"] = m_aiProviderCombo->currentText();
+    obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
+    obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
+
+    QJsonDocument newDoc(obj);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(newDoc.toJson(QJsonDocument::Indented));
+        file.close();
+        qDebug() << "AvatarWindow: Settings saved to" << configPath;
+    }
+}
+
+void AvatarWindow::onSaveSettingsClicked() {
+    saveSettingsFromUI();
+    // WebSocket サーバー再起動
+    stopWebSocketServer();
+    startWebSocketServer();
+    // コアへ設定更新を通知
+    emit settingsUpdated();
+    statusBar()->showMessage("設定を保存して適用しました。");
+}
+
+void AvatarWindow::onTwitchReauthClicked() {
+    saveSettingsFromUI();
+    emit settingsUpdated();
+    emit twitchReauthRequested();
+    statusBar()->showMessage("Twitch 認証を開始します...");
+}
+
+// OBS WebSocket サーバーの制御
+void AvatarWindow::startWebSocketServer() {
+    int port = 58081;
+    QString configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+    }
+#endif
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+    }
+
+    if (QFile::exists(configPath)) {
+        QFile file(configPath);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (!doc.isNull() && doc.isObject()) {
+                port = doc.object().value("websocket_port").toInt(58081);
+            }
+            file.close();
+        }
+    }
+
+    m_wsServer = new QWebSocketServer("OBS Streamer Agent", QWebSocketServer::NonSecureMode, this);
+    if (m_wsServer->listen(QHostAddress::Any, port)) {
+        qDebug() << "AvatarWindow: OBS WebSocket server listening on port" << port;
+        connect(m_wsServer, &QWebSocketServer::newConnection, this, &AvatarWindow::onNewWSConnection);
+    } else {
+        qWarning() << "AvatarWindow: Failed to start OBS WebSocket server on port" << port;
+    }
+}
+
+void AvatarWindow::stopWebSocketServer() {
+    if (m_wsServer) {
+        m_wsServer->close();
+        qDeleteAll(m_wsClients.begin(), m_wsClients.end());
+        m_wsClients.clear();
+        delete m_wsServer;
+        m_wsServer = nullptr;
+        qDebug() << "AvatarWindow: OBS WebSocket server stopped.";
+    }
+}
+
+void AvatarWindow::onNewWSConnection() {
+    QWebSocket *client = m_wsServer->nextPendingConnection();
+    if (client) {
+        qDebug() << "AvatarWindow: OBS WebSocket client connected from" << client->peerAddress().toString();
+        connect(client, &QWebSocket::textMessageReceived, this, [client](const QString &msg) {
+            qDebug() << "Received from OBS client:" << msg;
+        });
+        connect(client, &QWebSocket::disconnected, this, &AvatarWindow::onWSClientDisconnected);
+        m_wsClients.append(client);
+
+        // 接続直後の状態初期化通知
+        QJsonObject initObj;
+        initObj["type"] = "Init";
+        initObj["state"] = m_currentState;
+        initObj["lastResponseText"] = m_lastResponseText;
+        
+        // 画像名の通知
+        QString currentImgPath;
+        if (m_isFrontVariantMode && m_allVariantGroups.contains(m_activeVariantGroupName)) {
+            const auto &entries = m_allVariantGroups[m_activeVariantGroupName].entries;
+            if (m_currentFrontIndex >= 0 && m_currentFrontIndex < entries.size()) {
+                currentImgPath = entries[m_currentFrontIndex].filePath;
+            }
+        } else if (!m_currentAnimation.isEmpty() && m_animations.contains(m_currentAnimation)) {
+            const auto &frames = m_animations[m_currentAnimation].frames;
+            if (m_animFrameIndex >= 0 && m_animFrameIndex < frames.size()) {
+                currentImgPath = frames[m_animFrameIndex];
+            }
+        } else if (m_imageSettings.contains(m_currentState)) {
+            currentImgPath = m_imageSettings[m_currentState].filePath;
+        }
+        initObj["avatarImage"] = QFileInfo(currentImgPath).fileName();
+
+        client->sendTextMessage(QJsonDocument(initObj).toJson(QJsonDocument::Compact));
+    }
+}
+
+void AvatarWindow::onWSClientDisconnected() {
+    QWebSocket *client = qobject_cast<QWebSocket *>(sender());
+    if (client) {
+        m_wsClients.removeAll(client);
+        client->deleteLater();
+        qDebug() << "AvatarWindow: OBS WebSocket client disconnected.";
+    }
+}
+
+void AvatarWindow::broadcastToOBS(const QJsonObject &json) {
+    QByteArray data = QJsonDocument(json).toJson(QJsonDocument::Compact);
+    for (QWebSocket *client : m_wsClients) {
+        client->sendTextMessage(data);
+    }
+}
+
+void AvatarWindow::notifyAvatarChanged() {
+    // 現在の画像ファイル名を取得
+    QString currentImgPath;
+    if (m_isFrontVariantMode) {
+        if (m_allVariantGroups.contains(m_activeVariantGroupName)) {
+            const auto &entries = m_allVariantGroups[m_activeVariantGroupName].entries;
+            if (m_currentFrontIndex >= 0 && m_currentFrontIndex < entries.size()) {
+                currentImgPath = entries[m_currentFrontIndex].filePath;
+            }
+        }
+    } else if (!m_currentAnimation.isEmpty() && m_animations.contains(m_currentAnimation)) {
+        const auto &frames = m_animations[m_currentAnimation].frames;
+        if (m_animFrameIndex >= 0 && m_animFrameIndex < frames.size()) {
+            currentImgPath = frames[m_animFrameIndex];
+        }
+    } else if (m_imageSettings.contains(m_currentState)) {
+        currentImgPath = m_imageSettings[m_currentState].filePath;
+    }
+
+    QString filename = QFileInfo(currentImgPath).fileName();
+    
+    // 設定されているアンカー座標を取得
+    int anchorX = 100;
+    int anchorY = 100;
+    if (m_isFrontVariantMode && m_allVariantGroups.contains(m_activeVariantGroupName)) {
+        anchorX = m_allVariantGroups[m_activeVariantGroupName].anchorX;
+        anchorY = m_allVariantGroups[m_activeVariantGroupName].anchorY;
+    } else if (!m_currentAnimation.isEmpty() && m_animations.contains(m_currentAnimation)) {
+        anchorX = m_animations[m_currentAnimation].anchorX;
+        anchorY = m_animations[m_currentAnimation].anchorY;
+    } else if (m_imageSettings.contains(m_currentState)) {
+        anchorX = m_imageSettings[m_currentState].anchorX;
+        anchorY = m_imageSettings[m_currentState].anchorY;
+    }
+
+    QJsonObject obj;
+    obj["type"] = "AvatarChanged";
+    obj["state"] = m_currentState;
+    obj["avatarImage"] = filename;
+    obj["anchorX"] = anchorX;
+    obj["anchorY"] = anchorY;
+
+    broadcastToOBS(obj);
 }

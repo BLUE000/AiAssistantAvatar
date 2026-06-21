@@ -56,6 +56,10 @@ struct PatternSchedulerEntry {
 class QLineEdit;
 class QPushButton;
 class QTextBrowser;
+class QTabWidget;
+class QComboBox;
+class QWebSocketServer;
+class QWebSocket;
 
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
@@ -65,7 +69,25 @@ private:
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_sttButton = nullptr;
     QPushButton *m_menuButton = nullptr;
-    QWidget *m_leftPanel = nullptr;
+    
+    // 設定タブ用UI
+    QTabWidget *m_tabWidget = nullptr;
+    QWidget *m_chatTab = nullptr;
+    QWidget *m_settingsTab = nullptr;
+    QLineEdit *m_wsPortEdit = nullptr;
+    QLineEdit *m_twitchChannelEdit = nullptr;
+    QLineEdit *m_twitchClientIdEdit = nullptr;
+    QLineEdit *m_twitchPortEdit = nullptr;
+    QLineEdit *m_twitchWakeWordEdit = nullptr;
+    QComboBox *m_twitchWakeWordModeCombo = nullptr;
+    QComboBox *m_aiProviderCombo = nullptr;
+    QLineEdit *m_aiApiKeyEdit = nullptr;
+
+    // OBS配信用WebSocketサーバー
+    QWebSocketServer *m_wsServer = nullptr;
+    QList<QWebSocket *> m_wsClients;
+    QString m_lastResponseText;
+
     QWidget *m_rightPanel = nullptr;
     QTextBrowser *m_responseBrowser = nullptr;
 
@@ -76,6 +98,7 @@ private:
     QPoint m_dragPosition;                            // ドラッグ用一時座標
     QPoint m_lastWindowPos;                           // ドラッグ後の最後のウィンドウ位置を保存
     bool m_userDraggedWindow = false;                 // ユーザーがドラッグで移動したかどうかのフラグ
+    
 
     // バリアントグループ（front_variants / back_variants 等）の汎用管理
     QMap<QString, FrontVariantSettings> m_allVariantGroups;   // 全グループ定義
@@ -116,10 +139,22 @@ private:
     void resumeScheduler();   // AI 処理完了後にスケジューラーを再開
     void showContextMenu(const QPoint &globalPos);
 
+    void initSettingsTab(QWidget *parent);
+    void loadSettingsToUI();
+    void saveSettingsFromUI();
+    void startWebSocketServer();
+    void stopWebSocketServer();
+    void broadcastToOBS(const QJsonObject &json);
+    void notifyAvatarChanged();
+
 private slots:
     void onSendClicked();
     void onSttClicked();
     void onMenuClicked();
+    void onSaveSettingsClicked();
+    void onTwitchReauthClicked();
+    void onNewWSConnection();
+    void onWSClientDisconnected();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -138,6 +173,8 @@ signals:
     void resetSessionRequested(); // 会話履歴リセット要求シグナル
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
+    void settingsUpdated();
+    void twitchReauthRequested();
 
 public slots:
     // コアから通知を受け取るスロット
