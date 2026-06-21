@@ -193,15 +193,23 @@ private:
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
+    QLineEdit *m_twitchClientSecretEdit = nullptr;
     QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
     QLineEdit *m_aiApiKeyEdit = nullptr;
+    QLineEdit *m_webhookUrlEdit = nullptr;
+    QCheckBox *m_webhookEnabledCheckbox = nullptr;
     
     // OBS配信用WebSocketサーバー
     QWebSocketServer *m_wsServer = nullptr;
     QList<QWebSocket *> m_wsClients;
+
+    // WebHook送信用NetworkManager
+    QNetworkAccessManager *m_webhookNetworkManager = nullptr;
+    QString m_webhookUrl;
+    bool m_webhookEnabled = false;
 
     QWidget *m_rightPanel = nullptr;
     QTextBrowser *m_responseBrowser = nullptr;
@@ -227,6 +235,7 @@ private:
     void startWebSocketServer();
     void stopWebSocketServer();
     void broadcastToOBS(const QJsonObject &json);
+    void sendWebHookNotification(const QJsonObject &json);
 
 private slots:
     void onSendClicked();
@@ -236,6 +245,7 @@ private slots:
     void onTwitchReauthClicked();
     void onNewWSConnection();
     void onWSClientDisconnected();
+    void onWebHookReplyFinished(QNetworkReply *reply);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -276,7 +286,78 @@ public slots:
 
 ---
 
-### 3.3 音声認識 (STT) モジュール
+
+### 3.3 Twitchモジュール
+
+#### A. `TwitchReader` クラス
+OAuth認可コードフローおよびリフレッシュトークンによる自動更新に対応したチャット監視モジュール。
+```cpp
+#pragma once
+#include <QObject>
+#include <QWebSocket>
+#include <QTcpServer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include "../app_event.h"
+
+class TwitchReader : public QObject {
+    Q_OBJECT
+private:
+    bool m_isRunning = false;
+    QString m_channel;
+    QString m_oauthToken;       // アクセストークン
+    QString m_refreshToken;     // リフレッシュトークン
+    QString m_clientId;
+    QString m_clientSecret;     // クライアントシークレット
+    QString m_wakeWord;
+    QString m_wakeWordMode;     // "contains" または "prefix" / "command"
+    int m_authPort = 48080;
+
+    QWebSocket *m_webSocket = nullptr;
+    QTcpServer *m_authServer = nullptr;
+    QNetworkAccessManager *m_networkManager = nullptr;
+    QString m_configPath;
+
+    void loadSettings();
+    void saveTokenToSettings(const QString &accessToken, const QString &refreshToken);
+    void saveOAuthDataToSettings(const QString &accessToken, const QString &refreshToken, const QString &channel);
+    void fetchChannelName(const QString &token);
+    void startOAuthServer();
+    void connectToTwitch();
+    
+    // 認可コード・リフレッシュトークン処理用
+    void refreshTwitchToken();
+    void requestTokensWithCode(const QString &code);
+
+public:
+    explicit TwitchReader(QObject *parent = nullptr);
+    ~TwitchReader();
+
+    void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &clientSecret, const QString &wakeWord);
+    void setWakeWordMode(const QString &mode) { m_wakeWordMode = mode.trimmed().toLower(); }
+
+signals:
+    void notifyEvent(const AppEvent &event);
+
+public slots:
+    void on_startReading();
+    void on_stopReading();
+    void on_settingsUpdated();
+    void on_twitchReauthRequested();
+    void injectTestComment(const QString &user, const QString &message);
+
+private slots:
+    void handleNewConnection();
+    void onWebSocketConnected();
+    void onWebSocketDisconnected();
+    void onTextMessageReceived(const QString &message);
+    void onTokenRequestFinished(QNetworkReply *reply);
+};
+```
+
+---
+
+### 3.4 音声認識 (STT) モジュール
 
 #### A. `ISTTEngine` インターフェース
 ```cpp
@@ -328,7 +409,7 @@ public slots:
 
 ---
 
-### 3.4 AIモジュール (2段構成)
+### 3.5 AIモジュール (2段構成)
 
 #### A. `IAIClient` インターフェース (2段目)
 ```cpp
@@ -710,4 +791,42 @@ void SearchManager::on_providerFinished(const QString &resultText, bool success)
         emit searchFinished("検索結果を取得できませんでした。", false);
     }
 }
+
+### 4.6 OBS連携用WebSocket・WebHookペイロード仕様
+
+アバターの状態変更やAIの回答メッセージを外部（OBSブラウザソースや外部のWebHook連携先ツール）に通知する際、以下のJSONペイロードフォーマットを用いる。
+
+#### A. アバター状態変化通知 (`avatar_changed`)
+アバターの表情やポーズ状態が遷移した（例: 待機中 -> 思考中）際に配信される。
+```json
+{
+  "event": "avatar_changed",
+  "state": "thinking",
+  "image": "thinking.png",
+  "anchorX": 120,
+  "anchorY": 182
+}
+```
+
+#### B. AI応答通知 (`ai_response`)
+AIの新しい回答テキストが生成され、右側吹き出しペインに表示されるタイミングで配信される。
+```json
+{
+  "event": "ai_response",
+  "text": "AIの回答テキストです。マークダウン形式が含まれる場合があります。"
+}
+```
+
+#### C. WebSocket接続時の初期同期通知 (`init`)
+OBSブラウザソース接続時等に、現在の最新状態を同期するための情報。
+```json
+{
+  "event": "init",
+  "state": "idle",
+  "image": "idle.png",
+  "anchorX": 120,
+  "anchorY": 180,
+  "last_response": "直近のAIの回答テキストです。"
+}
+```
 ```

@@ -30,8 +30,8 @@ graph TD
 
 | モジュール名 | 主要クラス名 | 動作スレッド | 主な責務 |
 | :--- | :--- | :--- | :--- |
-| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認証）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
-| **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合にブラウザでOAuth画面を開き、リダイレクトを受ける一時HTTPサーバーを構築してアクセストークンを自動取得<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
+| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認可、WebHook設定）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・アバター状態変化やAI応答テキストの外部WebHookへのPOST送信（非同期）<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
+| **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合等にブラウザでOAuth画面（`force_verify=true`）を開き、一時HTTPサーバーを構築して認可コードを自動取得し、さらにトークンエンドポイントからアクセストークンとリフレッシュトークンを取得<br>・リフレッシュトークンを用いたアクセストークンのサイレント自動更新（自動リフレッシュ）<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
 | **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
@@ -457,7 +457,7 @@ sequenceDiagram
     UI->>UI: 右ペインに結果メッセージを表示
 ```
 
-### 5.7 設定更新およびTwitch再認可シーケンス
+### 5.7 設定更新およびTwitch再認可シーケンス (Authorization Code Flow)
 
 ```mermaid
 sequenceDiagram
@@ -467,6 +467,7 @@ sequenceDiagram
     participant Core as コアモジュール (CoreModule)
     participant AI as AIモジュール (AIClientManager)
     participant Twitch as Twitchモジュール (TwitchReader)
+    participant TwitchAPI as Twitch API (id.twitch.tv)
 
     %% 設定更新
     User->>UI: 設定タブから設定を変更して「保存して適用」を押下
@@ -477,16 +478,42 @@ sequenceDiagram
     AI->>AI: local_settings.json を再ロードしてクライアント再初期化
     Twitch->>Twitch: local_settings.json を再ロードして監視設定を更新
 
-    %% Twitch再認可
+    %% Twitch再認可 (Authorization Code Flow)
     User->>UI: 設定タブから「Twitch認証開始」を押下
     UI->>Core: twitchReauthRequested() シグナル発火
     Core->>Twitch: requestTwitchReauth() 中継
     Twitch->>Twitch: 現在のWebSocket接続を切断し、OAuthトークンをクリア
     Twitch->>Twitch: 一時HTTPサーバーを起動
-    Twitch->>User: ブラウザを起動してTwitch認証画面を表示
+    Twitch->>User: ブラウザで認可画面を表示 (force_verify=true)
+    User->>TwitchAPI: アカウントでログイン & 認可
+    TwitchAPI-->>Twitch: 一時HTTPサーバーに Code をリダイレクト通知
+    Twitch->>TwitchAPI: POST /oauth2/token (client_id, client_secret, code)
+    TwitchAPI-->>Twitch: access_token, refresh_token 返却
+    Twitch->>Twitch: access_token と refresh_token を local_settings.json に保存
+    Twitch->>Twitch: Twitchチャットへの接続開始
 ```
 
-### 5.8 OBS配信連携用WebSocket配信シーケンス
+### 5.8 Twitchトークン自動更新（サイレントリフレッシュ）シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Twitch as Twitchモジュール (TwitchReader)
+    participant TwitchAPI as Twitch API (id.twitch.tv)
+
+    Note over Twitch: チャット接続開始時、またはIRC認証エラー検知時
+    Twitch->>TwitchAPI: POST /oauth2/token (refresh_token, client_id, client_secret)
+    alt リフレッシュ成功
+        TwitchAPI-->>Twitch: 新 access_token, 新 refresh_token 返却
+        Twitch->>Twitch: 新トークン群を local_settings.json に上書き保存
+        Twitch->>Twitch: 新 access_token を用いてIRC再接続実行
+    else リフレッシュ失敗 (トークン無効など)
+        TwitchAPI-->>Twitch: エラーレスポンス
+        Twitch->>Twitch: UIへ認証エラー通知 (ErrorOccurred)
+    end
+```
+
+### 5.9 OBS配信連携用WebSocket・WebHook配信シーケンス
 
 ```mermaid
 sequenceDiagram
@@ -494,6 +521,7 @@ sequenceDiagram
     actor OBS as OBS Studio (ブラウザソース)
     participant UI as UIモジュール (AvatarWindow)
     participant Core as コアモジュール (CoreModule)
+    actor WH as WebHook受信先 (外部サーバー/ツール)
 
     OBS->>UI: avatar_obs.html ロード時に WebSocket 接続 (ws://localhost:58081)
     UI-->>OBS: 初期状態の同期 (Init イベントデータ)
@@ -501,10 +529,16 @@ sequenceDiagram
     alt アバター状態変更時
         UI->>UI: updateAvatarDisplay() 実行
         UI->>OBS: QWebSocketServer経由でブロードキャスト (AvatarChanged JSON)
+        opt WebHook有効時
+            UI->>WH: POST (Webhook URL) へ非同期送信 (AvatarChanged JSON)
+        end
     else AI応答受信時
         Core->>UI: notifyEventToUI (AIResponseReceived, text)
         UI->>UI: 右ペインに表示設定
         UI->>OBS: QWebSocketServer経由でブロードキャスト (AIResponseReceived JSON)
+        opt WebHook有効時
+            UI->>WH: POST (Webhook URL) へ非同期送信 (AIResponseReceived JSON)
+        end
     end
 ```
 
