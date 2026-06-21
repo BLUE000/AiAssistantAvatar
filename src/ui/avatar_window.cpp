@@ -1022,7 +1022,11 @@ void AvatarWindow::loadSettingsToUI() {
             m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
             m_twitchClientSecretEdit->setText(obj.value("twitch_client_secret").toString());
             m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(48080)));
-            m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString("アバターさん"));
+            if (obj.contains("twitch_wakeword")) {
+                m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString());
+            } else {
+                m_twitchWakeWordEdit->setText("アバターさん");
+            }
             
             QString mode = obj.value("twitch_wakeword_mode").toString("contains");
             int modeIdx = m_twitchWakeWordModeCombo->findText(mode);

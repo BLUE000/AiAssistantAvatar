@@ -68,8 +68,9 @@ void TwitchReader::loadSettings() {
         m_refreshToken = obj.value("twitch_refresh_token").toString().trimmed();
         m_channel = obj.value("twitch_channel").toString().trimmed();
         m_authPort = obj.value("twitch_port").toInt(48080);
-        m_wakeWord = obj.value("twitch_wakeword").toString("アバターさん").trimmed();
-        if (m_wakeWord.isEmpty()) {
+        if (obj.contains("twitch_wakeword")) {
+            m_wakeWord = obj.value("twitch_wakeword").toString().trimmed();
+        } else {
             m_wakeWord = "アバターさん";
         }
         m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed().toLower();
