@@ -61,7 +61,14 @@ AiAssistantAvatar/
         ├── mistral_ai_client.h
         ├── mistral_ai_client.cpp
         ├── dummy_ai_client.h
-        └── dummy_ai_client.cpp
+        ├── dummy_ai_client.cpp
+        ├── search_manager.h
+        ├── search_manager.cpp
+        ├── isearch_provider.h
+        ├── tavily_search_provider.h
+        ├── tavily_search_provider.cpp
+        ├── duckduckgo_search_provider.h
+        └── duckduckgo_search_provider.cpp
 ```
 
 ---
@@ -393,21 +400,122 @@ public slots:
 #include "iai_client.h"
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QJsonArray>
+
+class SearchManager;
 
 class MistralAIClient : public IAIClient {
     Q_OBJECT
 private:
     QNetworkAccessManager *m_networkManager;
     QString m_apiKey;
+    SearchManager *m_searchManager;
+
+    // Function Calling 状態管理用
+    QString m_pendingPrompt;
+    QJsonArray m_pendingMessages;
+    QString m_activeToolCallId;
+    bool m_isToolCalling;
 
 public:
     explicit MistralAIClient(QObject *parent = nullptr);
     ~MistralAIClient() override;
-    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext = QString()) override;
+    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString()) override;
     void setApiKey(const QString &apiKey) override;
+    void setTavilyApiKey(const QString &tavilyKey);
 
 private slots:
     void on_networkReplyFinished(QNetworkReply *reply);
+    void on_searchFinished(const QString &resultText, bool success);
+};
+```
+
+#### D. `SearchManager` クラスおよびプロバイダ群
+```cpp
+#pragma once
+#include <QObject>
+#include <QString>
+
+class ISearchProvider;
+
+class SearchManager : public QObject {
+    Q_OBJECT
+private:
+    ISearchProvider *m_currentProvider = nullptr;
+    QString m_tavilyApiKey;
+    QString m_query;
+    bool m_useTavily = false;
+
+    void startNextProvider();
+
+public:
+    explicit SearchManager(QObject *parent = nullptr);
+    ~SearchManager();
+    void setTavilyApiKey(const QString &apiKey);
+    void executeSearch(const QString &query);
+
+signals:
+    void searchFinished(const QString &resultText, bool success);
+
+private slots:
+    void on_providerFinished(const QString &resultText, bool success);
+};
+```
+
+```cpp
+#pragma once
+#include <QObject>
+#include <QString>
+
+class ISearchProvider : public QObject {
+    Q_OBJECT
+public:
+    virtual ~ISearchProvider() = default;
+    virtual void search(const QString &query) = 0;
+
+signals:
+    void searchFinished(const QString &resultText, bool success);
+};
+```
+
+```cpp
+#pragma once
+#include "isearch_provider.h"
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+
+class TavilySearchProvider : public ISearchProvider {
+    Q_OBJECT
+private:
+    QNetworkAccessManager *m_networkManager;
+    QString m_apiKey;
+
+public:
+    explicit TavilySearchProvider(const QString &apiKey, QObject *parent = nullptr);
+    void search(const QString &query) override;
+
+private slots:
+    void on_replyFinished(QNetworkReply *reply);
+};
+```
+
+```cpp
+#pragma once
+#include "isearch_provider.h"
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+
+class DuckDuckGoSearchProvider : public ISearchProvider {
+    Q_OBJECT
+private:
+    QNetworkAccessManager *m_networkManager;
+
+public:
+    explicit DuckDuckGoSearchProvider(QObject *parent = nullptr);
+    void search(const QString &query) override;
+
+private slots:
+    void on_replyFinished(QNetworkReply *reply);
 };
 ```
 
@@ -536,3 +644,70 @@ public:
 4. 二つのタグの間のデータから `"Plain="` を検索し、その開始位置から改行文字（`\n`）までの範囲を切り出し。
 5. 前後の空白文字や `\r` を除去して `QString` として返却する。
 
+
+### 4.4 DuckDuckGo HTMLパースおよびHTMLエンティティデコードロジック
+DuckDuckGo HTML版の検索結果スニペット（要約）およびURL情報を正規表現で抽出し、HTMLタグやHTMLエンティティを除去・デコードする。
+
+```cpp
+// 検索結果パース用正規表現例
+QRegularExpression snippetRegex("<a class=\"result__snippet\"[^>]*>([\\s\\S]*?)</a>");
+QRegularExpression linkRegex("<a class=\"result__url\" href=\"([^\"]*)\">");
+
+// HTMLタグの除去
+QString cleanText = rawText;
+cleanText.remove(QRegularExpression("<[^>]*>"));
+
+// 主要なHTMLエンティティのデコード
+cleanText.replace("&amp;", "&");
+cleanText.replace("&quot;", "\"");
+cleanText.replace("&#x27;", "'");
+cleanText.replace("&lt;", "<");
+cleanText.replace("&gt;", ">");
+cleanText.replace("&#x2F;", "/");
+```
+
+### 4.5 TavilyからDuckDuckGoへの自動フォールバック制御
+`SearchManager` が各検索プロバイダを順次起動し、Tavily API 接続時に何らかの通信エラーや HTTP エラー（キー無効、無料枠終了）が発生した際に、自動的かつサイレントに DuckDuckGo プロバイダへフォールバックして処理を継続する。
+
+```cpp
+void SearchManager::executeSearch(const QString &query) {
+    m_query = query;
+    m_useTavily = !m_tavilyApiKey.isEmpty();
+    startNextProvider();
+}
+
+void SearchManager::startNextProvider() {
+    if (m_currentProvider) {
+        m_currentProvider->deleteLater();
+        m_currentProvider = nullptr;
+    }
+
+    if (m_useTavily) {
+        // Tavilyで開始
+        TavilySearchProvider *tavily = new TavilySearchProvider(m_tavilyApiKey, this);
+        connect(tavily, &ISearchProvider::searchFinished, this, &SearchManager::on_providerFinished);
+        m_currentProvider = tavily;
+        tavily->search(m_query);
+    } else {
+        // DuckDuckGoで開始 (またはTavily失敗時のフォールバック)
+        DuckDuckGoSearchProvider *ddg = new DuckDuckGoSearchProvider(this);
+        connect(ddg, &ISearchProvider::searchFinished, this, &SearchManager::on_providerFinished);
+        m_currentProvider = ddg;
+        ddg->search(m_query);
+    }
+}
+
+void SearchManager::on_providerFinished(const QString &resultText, bool success) {
+    if (success) {
+        emit searchFinished(resultText, true);
+    } else if (m_useTavily) {
+        // Tavilyで失敗したため、DuckDuckGoに切り替えてフォールバック実行
+        qWarning() << "Tavily search failed. Falling back to DuckDuckGo...";
+        m_useTavily = false;
+        startNextProvider();
+    } else {
+        // すべてのプロバイダが失敗した場合
+        emit searchFinished("検索結果を取得できませんでした。", false);
+    }
+}
+```

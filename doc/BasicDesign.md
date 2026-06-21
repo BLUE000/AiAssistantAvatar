@@ -10,12 +10,14 @@ graph TD
     Twitch[Twitchモジュール: TwitchReader]
     STT[STTモジュール: STTManager]
     AI[AIモジュール: AIClientManager]
+    SM[AIモジュール内部: SearchManager]
 
     %% 要求フロー (スレッド呼び出し)
     UI -- 1. スレッド呼び出し --> Core
     Core -- 2. 要求 --> Twitch
     Core -- 2. 要求 --> STT
     Core -- 2. 要求 --> AI
+    AI -. 2.5 検索実行 .-> SM
 
     %% イベント通知フロー (非同期通知)
     Twitch -- 3. on_notify_events --> Core
@@ -32,7 +34,7 @@ graph TD
 | **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合にブラウザでOAuth画面を開き、リダイレクトを受ける一時HTTPサーバーを構築してアクセストークンを自動取得<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
-| **AIモジュール** | `AIClientManager`<br>`IAIClient` | AIスレッド | ・**【2段構成】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース |
+| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
 
 ---
 
@@ -136,23 +138,50 @@ classDiagram
     }
     class IAIClient {
         <<interface>>
-        +sendRequest(QString prompt) void
+        +sendRequest(QString prompt, const QList<QPair<QString, QString>>& history, const QString& sessionContext) void
         +setApiKey(QString apiKey) void
         <<signal>>
         +requestFinished(QString responseText, bool success)
     }
     class MistralAIClient {
         -QNetworkAccessManager* networkManager
-        +sendRequest(QString prompt) void
+        -SearchManager* m_searchManager
+        +sendRequest(QString prompt, const QList<QPair<QString, QString>>& history, const QString& sessionContext) void
     }
     class DummyAIClient {
-        +sendRequest(QString prompt) void
+        +sendRequest(QString prompt, const QList<QPair<QString, QString>>& history, const QString& sessionContext) void
+    }
+    class SearchManager {
+        -ISearchProvider* m_currentProvider
+        -QString m_tavilyApiKey
+        +executeSearch(const QString& query) void
+        <<signal>>
+        +searchFinished(const QString& resultText, bool success)
+    }
+    class ISearchProvider {
+        <<interface>>
+        +search(const QString& query) void
+        <<signal>>
+        +searchFinished(const QString& resultText, bool success)
+    }
+    class TavilySearchProvider {
+        -QNetworkAccessManager* m_networkManager
+        -QString m_apiKey
+        +search(const QString& query) void
+    }
+    class DuckDuckGoSearchProvider {
+        -QNetworkAccessManager* m_networkManager
+        +search(const QString& query) void
     }
 
     CoreModule --> AIClientManager : 1.要求 (シグナル/スロット)
     AIClientManager --> IAIClient : 2.処理の委譲 (抽象インターフェース)
     IAIClient <|.. MistralAIClient : 3.具象実装
     IAIClient <|.. DummyAIClient : 3.具象実装
+    MistralAIClient --> SearchManager : 4.検索要求
+    SearchManager --> ISearchProvider : 5.委譲
+    ISearchProvider <|.. TavilySearchProvider
+    ISearchProvider <|.. DuckDuckGoSearchProvider
 ```
 
 #### 2段構成の責務分担
@@ -476,6 +505,65 @@ sequenceDiagram
         Core->>UI: notifyEventToUI (AIResponseReceived, text)
         UI->>UI: 右ペインに表示設定
         UI->>OBS: QWebSocketServer経由でブロードキャスト (AIResponseReceived JSON)
+    end
+```
+
+### 5.9 ハイブリッドWeb検索（Function Calling）シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant Client as MistralAIClient
+    participant SM as SearchManager
+    participant Provider as ISearchProvider (Tavily/DDG)
+    participant Web as 外部API/Webサーバー
+
+    UI->>Core: ユーザーからの質問送信
+    Core->>AI: AIリクエスト要求 (prompt)
+    AI->>Client: sendRequest(prompt, history)
+    Client->>Web: Mistral API へリクエスト送信 (tools定義を含む)
+    Web-->>Client: tool_calls (web_search, query) を返却
+    Client->>SM: executeSearch(query)
+    SM->>Provider: search(query) (設定に応じたプロバイダ)
+    Provider->>Web: 検索リクエスト送信
+    Web-->>Provider: 検索結果データ
+    Provider-->>SM: 検索結果テキスト
+    SM-->>Client: searchFinished(resultText, success)
+    Client->>Web: Mistral API へ再リクエスト送信 (tool_callsの内容 + 検索結果)
+    Web-->>Client: 最終回答テキスト (choices.message.content)
+    Client->>AI: requestFinished(responseText, true)
+    AI->>Core: notifyEvent (AIResponseReceived, responseText)
+    Core->>UI: notifyEventToUI (AIResponseReceived, responseText)
+```
+
+### 5.10 Tavilyエラー時の自動フォールバックシーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as MistralAIClient
+    participant SM as SearchManager
+    participant Tavily as TavilySearchProvider
+    participant DDG as DuckDuckGoSearchProvider
+    participant Web as 外部API/Webサーバー
+
+    Client->>SM: executeSearch(query)
+    Note over SM: Tavily APIキーが設定されているため<br/>TavilySearchProviderを選択
+    SM->>Tavily: search(query)
+    Tavily->>Web: Tavily Search API (POST)
+    alt APIキー無効 / 無料枠超過 (HTTP 403/429)
+        Web-->>Tavily: エラーレスポンス (HTTP Error)
+        Tavily-->>SM: searchFinished(errorText, false)
+        Note over SM: エラーを検知し、自動的かつ<br/>サイレントにフォールバック処理を開始
+        SM->>DDG: search(query)
+        DDG->>Web: DuckDuckGo HTML 取得 (GET)
+        Web-->>DDG: HTMLソース
+        DDG->>DDG: 正規表現でスニペットをパース・整形
+        DDG-->>SM: searchFinished(ddgText, true)
+        SM-->>Client: searchFinished(ddgText, true)
     end
 ```
 

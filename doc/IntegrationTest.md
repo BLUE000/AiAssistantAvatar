@@ -56,6 +56,15 @@
 | **IT-SEC-03** | 会話履歴インポート連携 | UIから `importSessionRequested` シグナルを発火し、コア経由で `AIClientManager::importSessionBackup` を呼び出す。 | 1. ファイルが復号され会話履歴が復元されること。<br>2. 右ペインに「会話履歴をインポートしました。」と結果が表示されること。 | 結合テスト |
 | **IT-SEC-04** | 会話履歴エクスポート連携 | UIから `exportSessionRequested` シグナルを発火し、コア経由で `AIClientManager::exportSessionBackup` を呼び出す。 | 1. 暗号ファイルが復号され、人間が読みやすい平文 `.txt` ファイルとしてエクスポートされること。<br>2. 右ペインにエクスポート完了メッセージが表示されること。 | 結合テスト |
 
+---
+
+### 2.6 Web検索およびFunction Calling連携
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-SRCH-01** | `SearchManager` 連携 | `MistralAIClient` が `tool_calls` を受信した際に `SearchManager` を呼び出して検索を実行する。 | 1. `SearchManager::executeSearch` が正しいクエリで呼び出されること。<br>2. 検索結果テキストが Mistral AI API のメッセージ履歴に正しく挿入され、最終回答リクエストが送られること。 | 自動テスト / 結合テスト |
+| **IT-SRCH-02** | Web検索自動フォールバック | Tavily API実行時に無効なキーや接続エラーを発生させ、検索を実行する。 | 自動的かつサイレントに `DuckDuckGoSearchProvider` が呼び出され、検索結果データがAIに渡されること。 | 自動テスト / 結合テスト |
+| **IT-SRCH-03** | 設定画面からのTavilyキー適用 | 設定タブで Tavily API キーを入力し、「保存して適用」を押下する。 | 1. `local_settings.json` の `tavily_api_key` にキーが書き込まれること。<br>2. `SearchManager` が保持するAPIキーが動的に更新されること。 | 結合テスト |
 
 ---
 

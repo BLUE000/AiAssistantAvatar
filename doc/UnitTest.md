@@ -103,6 +103,15 @@ classDiagram
 | **UT-SEC-09** | WebSocket配信用初期化 | `QWebSocketServer` を起動し、ダミーの WebSocket クライアントを接続させる。 | 接続確立直後に `Init` タイプの JSON データ（現在の状態とテキスト）がプッシュ送信されること。 |
 | **UT-SEC-10** | 設定動的適用 | `local_settings.json` の内容を書き換えた後、`on_settingsUpdated()` を呼び出す。 | 各モジュール（AIClientManager、TwitchReader）が設定ファイルを再読み込みし、プロバイダやウェイクワード設定が動的に更新されること。 |
 
+---
+
+### 3.6 Web検索モジュールおよび Function Calling の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-SEARCH-01** | `DuckDuckGoSearchProvider` | DuckDuckGo HTML版のダミー結果HTMLを入力とする。 | HTMLタグやエンティティ（`&amp;`等）が正しくデコードされ、上位3〜5件のタイトルとスニペットが整形テキストとしてパースされること。 |
+| **UT-SEARCH-02** | `SearchManager` (フォールバック) | Tavily検索実行時に接続エラーまたはHTTPエラーをモックする。 | 自動的かつサイレントに `DuckDuckGoSearchProvider` が起動し、DDGの検索結果が得られること。 |
+| **UT-SEARCH-03** | `MistralAIClient` (Function Calling) | API応答JSONとして `tool_calls` (web_search) を含むレスポンスを入力する。 | `web_search` ツール呼び出しを検出し、引数 `query` を抽出して `SearchManager::executeSearch` を呼び出すこと。 |
 
 ---
 
