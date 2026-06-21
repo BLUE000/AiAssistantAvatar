@@ -14,7 +14,7 @@
 #include <QFileInfo>
 
 AIClientManager::AIClientManager(QObject *parent)
-    : QObject(parent), m_provider("dummy") 
+    : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
     loadCredentials();
     loadSessionContext();
@@ -85,7 +85,7 @@ void AIClientManager::loadCredentials() {
             m_apiKey = obj["mistral_api_key"].toString();
             m_tavilyApiKey = obj["tavily_api_key"].toString();
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
-            m_provider = obj["ai_provider"].toString("dummy");
+            m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
             qDebug() << "AIClientManager: Loaded settings from" << configPath;
         }
     }

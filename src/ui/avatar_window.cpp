@@ -1017,22 +1017,22 @@ void AvatarWindow::loadSettingsToUI() {
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
-            m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(58081)));
+            m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT)));
             m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
             m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
             m_twitchClientSecretEdit->setText(obj.value("twitch_client_secret").toString());
-            m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(48080)));
+            m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT)));
             if (obj.contains("twitch_wakeword")) {
                 m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString());
             } else {
-                m_twitchWakeWordEdit->setText("アバターさん");
+                m_twitchWakeWordEdit->setText(ConfigDefaults::WAKE_WORD);
             }
             
-            QString mode = obj.value("twitch_wakeword_mode").toString("contains");
+            QString mode = obj.value("twitch_wakeword_mode").toString(ConfigDefaults::WAKE_WORD_MODE);
             int modeIdx = m_twitchWakeWordModeCombo->findText(mode);
             if (modeIdx >= 0) m_twitchWakeWordModeCombo->setCurrentIndex(modeIdx);
 
-            QString provider = obj.value("ai_provider").toString("dummy");
+            QString provider = obj.value("ai_provider").toString(ConfigDefaults::AI_PROVIDER);
             int provIdx = m_aiProviderCombo->findText(provider);
             if (provIdx >= 0) m_aiProviderCombo->setCurrentIndex(provIdx);
 
@@ -1127,7 +1127,7 @@ void AvatarWindow::onTwitchReauthClicked() {
 
 // OBS WebSocket サーバーの制御
 void AvatarWindow::startWebSocketServer() {
-    int port = 58081;
+    int port = ConfigDefaults::WEBSOCKET_PORT;
     QString configPath = "local_settings.json";
 #ifdef PROJECT_SOURCE_DIR
     if (!QFile::exists(configPath)) {
@@ -1149,7 +1149,7 @@ void AvatarWindow::startWebSocketServer() {
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
             if (!doc.isNull() && doc.isObject()) {
-                port = doc.object().value("websocket_port").toInt(58081);
+                port = doc.object().value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT);
             }
             file.close();
         }

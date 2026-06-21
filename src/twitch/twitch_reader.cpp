@@ -17,7 +17,7 @@
 
 
 TwitchReader::TwitchReader(QObject *parent) 
-    : QObject(parent), m_wakeWord("アバターさん") 
+    : QObject(parent), m_wakeWord(ConfigDefaults::WAKE_WORD) 
 {
 }
 
@@ -67,15 +67,15 @@ void TwitchReader::loadSettings() {
         m_oauthToken = obj.value("twitch_oauth_token").toString().trimmed();
         m_refreshToken = obj.value("twitch_refresh_token").toString().trimmed();
         m_channel = obj.value("twitch_channel").toString().trimmed();
-        m_authPort = obj.value("twitch_port").toInt(48080);
+        m_authPort = obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT);
         if (obj.contains("twitch_wakeword")) {
             m_wakeWord = obj.value("twitch_wakeword").toString().trimmed();
         } else {
-            m_wakeWord = "アバターさん";
+            m_wakeWord = ConfigDefaults::WAKE_WORD;
         }
-        m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed().toLower();
+        m_wakeWordMode = obj.value("twitch_wakeword_mode").toString(ConfigDefaults::WAKE_WORD_MODE).trimmed().toLower();
         if (m_wakeWordMode.isEmpty()) {
-            m_wakeWordMode = "contains";
+            m_wakeWordMode = ConfigDefaults::WAKE_WORD_MODE;
         }
     }
 }
