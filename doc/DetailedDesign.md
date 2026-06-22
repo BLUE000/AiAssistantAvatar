@@ -193,7 +193,6 @@ private:
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
-    QLineEdit *m_twitchClientSecretEdit = nullptr;
     QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
@@ -306,9 +305,7 @@ private:
     bool m_isRunning = false;
     QString m_channel;
     QString m_oauthToken;       // アクセストークン
-    QString m_refreshToken;     // リフレッシュトークン
     QString m_clientId;
-    QString m_clientSecret;     // クライアントシークレット
     QString m_wakeWord;
     QString m_wakeWordMode;     // "contains" または "prefix" / "command"
     int m_authPort = 48080;
@@ -319,21 +316,17 @@ private:
     QString m_configPath;
 
     void loadSettings();
-    void saveTokenToSettings(const QString &accessToken, const QString &refreshToken);
-    void saveOAuthDataToSettings(const QString &accessToken, const QString &refreshToken, const QString &channel);
+    void saveTokenToSettings(const QString &accessToken);
+    void saveOAuthDataToSettings(const QString &accessToken, const QString &channel);
     void fetchChannelName(const QString &token);
     void startOAuthServer();
     void connectToTwitch();
-    
-    // 認可コード・リフレッシュトークン処理用
-    void refreshTwitchToken();
-    void requestTokensWithCode(const QString &code);
 
 public:
     explicit TwitchReader(QObject *parent = nullptr);
     ~TwitchReader();
 
-    void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &clientSecret, const QString &wakeWord);
+    void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord);
     void setWakeWordMode(const QString &mode) { m_wakeWordMode = mode.trimmed().toLower(); }
 
 signals:
@@ -351,7 +344,6 @@ private slots:
     void onWebSocketConnected();
     void onWebSocketDisconnected();
     void onTextMessageReceived(const QString &message);
-    void onTokenRequestFinished(QNetworkReply *reply);
 };
 ```
 
@@ -792,7 +784,48 @@ void SearchManager::on_providerFinished(const QString &resultText, bool success)
     }
 }
 
-### 4.6 OBS連携用WebSocket・WebHookペイロード仕様
+### 4.6 Twitch OAuth Implicit Flow におけるフラグメント転送ロジック
+
+Twitch の Implicit Flow では、認可完了後にアクセストークンがURLのフラグメント（`#access_token=...`）としてブラウザに返却される。
+ブラウザはフラグメント部分をHTTPリクエストとして直接サーバーへ送信しないため、ローカルHTTPサーバーはまずJavaScriptを含むレスポンスをブラウザへ返し、ブラウザ側でハッシュをパースさせ、再度 `/token` エンドポイントへクエリパラメータとして転送（リダイレクト）させる。
+
+**ブラウザへ返却する HTML/JS レスポンス例:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Twitch Authentication</title>
+    <script>
+        window.onload = function() {
+            var hash = window.location.hash;
+            if (hash) {
+                var params = new URLSearchParams(hash.substring(1));
+                var token = params.get("access_token");
+                if (token) {
+                    // /token エンドポイントへクエリとして再送信
+                    window.location.href = "/token?access_token=" + token;
+                } else {
+                    document.body.innerText = "Error: Access token not found in URL.";
+                }
+            } else {
+                document.body.innerText = "Error: Hash fragment not found.";
+            }
+        };
+    </script>
+</head>
+<body>
+    Connecting to app... Please wait.
+</body>
+</html>
+```
+
+**一時サーバー側（/token 受信時）の処理フロー:**
+1. `/token?access_token=...` のリクエストを受信したら、クエリパラメータからアクセストークンを抽出する。
+2. 接続成功画面（例: 「認証が完了しました。アプリへお戻りください。」）をブラウザへ返す。
+3. 受信したアクセストークンを local_settings.json に保存し、一時HTTPサーバーをシャットダウンする。
+4. Twitch チャット接続（WebSocket）を開始する。
+
+### 4.7 OBS連携用WebSocket・WebHookペイロード仕様
 
 アバターの状態変更やAIの回答メッセージを外部（OBSブラウザソースや外部のWebHook連携先ツール）に通知する際、以下のJSONペイロードフォーマットを用いる。
 
