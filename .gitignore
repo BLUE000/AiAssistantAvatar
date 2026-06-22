@@ -12,4 +12,6 @@ local_settings.json
 *.user
 test_output.txt
 /DecisionLog/
+*.log
+
 
