@@ -91,6 +91,7 @@ private:
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
     QLineEdit *m_bubbleShortEdit = nullptr;
     QLineEdit *m_bubbleLongEdit = nullptr;
+    QLineEdit *m_obsPathEdit = nullptr;
 
     int m_bubbleDisplayShortSec = 5;
     int m_bubbleDisplayLongSec = 10;
@@ -181,6 +182,7 @@ private slots:
     void onNewWSConnection();
     void onWSClientDisconnected();
     void onWebHookReplyFinished(QNetworkReply *reply);
+    void onCopyObsPathClicked();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

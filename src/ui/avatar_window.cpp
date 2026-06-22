@@ -1,6 +1,7 @@
 #include "avatar_window.h"
 #include <QFile>
 #include <QGroupBox>
+#include <QScrollArea>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -9,6 +10,7 @@
 #include <QMenu>
 #include <QInputDialog>
 #include <QGuiApplication>
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QScreen>
 #include <QQueue>
@@ -941,57 +943,66 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
 }
 
 void AvatarWindow::initSettingsTab(QWidget *parent) {
-    // メインの縦レイアウト
-    QVBoxLayout *mainLayout = new QVBoxLayout(parent);
+    // タブの最親レイアウト (スクロールエリアを中に収める)
+    QVBoxLayout *containerLayout = new QVBoxLayout(parent);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+
+    QScrollArea *scrollArea = new QScrollArea(parent);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+
+    QWidget *scrollContent = new QWidget(scrollArea);
+    // スクロールコンテンツ内の縦レイアウト
+    QVBoxLayout *mainLayout = new QVBoxLayout(scrollContent);
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(8);
 
-    m_wsPortEdit = new QLineEdit(parent);
-    m_twitchChannelEdit = new QLineEdit(parent);
+    m_wsPortEdit = new QLineEdit(scrollContent);
+    m_twitchChannelEdit = new QLineEdit(scrollContent);
     
-    m_twitchClientIdEdit = new QLineEdit(parent);
+    m_twitchClientIdEdit = new QLineEdit(scrollContent);
     m_twitchClientIdEdit->setEchoMode(QLineEdit::Password);
 
-    m_twitchPortEdit = new QLineEdit(parent);
-    m_twitchWakeWordEdit = new QLineEdit(parent);
+    m_twitchPortEdit = new QLineEdit(scrollContent);
+    m_twitchWakeWordEdit = new QLineEdit(scrollContent);
     
-    m_twitchWakeWordModeCombo = new QComboBox(parent);
+    m_twitchWakeWordModeCombo = new QComboBox(scrollContent);
     m_twitchWakeWordModeCombo->addItems({"contains", "prefix"});
     
-    m_aiProviderCombo = new QComboBox(parent);
+    m_aiProviderCombo = new QComboBox(scrollContent);
     m_aiProviderCombo->addItems({"mistral", "dummy"});
     
-    m_aiApiKeyEdit = new QLineEdit(parent);
+    m_aiApiKeyEdit = new QLineEdit(scrollContent);
     m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
 
-    m_tavilyApiKeyEdit = new QLineEdit(parent);
+    m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
 
-    m_webhookUrlEdit = new QLineEdit(parent);
-    m_webhookEnabledCheckbox = new QCheckBox("有効にする", parent);
-    m_bubbleShortEdit = new QLineEdit(parent);
-    m_bubbleLongEdit = new QLineEdit(parent);
+    m_webhookUrlEdit = new QLineEdit(scrollContent);
+    m_webhookEnabledCheckbox = new QCheckBox("有効にする", scrollContent);
+    m_bubbleShortEdit = new QLineEdit(scrollContent);
+    m_bubbleLongEdit = new QLineEdit(scrollContent);
 
     // 1. OBS / 描画設定グループ
-    QGroupBox *obsGroup = new QGroupBox("OBS / 描画設定", parent);
+    QGroupBox *obsGroup = new QGroupBox("OBS / 描画設定", scrollContent);
     QFormLayout *obsLayout = new QFormLayout(obsGroup);
     obsLayout->setContentsMargins(10, 10, 10, 10);
     obsLayout->setSpacing(6);
     obsLayout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
 
     // 表示秒数の横並びレイアウト
-    QWidget *bubbleDurationWidget = new QWidget(parent);
+    QWidget *bubbleDurationWidget = new QWidget(scrollContent);
     QHBoxLayout *bubbleLayout = new QHBoxLayout(bubbleDurationWidget);
     bubbleLayout->setContentsMargins(0, 0, 0, 0);
     bubbleLayout->setSpacing(8);
     
-    QLabel *lblShort = new QLabel("次の要求がある時:", parent);
+    QLabel *lblShort = new QLabel("次の要求がある時:", scrollContent);
     m_bubbleShortEdit->setFixedWidth(50);
-    QLabel *lblShortSec = new QLabel("秒", parent);
+    QLabel *lblShortSec = new QLabel("秒", scrollContent);
     
-    QLabel *lblLong = new QLabel("次の要求が無い時:", parent);
+    QLabel *lblLong = new QLabel("次の要求が無い時:", scrollContent);
     m_bubbleLongEdit->setFixedWidth(50);
-    QLabel *lblLongSec = new QLabel("秒", parent);
+    QLabel *lblLongSec = new QLabel("秒", scrollContent);
 
     bubbleLayout->addWidget(lblShort);
     bubbleLayout->addWidget(m_bubbleShortEdit);
@@ -1002,10 +1013,40 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     bubbleLayout->addWidget(lblLongSec);
     bubbleLayout->addStretch();
     obsLayout->addRow("吹き出し表示秒数:", bubbleDurationWidget);
+
+    // OBS用ファイルの絶対パス表示とコピーボタン
+    QWidget *obsPathWidget = new QWidget(scrollContent);
+    QHBoxLayout *obsPathLayout = new QHBoxLayout(obsPathWidget);
+    obsPathLayout->setContentsMargins(0, 0, 0, 0);
+    obsPathLayout->setSpacing(8);
+
+    m_obsPathEdit = new QLineEdit(scrollContent);
+    m_obsPathEdit->setReadOnly(true);
+    // パスを解決する
+    QString htmlPath = "pic/avatar_obs.html";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(htmlPath)) {
+        htmlPath = QString(PROJECT_SOURCE_DIR) + "/pic/avatar_obs.html";
+    }
+#endif
+    if (!QFile::exists(htmlPath)) {
+        htmlPath = QCoreApplication::applicationDirPath() + "/pic/avatar_obs.html";
+    }
+    m_obsPathEdit->setText(QFileInfo(htmlPath).absoluteFilePath());
+
+    QPushButton *btnCopyObsPath = new QPushButton("パスをコピー", scrollContent);
+    btnCopyObsPath->setFixedWidth(100);
+    connect(btnCopyObsPath, &QPushButton::clicked, this, &AvatarWindow::onCopyObsPathClicked);
+
+    obsPathLayout->addWidget(m_obsPathEdit);
+    obsPathLayout->addWidget(btnCopyObsPath);
+
+    obsLayout->addRow("OBS用ファイルパス:", obsPathWidget);
+
     mainLayout->addWidget(obsGroup);
 
     // 2. Twitch 連携設定グループ
-    QGroupBox *twitchGroup = new QGroupBox("Twitch 連携設定", parent);
+    QGroupBox *twitchGroup = new QGroupBox("Twitch 連携設定", scrollContent);
     QFormLayout *twitchLayout = new QFormLayout(twitchGroup);
     twitchLayout->setContentsMargins(10, 10, 10, 10);
     twitchLayout->setSpacing(6);
@@ -1013,20 +1054,20 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     twitchLayout->addRow("クライアント ID:", m_twitchClientIdEdit);
     twitchLayout->addRow("OAuth用ポート:", m_twitchPortEdit);
     
-    QWidget *wakeWordWidget = new QWidget(parent);
+    QWidget *wakeWordWidget = new QWidget(scrollContent);
     QHBoxLayout *wakeWordLayout = new QHBoxLayout(wakeWordWidget);
     wakeWordLayout->setContentsMargins(0, 0, 0, 0);
     wakeWordLayout->setSpacing(8);
     m_twitchWakeWordEdit->setFixedWidth(100);
     wakeWordLayout->addWidget(m_twitchWakeWordEdit);
-    wakeWordLayout->addWidget(new QLabel("判定:", parent));
+    wakeWordLayout->addWidget(new QLabel("判定:", scrollContent));
     wakeWordLayout->addWidget(m_twitchWakeWordModeCombo);
     wakeWordLayout->addStretch();
     twitchLayout->addRow("ウェイクワード:", wakeWordWidget);
     mainLayout->addWidget(twitchGroup);
 
     // 3. AI 設定グループ
-    QGroupBox *aiGroup = new QGroupBox("AI 設定", parent);
+    QGroupBox *aiGroup = new QGroupBox("AI 設定", scrollContent);
     QFormLayout *aiLayout = new QFormLayout(aiGroup);
     aiLayout->setContentsMargins(10, 10, 10, 10);
     aiLayout->setSpacing(6);
@@ -1036,14 +1077,14 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     mainLayout->addWidget(aiGroup);
 
     // 4. 外部通知設定グループ (WebHook)
-    QGroupBox *notifyGroup = new QGroupBox("外部通知設定 (WebHook)", parent);
+    QGroupBox *notifyGroup = new QGroupBox("外部通知設定 (WebHook)", scrollContent);
     QHBoxLayout *notifyLayout = new QHBoxLayout(notifyGroup);
     notifyLayout->setContentsMargins(10, 10, 10, 10);
     notifyLayout->setSpacing(10);
     
-    QLabel *lblWebhookUrl = new QLabel("通知先 URL:", parent);
+    QLabel *lblWebhookUrl = new QLabel("通知先 URL:", scrollContent);
     m_webhookUrlEdit->setPlaceholderText("http://localhost:4081");
-    m_webhookUrlEdit->setMaximumWidth(280); // 半分程度の幅に制限
+    m_webhookUrlEdit->setMaximumWidth(400); // 400幅に広げる
     
     notifyLayout->addWidget(lblWebhookUrl);
     notifyLayout->addWidget(m_webhookUrlEdit);
@@ -1053,17 +1094,20 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     // 保存・適用ボタン
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    QPushButton *btnSave = new QPushButton("設定を保存して適用", parent);
+    QPushButton *btnSave = new QPushButton("設定を保存して適用", scrollContent);
     btnSave->setFixedHeight(32);
     connect(btnSave, &QPushButton::clicked, this, &AvatarWindow::onSaveSettingsClicked);
     
-    QPushButton *btnReauth = new QPushButton("Twitch認証開始", parent);
+    QPushButton *btnReauth = new QPushButton("Twitch認証開始", scrollContent);
     btnReauth->setFixedHeight(32);
     connect(btnReauth, &QPushButton::clicked, this, &AvatarWindow::onTwitchReauthClicked);
 
     btnLayout->addWidget(btnSave);
     btnLayout->addWidget(btnReauth);
     mainLayout->addLayout(btnLayout);
+
+    scrollArea->setWidget(scrollContent);
+    containerLayout->addWidget(scrollArea);
 
     loadSettingsToUI();
 }
@@ -1456,4 +1500,12 @@ void AvatarWindow::processNextRequest() {
 
     // AIクライアントへリクエストを要求するシグナルを発火
     emit requestAIExecution(nextPrompt);
+}
+
+void AvatarWindow::onCopyObsPathClicked() {
+    if (m_obsPathEdit) {
+        QString path = m_obsPathEdit->text();
+        QGuiApplication::clipboard()->setText(path);
+        statusBar()->showMessage("OBS用ファイルパスをクリップボードにコピーしました。");
+    }
 }
