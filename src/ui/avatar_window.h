@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QVector>
 #include <QTimer>
+#include <QQueue>
 #include "../app_event.h"
 
 struct ImageSetting {
@@ -80,7 +81,6 @@ private:
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
-    QLineEdit *m_twitchClientSecretEdit = nullptr;
     QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
@@ -89,10 +89,18 @@ private:
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
     QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
+    QLineEdit *m_bubbleShortEdit = nullptr;
+    QLineEdit *m_bubbleLongEdit = nullptr;
+
+    int m_bubbleDisplayShortSec = 5;
+    int m_bubbleDisplayLongSec = 10;
+    QQueue<QString> m_aiRequestQueue;
+    bool m_isProcessingAI = false;
+
+    void enqueueRequest(const QString &text);
+    void processNextRequest();
 
     QString m_twitchOAuthToken;
-    QString m_twitchClientSecret;
-    QString m_twitchRefreshToken;
     QString m_webhookUrl;
     bool m_webhookEnabled = false;
 
@@ -188,6 +196,7 @@ signals:
     // コアスレッドへの要求シグナル
     void startSTTRequested();
     void directInputSubmitted(const QString &text);
+    void requestAIExecution(const QString &text);
     void resetSessionRequested(); // 会話履歴リセット要求シグナル
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);

@@ -97,6 +97,10 @@ int main(int argc, char *argv[]) {
     QObject::connect(&window, &AvatarWindow::twitchReauthRequested,
                      core, &CoreModule::on_twitchReauthRequested, Qt::QueuedConnection);
 
+    // UI -> AI (Direct Execution)
+    QObject::connect(&window, &AvatarWindow::requestAIExecution,
+                     ai, &AIClientManager::on_requestAI, Qt::QueuedConnection);
+
     // Core -> UI
     QObject::connect(core, &CoreModule::notifyEventToUI,
                      &window, &AvatarWindow::on_notify_events, Qt::QueuedConnection);

@@ -14,18 +14,6 @@ void CoreModule::on_notify_events(const AppEvent &event) {
     
     // イベント種別ごとの中継ロジック
     switch (event.type) {
-        case EventType::TwitchCommentReceived:
-        case EventType::VoiceInputCompleted: {
-            // AI要求を発行し、同時にUIへ送信中イベントを通知する
-            AppEvent sentEvent;
-            sentEvent.type = EventType::AIRequestSent;
-            sentEvent.source = "CoreModule";
-            sentEvent.text = event.text;
-            emit notifyEventToUI(sentEvent);
-
-            emit requestAI(event.text);
-            break;
-        }
         case EventType::AIResponseReceived: {
             // そのままUIにパス
             emit notifyEventToUI(event);
