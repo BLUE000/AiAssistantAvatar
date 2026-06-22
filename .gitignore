@@ -13,5 +13,6 @@ local_settings.json
 test_output.txt
 /DecisionLog/
 *.log
+AiAssistantAvatar_Release.zip
 
 
