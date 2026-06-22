@@ -25,12 +25,14 @@ TwitchReader::~TwitchReader() {
     on_stopReading();
 }
 
-void TwitchReader::setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord) {
+void TwitchReader::setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord, const QString &avatarName, bool nameReactionEnabled) {
     m_channel = channel;
     m_oauthToken = token;
     m_clientId = clientId;
     m_wakeWord = wakeWord;
-    qDebug() << "TwitchReader: Settings updated manually. Channel:" << channel << "WakeWord:" << wakeWord;
+    m_avatarName = avatarName;
+    m_nameReactionEnabled = nameReactionEnabled;
+    qDebug() << "TwitchReader: Settings updated manually. Channel:" << channel << "WakeWord:" << wakeWord << "AvatarName:" << avatarName << "NameReactionEnabled:" << nameReactionEnabled;
 }
 
 void TwitchReader::loadSettings() {
@@ -74,6 +76,8 @@ void TwitchReader::loadSettings() {
         if (m_wakeWordMode.isEmpty()) {
             m_wakeWordMode = ConfigDefaults::WAKE_WORD_MODE;
         }
+        m_avatarName = obj.value("avatar_name").toString("AIアシスタント").trimmed();
+        m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
     }
 }
 
@@ -328,21 +332,34 @@ void TwitchReader::on_stopReading() {
 void TwitchReader::injectTestComment(const QString &user, const QString &message) {
     qDebug() << "TwitchReader: Injected comment from" << user << ":" << message;
 
-    if (m_wakeWord.isEmpty()) return;
+    if (m_wakeWord.isEmpty() && m_avatarName.isEmpty()) return;
 
     bool isMatch = false;
     QString cleanMessage = message;
 
-    if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
-        if (message.startsWith(m_wakeWord)) {
-            isMatch = true;
-            cleanMessage = message.mid(m_wakeWord.length()).trimmed();
+    // 1. まずウェイクワードで判定
+    if (!m_wakeWord.isEmpty()) {
+        if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
+            if (message.startsWith(m_wakeWord)) {
+                isMatch = true;
+                cleanMessage = message.mid(m_wakeWord.length()).trimmed();
+            }
+        } else {
+            if (message.contains(m_wakeWord)) {
+                isMatch = true;
+                cleanMessage = message;
+                cleanMessage.replace(m_wakeWord, "");
+                cleanMessage = cleanMessage.trimmed();
+            }
         }
-    } else {
-        if (message.contains(m_wakeWord)) {
+    }
+
+    // 2. ウェイクワードでマッチしなかった場合で、かつ名前で反応が有効な場合、アバター名で判定
+    if (!isMatch && m_nameReactionEnabled && !m_avatarName.isEmpty()) {
+        if (message.contains(m_avatarName)) {
             isMatch = true;
             cleanMessage = message;
-            cleanMessage.replace(m_wakeWord, "");
+            cleanMessage.replace(m_avatarName, "");
             cleanMessage = cleanMessage.trimmed();
         }
     }

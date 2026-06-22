@@ -51,7 +51,7 @@ set(SOURCES
     src/search/duckduckgo_search_provider.cpp
 )
 
-add_executable(AiAssistantAvatar ${SOURCES})
+add_executable(AiAssistantAvatar WIN32 ${SOURCES})
 
 # インクルードパスの設定（生成された version.h がある binary_dir も追加）
 target_include_directories(AiAssistantAvatar PRIVATE

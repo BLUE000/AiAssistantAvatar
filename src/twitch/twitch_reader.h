@@ -15,6 +15,8 @@ private:
     QString m_clientId;
     QString m_wakeWord; // UIで設定変更可能
     QString m_wakeWordMode; // "contains" または "prefix" / "command"
+    QString m_avatarName;
+    bool m_nameReactionEnabled = true;
     int m_authPort = 48080;
 
     QWebSocket *m_webSocket = nullptr;
@@ -33,7 +35,7 @@ public:
     explicit TwitchReader(QObject *parent = nullptr);
     ~TwitchReader();
 
-    void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord);
+    void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord, const QString &avatarName = "AIアシスタント", bool nameReactionEnabled = true);
     void setWakeWordMode(const QString &mode) { m_wakeWordMode = mode.trimmed().toLower(); }
 
 signals:

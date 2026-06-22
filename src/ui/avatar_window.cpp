@@ -969,6 +969,9 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_twitchWakeWordModeCombo = new QComboBox(scrollContent);
     m_twitchWakeWordModeCombo->addItems({"contains", "prefix"});
     
+    m_avatarNameEdit = new QLineEdit(scrollContent);
+    m_nameReactionCheckbox = new QCheckBox("名前（アバター名）呼ばれて反応する", scrollContent);
+    
     m_aiProviderCombo = new QComboBox(scrollContent);
     m_aiProviderCombo->addItems({"mistral", "dummy"});
     
@@ -1050,6 +1053,8 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     QFormLayout *twitchLayout = new QFormLayout(twitchGroup);
     twitchLayout->setContentsMargins(10, 10, 10, 10);
     twitchLayout->setSpacing(6);
+    twitchLayout->addRow("アバター名:", m_avatarNameEdit);
+    twitchLayout->addRow("名前反応:", m_nameReactionCheckbox);
     twitchLayout->addRow("チャンネル:", m_twitchChannelEdit);
     twitchLayout->addRow("クライアント ID:", m_twitchClientIdEdit);
     twitchLayout->addRow("OAuth用ポート:", m_twitchPortEdit);
@@ -1171,6 +1176,11 @@ void AvatarWindow::loadSettingsToUI() {
             m_bubbleDisplayLongSec = obj.value("bubble_display_long_sec").toInt(10);
             m_bubbleShortEdit->setText(QString::number(m_bubbleDisplayShortSec));
             m_bubbleLongEdit->setText(QString::number(m_bubbleDisplayLongSec));
+
+            m_avatarName = obj.value("avatar_name").toString("AIアシスタント").trimmed();
+            m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
+            m_avatarNameEdit->setText(m_avatarName);
+            m_nameReactionCheckbox->setChecked(m_nameReactionEnabled);
         }
     }
 }
@@ -1219,6 +1229,11 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["webhook_url"] = m_webhookUrl;
     obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
+
+    m_avatarName = m_avatarNameEdit->text().trimmed();
+    m_nameReactionEnabled = m_nameReactionCheckbox->isChecked();
+    obj["avatar_name"] = m_avatarName;
+    obj["name_reaction_enabled"] = m_nameReactionEnabled;
 
     m_bubbleDisplayShortSec = m_bubbleShortEdit->text().trimmed().toInt();
     if (m_bubbleDisplayShortSec <= 0) m_bubbleDisplayShortSec = 5;

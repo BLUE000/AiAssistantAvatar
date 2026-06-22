@@ -56,3 +56,40 @@ TEST(TwitchReaderTest, CommandPrefixMode) {
     EXPECT_EQ(spy.count(), 0);
 }
 
+TEST(TwitchReaderTest, AvatarNameReactionDetection) {
+    TwitchReader reader;
+    // ウェイクワード "アバターさん", アバター名 "AIアシスタント", 名前反応有効
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "アバターさん", "AIアシスタント", true);
+
+    QSignalSpy spy(&reader, &TwitchReader::notifyEvent);
+
+    // 1. アバター名（名前）を含むメッセージ (正常系)
+    reader.injectTestComment("userA", "AIアシスタント、自己紹介をして。");
+    ASSERT_EQ(spy.count(), 1);
+
+    AppEvent event = spy.takeFirst().at(0).value<AppEvent>();
+    EXPECT_EQ(event.type, EventType::TwitchCommentReceived);
+    EXPECT_EQ(event.text, "、自己紹介をして。"); // アバター名が除去されていること
+    EXPECT_EQ(event.extraData.value("user").toString(), "userA");
+
+    // 2. 名前が含まれていないメッセージ (非トリガー)
+    reader.injectTestComment("userB", "普通のご挨拶です。");
+    EXPECT_EQ(spy.count(), 0);
+}
+
+TEST(TwitchReaderTest, AvatarNameReactionDisabled) {
+    TwitchReader reader;
+    // ウェイクワード "アバターさん", アバター名 "AIアシスタント", 名前反応無効
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "アバターさん", "AIアシスタント", false);
+
+    QSignalSpy spy(&reader, &TwitchReader::notifyEvent);
+
+    // 名前が含まれていても反応しないこと
+    reader.injectTestComment("userA", "AIアシスタント、自己紹介をして。");
+    EXPECT_EQ(spy.count(), 0);
+
+    // ただし、通常のウェイクワードには反応すること
+    reader.injectTestComment("userB", "アバターさん、自己紹介をして。");
+    EXPECT_EQ(spy.count(), 1);
+}
+

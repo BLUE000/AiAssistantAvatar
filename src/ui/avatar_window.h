@@ -92,9 +92,13 @@ private:
     QLineEdit *m_bubbleShortEdit = nullptr;
     QLineEdit *m_bubbleLongEdit = nullptr;
     QLineEdit *m_obsPathEdit = nullptr;
+    QLineEdit *m_avatarNameEdit = nullptr;
+    QCheckBox *m_nameReactionCheckbox = nullptr;
 
     int m_bubbleDisplayShortSec = 5;
     int m_bubbleDisplayLongSec = 10;
+    QString m_avatarName = "AIアシスタント";
+    bool m_nameReactionEnabled = true;
     QQueue<QString> m_aiRequestQueue;
     bool m_isProcessingAI = false;
 

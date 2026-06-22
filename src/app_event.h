@@ -27,7 +27,7 @@ Q_DECLARE_METATYPE(AppEvent)
 namespace ConfigDefaults {
     inline const int WEBSOCKET_PORT = 58081;
     inline const int TWITCH_PORT = 48080;
-    inline const QString WAKE_WORD = QStringLiteral("アバターさん");
+    inline const QString WAKE_WORD = QStringLiteral("AIアシスタント");
     inline const QString WAKE_WORD_MODE = QStringLiteral("contains");
     inline const QString AI_PROVIDER = QStringLiteral("dummy");
 }
