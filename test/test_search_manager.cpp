@@ -61,3 +61,39 @@ TEST(SearchManagerTest, InitialStateAndApiKeyHandling) {
     // (非公開変数のため直接アサートはせず、ビルドおよびメモリ安全性を確保)
     SUCCEED();
 }
+
+#include <QEventLoop>
+#include <QTimer>
+#include "../src/search/duckduckgo_search_provider.h"
+
+// 実際の DuckDuckGo に問い合わせを行って動作検証するテスト (診断用 - 手動実行のみ)
+TEST(SearchManagerTest, DISABLED_RealDDGSearchTest) {
+    QEventLoop loop;
+    DuckDuckGoSearchProvider provider;
+    
+    QString result;
+    bool success = false;
+    
+    QObject::connect(&provider, &ISearchProvider::searchFinished, [&](const QString &res, bool succ){
+        result = res;
+        success = succ;
+        loop.quit();
+    });
+    
+    // 10秒タイムアウト用タイマー
+    QTimer::singleShot(10000, &loop, &QEventLoop::quit);
+    
+    provider.search("2026 Prime Minister");
+    loop.exec();
+
+    
+    qDebug() << "=========================================";
+    qDebug() << "RealDDGSearchTest Success:" << success;
+    qDebug() << "RealDDGSearchTest Result Length:" << result.length();
+    qDebug() << "RealDDGSearchTest Result Content:\n" << result;
+    qDebug() << "=========================================";
+    
+    EXPECT_TRUE(success);
+    EXPECT_FALSE(result.isEmpty());
+}
+

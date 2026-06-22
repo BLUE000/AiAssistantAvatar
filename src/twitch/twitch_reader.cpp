@@ -253,11 +253,22 @@ void TwitchReader::onTokenRequestFinished(QNetworkReply *reply) {
         if (reqType == "refresh_token") {
             event.text = "Twitch トークンの自動更新に失敗しました。再認証を行ってください。";
         } else {
-            event.text = "Twitch トークンの取得に失敗しました: " + reply->errorString();
+            QString detail = reply->errorString();
+            if (!errData.isEmpty()) {
+                QJsonDocument errDoc = QJsonDocument::fromJson(errData);
+                if (!errDoc.isNull() && errDoc.isObject()) {
+                    QString msg = errDoc.object().value("message").toString();
+                    if (!msg.isEmpty()) {
+                        detail += QString(" (%1)").arg(msg);
+                    }
+                }
+            }
+            event.text = "Twitch トークンの取得に失敗しました: " + detail;
         }
         emit notifyEvent(event);
         return;
     }
+
 
     QByteArray responseData = reply->readAll();
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
@@ -548,6 +559,15 @@ void TwitchReader::on_twitchReauthRequested() {
         errEvent.type = EventType::ErrorOccurred;
         errEvent.source = "TwitchReader";
         errEvent.text = "Twitch クライアントIDが設定されていないため、認証を開始できません。";
+        emit notifyEvent(errEvent);
+        return;
+    }
+    if (m_clientSecret.isEmpty() || m_clientSecret == "YOUR_TWITCH_CLIENT_SECRET") {
+        qCritical() << "TwitchReader: Client Secret is missing. Cannot start OAuth process.";
+        AppEvent errEvent;
+        errEvent.type = EventType::ErrorOccurred;
+        errEvent.source = "TwitchReader";
+        errEvent.text = "Twitch クライアントシークレットが設定されていないため、認証を開始できません。";
         emit notifyEvent(errEvent);
         return;
     }

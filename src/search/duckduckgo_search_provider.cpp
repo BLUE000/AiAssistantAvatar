@@ -3,6 +3,9 @@
 #include <QUrlQuery>
 #include <QRegularExpression>
 #include <QDebug>
+#include <QFile>
+#include <QTextStream>
+
 
 DuckDuckGoSearchProvider::DuckDuckGoSearchProvider(QObject *parent)
     : ISearchProvider(parent)
@@ -64,14 +67,15 @@ void DuckDuckGoSearchProvider::on_replyFinished(QNetworkReply *reply) {
     QString html = QString::fromUtf8(reply->readAll());
 
     // 各検索結果ブロックの抽出
-    QRegularExpression bodyRegex("<div class=\"[^\"]*result__body[^\"]*\">([\\s\\S]*?)(?=<div class=\"result|<div class=\"results_links|<!--|$)");
-    QRegularExpression titleRegex("<a class=\"[^\"]*result__a[^\"]*\"[^>]*href=\"([^\"]*)\"[^>]*>([\\s\\S]*?)</a>");
-    QRegularExpression snippetRegex("<(?:a|span|div) class=\"[^\"]*result__snippet[^\"]*\"[^>]*>([\\s\\S]*?)</(?:a|span|div)>");
+    QRegularExpression bodyRegex("<div[^>]*class=\"[^\"]*web-result[^\"]*\"[^>]*>([\\s\\S]*?)(?=<div[^>]*class=\"[^\"]*web-result|$)");
+    QRegularExpression titleRegex("<a[^>]*class=\"[^\"]*result__a[^\"]*\"[^>]*>([\\s\\S]*?)</a>");
+    QRegularExpression snippetRegex("<(?:a|span|div)[^>]*class=\"[^\"]*result__snippet[^\"]*\"[^>]*>([\\s\\S]*?)</(?:a|span|div)>");
 
     QStringList formattedResults;
     int index = 1;
 
     auto bodyIt = bodyRegex.globalMatch(html);
+    
     while (bodyIt.hasNext() && index <= 3) {
         QRegularExpressionMatch bodyMatch = bodyIt.next();
         QString bodyHtml = bodyMatch.captured(1);
@@ -80,9 +84,17 @@ void DuckDuckGoSearchProvider::on_replyFinished(QNetworkReply *reply) {
         QRegularExpressionMatch snippetMatch = snippetRegex.match(bodyHtml);
 
         if (titleMatch.hasMatch()) {
-            QString rawUrl = titleMatch.captured(1);
-            QString title = cleanHtml(titleMatch.captured(2));
+            QString aTag = titleMatch.captured(0);
+            QString title = cleanHtml(titleMatch.captured(1));
             QString snippet = snippetMatch.hasMatch() ? cleanHtml(snippetMatch.captured(1)) : "";
+
+            // href属性からURLを抽出
+            QString rawUrl;
+            QRegularExpression hrefRegex("href=\"([^\"]*)\"");
+            QRegularExpressionMatch hrefMatch = hrefRegex.match(aTag);
+            if (hrefMatch.hasMatch()) {
+                rawUrl = hrefMatch.captured(1);
+            }
 
             // URLのデコード
             QUrl resolvedUrl(rawUrl);
@@ -91,6 +103,11 @@ void DuckDuckGoSearchProvider::on_replyFinished(QNetworkReply *reply) {
                 if (query.hasQueryItem("uddg")) {
                     rawUrl = query.queryItemValue("uddg", QUrl::FullyDecoded);
                 }
+            }
+
+            // スキーマ補完 (相対パスの対応)
+            if (rawUrl.startsWith("//")) {
+                rawUrl = "https:" + rawUrl;
             }
 
             formattedResults.append(QString("[%1] %2 (%3): %4")
@@ -103,7 +120,8 @@ void DuckDuckGoSearchProvider::on_replyFinished(QNetworkReply *reply) {
     }
 
     if (formattedResults.isEmpty()) {
-        if (html.contains("Forbidden") || html.contains("rate limit") || html.contains("robot")) {
+        qWarning() << "DuckDuckGoSearchProvider: Raw HTML snippet (first 1000 chars):" << html.left(1000);
+        if (html.contains("Forbidden") || html.contains("rate limit") || html.contains("robot check")) {
             qWarning() << "DuckDuckGoSearchProvider: Blocked or Rate Limited.";
             emit searchFinished("DuckDuckGo search was blocked or rate-limited.", false);
         } else {
@@ -113,4 +131,5 @@ void DuckDuckGoSearchProvider::on_replyFinished(QNetworkReply *reply) {
     } else {
         emit searchFinished(formattedResults.join("\n"), true);
     }
+
 }

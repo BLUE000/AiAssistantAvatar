@@ -523,6 +523,7 @@ void AvatarWindow::updateAvatarDisplay(const QString &state) {
     m_currentState = state;
     m_isFrontVariantMode = false; // 状態切り替え時はバリアントモードを一時停止
     updateWindowPosition();
+    notifyAvatarChanged();
 }
 
 void AvatarWindow::switchToNextVariant() {
@@ -555,6 +556,7 @@ void AvatarWindow::switchToNextVariant() {
     m_avatarLabel->setFixedSize(px.size());
     m_avatarLabel->setPixmap(px);
     adjustSize();
+    notifyAvatarChanged();
 
     // アニメーション切り替え時はウィンドウ位置を保持（ドラッグで移動させた位置は保存される）
     // ウィンドウサイズが変わった場合はレイアウトが自動調整される
@@ -676,6 +678,7 @@ void AvatarWindow::stepAnimationFrame() {
     m_avatarLabel->setFixedSize(px.size());
     m_avatarLabel->setPixmap(px);
     adjustSize();
+    notifyAvatarChanged();
 
     // アニメーション再生中はウィンドウ位置を保持（既に設定済みの位置を保存）
     // ウィンドウサイズが変わった場合のみレイアウト調整
