@@ -19,11 +19,17 @@ private:
     bool m_isResetting = false; // 要約要求中かどうかのフラグ
     bool m_isManualReset = false; // 手動リセット中かどうかのフラグ
     QString m_lastPrompt; // 応答待ち中の最新プロンプト
+    bool m_blacklistEnabled = true;
+    QStringList m_blacklist;
+    QStringList m_whitelist;
 
     void loadCredentials();
     void loadSessionContext();
     void saveSessionContext(const QString &context);
     void saveObfuscatedLog(const QString &logText); // TransCipherを用いたログ難読化保存
+    void loadBlacklist();
+    void loadWhitelist();
+    QString applyMask(const QString &text) const;
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);

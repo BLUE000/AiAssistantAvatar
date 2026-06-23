@@ -1,0 +1,72 @@
+# AIアシスタント用ホワイトリスト設定ファイル (whitelist.txt)
+#
+# このファイルに記述された単語がユーザーからのコメントやAIの応答に含まれる場合、
+# その単語の一部にブラックリストワードが含まれていても、伏字化（マスク）の対象から除外され、そのまま表示・送信されます。
+#
+# 【書き方】
+# - 1行に1つの単語、または例外としたいフレーズ（複数の単語の組み合わせ）を記述してください。
+# - 空行および「#」で始まる行はコメントとして無視されます。
+# - 大文字・小文字は区別されません。
+#
+# 【例】
+# wtf （fuckがブラックリストにある場合に保護）
+# class （assがブラックリストにある場合に保護）
+# holy shit （shitがブラックリストにあるが、この組み合わせ（フレーズ）の場合は保護）
+
+Fuck yeah!
+Holy shit!
+What the fuck?
+Dick Cheney
+Dick Tracy
+Shit happens
+Bitch please
+Badass
+Kick ass
+Kill it!
+Die hard
+Bomb ass
+Drug store
+Cunt country
+Pussy cat
+Ass hole
+Bastard child
+Stupid mistake
+Idiot box
+Moron mountain
+Ugly duckling
+Fat chance
+Trash talk
+Scum of the earth
+Shut up and drive
+Bitch better have my money
+Fuck off
+Fuck me
+Fuck this
+Fuck that
+Shit ton
+Shit load
+Dick move
+Bitch slap
+Kick the bucket
+Drop dead gorgeous
+殺す気
+死ぬほど
+テロメア
+爆弾低気圧
+薬局
+麻薬取締官
+売春婦
+ロリポップ
+ショタロリ
+バカみたい
+アホみたい
+クソまじめ
+シネマ
+ウザいくらい
+キモかわいい
+ブスカワ
+デブねこ
+チンピラみたい
+カスみたい
+ザコキャラ
+クズみたい

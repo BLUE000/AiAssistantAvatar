@@ -12,11 +12,14 @@
 #include <QDebug>
 #include <QTextStream>
 #include <QFileInfo>
+#include <algorithm>
 
 AIClientManager::AIClientManager(QObject *parent)
     : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
     loadCredentials();
+    loadBlacklist();
+    loadWhitelist();
     loadSessionContext();
     setAIProvider(m_provider); // ロードされたプロバイダを設定
 }
@@ -86,9 +89,155 @@ void AIClientManager::loadCredentials() {
             m_tavilyApiKey = obj["tavily_api_key"].toString();
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
             m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
-            qDebug() << "AIClientManager: Loaded settings from" << configPath;
+            m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
+            qDebug() << "AIClientManager: Loaded settings from" << configPath << "Blacklist enabled:" << m_blacklistEnabled;
         }
     }
+}
+
+void AIClientManager::loadBlacklist() {
+    m_blacklist.clear();
+    if (!m_blacklistEnabled) {
+        return;
+    }
+
+    QString blacklistPath = "blacklist.txt";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(blacklistPath)) {
+        blacklistPath = QString(PROJECT_SOURCE_DIR) + "/blacklist.txt";
+    }
+#endif
+    if (!QFile::exists(blacklistPath)) {
+        blacklistPath = QCoreApplication::applicationDirPath() + "/blacklist.txt";
+    }
+    if (!QFile::exists(blacklistPath)) {
+        blacklistPath = QCoreApplication::applicationDirPath() + "/../blacklist.txt";
+    }
+    if (!QFile::exists(blacklistPath)) {
+        blacklistPath = QCoreApplication::applicationDirPath() + "/../../blacklist.txt";
+    }
+
+    if (!QFile::exists(blacklistPath)) {
+        qDebug() << "AIClientManager: blacklist.txt does not exist. No blacklist loaded.";
+        return;
+    }
+
+    QFile file(blacklistPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        in.setEncoding(QStringConverter::Utf8);
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            if (line.isEmpty() || line.startsWith('#')) {
+                continue;
+            }
+            m_blacklist.append(line);
+        }
+        file.close();
+
+        // 文字数の長い順に降順ソートし、長いワード（フレーズ）を優先的にマスク処理
+        std::sort(m_blacklist.begin(), m_blacklist.end(), [](const QString &a, const QString &b) {
+            return a.length() > b.length();
+        });
+
+        qDebug() << "AIClientManager: Loaded" << m_blacklist.size() << "blacklist words from" << blacklistPath;
+    } else {
+        qWarning() << "AIClientManager: Failed to open blacklist file:" << blacklistPath;
+    }
+}
+
+void AIClientManager::loadWhitelist() {
+    m_whitelist.clear();
+    if (!m_blacklistEnabled) {
+        return;
+    }
+
+    QString whitelistPath = "whitelist.txt";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(whitelistPath)) {
+        whitelistPath = QString(PROJECT_SOURCE_DIR) + "/whitelist.txt";
+    }
+#endif
+    if (!QFile::exists(whitelistPath)) {
+        whitelistPath = QCoreApplication::applicationDirPath() + "/whitelist.txt";
+    }
+    if (!QFile::exists(whitelistPath)) {
+        whitelistPath = QCoreApplication::applicationDirPath() + "/../whitelist.txt";
+    }
+    if (!QFile::exists(whitelistPath)) {
+        whitelistPath = QCoreApplication::applicationDirPath() + "/../../whitelist.txt";
+    }
+
+    if (!QFile::exists(whitelistPath)) {
+        qDebug() << "AIClientManager: whitelist.txt does not exist. No whitelist loaded.";
+        return;
+    }
+
+    QFile file(whitelistPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        in.setEncoding(QStringConverter::Utf8);
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            if (line.isEmpty() || line.startsWith('#')) {
+                continue;
+            }
+            m_whitelist.append(line);
+        }
+        file.close();
+
+        // 文字数の長い順に降順ソートし、長いワード（フレーズ）を優先的に保護処理
+        std::sort(m_whitelist.begin(), m_whitelist.end(), [](const QString &a, const QString &b) {
+            return a.length() > b.length();
+        });
+
+        qDebug() << "AIClientManager: Loaded" << m_whitelist.size() << "whitelist words from" << whitelistPath;
+    } else {
+        qWarning() << "AIClientManager: Failed to open whitelist file:" << whitelistPath;
+    }
+}
+
+QString AIClientManager::applyMask(const QString &text) const {
+    if (!m_blacklistEnabled || m_blacklist.isEmpty()) {
+        return text;
+    }
+
+    QString filtered = text;
+    QList<QString> savedOriginals;
+
+    // 1. ホワイトリストに含まれる単語/フレーズをプレースホルダーに退避させて保護する
+    for (int i = 0; i < m_whitelist.size(); ++i) {
+        const QString &word = m_whitelist[i];
+        if (word.isEmpty()) continue;
+        int pos = 0;
+        while ((pos = filtered.indexOf(word, pos, Qt::CaseInsensitive)) != -1) {
+            // 大文字小文字の元の表記を維持するために、実際にマッチした部分を抽出
+            QString matched = filtered.mid(pos, word.length());
+            QString ph = QString("__WHITE_LIST_PLACEHOLDER_%1__").arg(savedOriginals.size());
+            savedOriginals.append(matched);
+
+            filtered.replace(pos, word.length(), ph);
+            pos += ph.length();
+        }
+    }
+
+    // 2. ブラックリストワードを **** （4文字）に一律マスク（置換）する
+    for (const QString &word : m_blacklist) {
+        if (word.isEmpty()) continue;
+        int pos = 0;
+        while ((pos = filtered.indexOf(word, pos, Qt::CaseInsensitive)) != -1) {
+            filtered.replace(pos, word.length(), "****");
+            pos += 4; // 置換後の「****」の長さ分進める
+        }
+    }
+
+    // 3. 退避していたホワイトリストの元の文字列を復元する (インデックスの誤マッチを防ぐため逆順に復元)
+    for (int i = savedOriginals.size() - 1; i >= 0; --i) {
+        QString ph = QString("__WHITE_LIST_PLACEHOLDER_%1__").arg(i);
+        filtered.replace(ph, savedOriginals[i]);
+    }
+
+    return filtered;
 }
 
 void AIClientManager::setAIProvider(const QString &provider) {
@@ -119,17 +268,19 @@ void AIClientManager::setAIProvider(const QString &provider) {
 void AIClientManager::on_requestAI(const QString &prompt) {
     qDebug() << "AIClientManager: Received request for prompt:" << prompt;
 
-    m_lastPrompt = prompt;
+    QString filteredPrompt = applyMask(prompt);
+
+    m_lastPrompt = filteredPrompt;
 
     // コアへ送信開始イベントを通知
     AppEvent event;
     event.type = EventType::AIRequestSent;
     event.source = "AIClientManager";
-    event.text = prompt;
+    event.text = filteredPrompt;
     emit notifyEvent(event);
 
     if (m_currentClient) {
-        m_currentClient->sendRequest(prompt, m_chatHistory, m_sessionContext);
+        m_currentClient->sendRequest(filteredPrompt, m_chatHistory, m_sessionContext);
     }
 }
 
@@ -192,10 +343,13 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
     // 通常の会話応答
     if (success) {
         event.type = EventType::AIResponseReceived;
-        event.text = responseText;
+        
+        // 応答テキストにマスク（伏字）処理を適用
+        QString filteredResponse = applyMask(responseText);
+        event.text = filteredResponse;
 
         // 履歴にペアを追加し、シグナルで通知
-        m_chatHistory.append(QPair<QString, QString>(m_lastPrompt, responseText));
+        m_chatHistory.append(QPair<QString, QString>(m_lastPrompt, filteredResponse));
         emit chatHistoryUpdated(m_chatHistory);
 
         // 【TransCipher難読化要件の適用】
@@ -203,7 +357,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         QString logText = QString("[%1] Prompt: %2 -> Response: %3")
                             .arg(QDateTime::currentDateTime().toString(Qt::ISODate))
                             .arg(m_lastPrompt)
-                            .arg(responseText);
+                            .arg(filteredResponse);
         saveObfuscatedLog(logText);
 
         emit notifyEvent(event);
@@ -387,6 +541,8 @@ void AIClientManager::exportSessionBackup(const QString &encPath, const QString 
 void AIClientManager::on_settingsUpdated() {
     qDebug() << "AIClientManager: Settings updated. Reloading credentials.";
     loadCredentials();
+    loadBlacklist();
+    loadWhitelist();
     setAIProvider(m_provider);
     if (m_currentClient) {
         m_currentClient->setApiKey(m_apiKey);

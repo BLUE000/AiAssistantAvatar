@@ -440,12 +440,18 @@ private:
     bool m_isResetting = false; // 要約要求中かどうかのフラグ
     bool m_isManualReset = false; // 手動リセット中かどうかのフラグ
     QString m_lastPrompt; // 前回のプロンプト
+    bool m_blacklistEnabled = true;
+    QStringList m_blacklist;
+    QStringList m_whitelist;
 
     void loadCredentials();
     void loadSessionContext();
     void saveSessionContext(const QString &context);
     void saveObfuscatedLog(const QString &logText);
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
+    void loadBlacklist();
+    void loadWhitelist();
+    QString applyMask(const QString &text) const;
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);
@@ -863,3 +869,26 @@ OBSブラウザソース接続時等に、現在の最新状態を同期する�
 }
 ```
 ```
+
+### 4.8 AI入出力ブラックリストフィルタリングおよびマスク（伏字化）ロジック（ホワイトリスト対応）
+
+不適切な入力がAIに渡されるのを防ぎ、またAIの不適切な応答（すり抜けによる応答や自発的な応答）がアバターを通じて出力されるのを防ぐため、`AIClientManager` は以下の処理フローを実行する。
+
+1. **ブラックリスト・ホワイトリストのロード (`loadBlacklist`, `loadWhitelist`)**
+   - 設定ファイル等から `blacklist_enabled` が `true` の場合、指定のディレクトリ優先順位から `blacklist.txt` および `whitelist.txt` を読み込む。
+   - それぞれUTF-8でデコードし、1行につき1つの単語またはフレーズとして `m_blacklist` (QStringList) および `m_whitelist` (QStringList) に登録する。空行や `#` で始まるコメント行は除外する。
+
+2. **マスクの適用 (`applyMask`)**
+   - 与えられた文字列（`text`）に対して、以下の「プレースホルダー一時退避アルゴリズム」を用いてマスク化を行う。
+     1. **ホワイトリストの一時退避**: `text` 内に含まれる `m_whitelist` の各単語・フレーズを検索し、大文字小文字を区別せず、一意のプレースホルダー（例: `__WHITE_LIST_PLACEHOLDER_N__`）に置換して退避させる（スペースを含んだフレーズもそのまま退避され、保護されます）。
+     2. **ブラックリストの置換（マスク）**: 退避させた状態の文字列に対して、`m_blacklist` の各単語を大文字小文字を区別せず、一律で `****`（アスタリスク4文字）に置換する。
+     3. **ホワイトリストの復元**: 退避させていたプレースホルダー部分を、元のホワイトリストの単語・フレーズに再置換して復元する。
+   - これにより、`WTF` や `holy shit` などのホワイトリストで保護された表現の一部にブラックリストワードが含まれていたとしても、巻き添えで伏字化されるのを防止し、文脈（特定の単語の組み合わせ）に基づいた除外制御を実現する。
+
+3. **入力（要求）のマスク制御フロー (`on_requestAI`)**
+   - コアからリクエストが来たら、送信前プロンプトに `applyMask` を適用してマスク後のプロンプト（`filteredPrompt`）を作成する。
+   - AIにはこのマスクしたプロンプトを送信する。ログおよびUI送信イベントもマスク後のプロンプトで発行される。
+
+4. **出力（応答）のマスク制御フロー (`on_clientRequestFinished`)**
+   - AIから返答を受信したら、その応答テキストに `applyMask` を適用し、マスク後の応答テキスト（`filteredResponse`）を作成する。
+   - この `filteredResponse` を用いて、会話履歴への追加、難読化ログの保存、アバター発話イベント（UI用通知）の発行を行う。

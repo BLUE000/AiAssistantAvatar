@@ -261,3 +261,210 @@ TEST_F(AIClientTest, SettingsUpdatedTest) {
 
     SUCCEED();
 }
+
+TEST_F(AIClientTest, BlacklistMaskingTest) {
+    // 1. ブラックリストファイルをテスト用に作成
+    QString blacklistPath = "blacklist.txt";
+#ifdef PROJECT_SOURCE_DIR
+    {
+        QString candidate = QString(PROJECT_SOURCE_DIR) + "/blacklist.txt";
+        if (QFile::exists(candidate)) {
+            blacklistPath = candidate;
+        }
+    }
+#endif
+
+    // 既存 of blacklist.txt があれば退避
+    QByteArray originalBlacklist;
+    if (QFile::exists(blacklistPath)) {
+        QFile file(blacklistPath);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            originalBlacklist = file.readAll();
+            file.close();
+        }
+        QFile::remove(blacklistPath);
+    }
+
+    // テスト用のブラックリストファイルを作成
+    {
+        QFile file(blacklistPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream out(&file);
+        out.setEncoding(QStringConverter::Utf8);
+        out << "# Test Blacklist\n";
+        out << "暴力\n";
+        out << "badword\n";
+        out << "baka\n";
+        out << "f\n";
+        out << "shit\n";
+        out << "ass\n";
+        file.close();
+    }
+
+    // 2. ホワイトリストファイルをテスト用に作成
+    QString whitelistPath = "whitelist.txt";
+#ifdef PROJECT_SOURCE_DIR
+    {
+        QString candidate = QString(PROJECT_SOURCE_DIR) + "/whitelist.txt";
+        if (QFile::exists(candidate)) {
+            whitelistPath = candidate;
+        }
+    }
+#endif
+
+    // 既存の whitelist.txt があれば退避
+    QByteArray originalWhitelist;
+    if (QFile::exists(whitelistPath)) {
+        QFile file(whitelistPath);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            originalWhitelist = file.readAll();
+            file.close();
+        }
+        QFile::remove(whitelistPath);
+    }
+
+    // テスト用のホワイトリストファイルを作成
+    {
+        QFile file(whitelistPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream out(&file);
+        out.setEncoding(QStringConverter::Utf8);
+        out << "# Test Whitelist\n";
+        out << "wtf\n";
+        out << "holy shit\n";
+        out << "class\n";
+        file.close();
+    }
+
+    // local_settings.json に blacklist_enabled = true をセットして読み込ませる
+    QString configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    {
+        QString candidate = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+        if (QFile::exists(candidate)) {
+            configPath = candidate;
+        }
+    }
+#endif
+
+    QByteArray originalConfig;
+    {
+        QFile file(configPath);
+        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            originalConfig = file.readAll();
+            file.close();
+        }
+    }
+
+    QJsonObject testObj;
+    testObj["ai_provider"] = "dummy";
+    testObj["mistral_api_key"] = "test_api_key_from_test";
+    testObj["trans_cipher_key"] = "AiAssistantAvatar";
+    testObj["blacklist_enabled"] = true;
+
+    {
+        QFile file(configPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+
+    // マネージャーのインスタンス作成と設定反映
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // A. 要求側のマスク検証 (一律 「****」 に置換)
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    manager.on_requestAI("彼は暴力をふるった。本当にbakaですね。");
+    
+    // 送信イベントがマスクされているか検証
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent sentEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(sentEvent.type, EventType::AIRequestSent);
+    EXPECT_EQ(sentEvent.text, "彼は****をふるった。本当に****ですね。");
+
+    // B. ホワイトリストの保護検証 (入力側)
+    eventSpy.clear();
+    manager.on_requestAI("彼はWTFと叫んだ。まさにHoly Shitですね！");
+    sentEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    // wtf (fを含む) と holy shit (shitを含む) が保護されること
+    EXPECT_EQ(sentEvent.text, "彼はWTFと叫んだ。まさにHoly Shitですね！");
+
+    // C. 応答側のマスク検証 (シミュレートされたAI応答にブラックリストワードが含まれるケース)
+    eventSpy.clear();
+    manager.on_clientRequestFinished("彼の言動はbakaであり、暴力はお勧めしません。", true);
+    
+    // 受信イベント内のテキストがマスクされているか検証
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent receivedEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(receivedEvent.type, EventType::AIResponseReceived);
+    EXPECT_EQ(receivedEvent.text, "彼の言動は****であり、****はお勧めしません。");
+
+    // D. ホワイトリストの保護検証 (出力側)
+    eventSpy.clear();
+    manager.on_clientRequestFinished("私たちのclassでは、WTFと発言するのは禁止です。", true);
+    receivedEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    // class (assを含む) や WTF (fを含む) が保護されること
+    EXPECT_EQ(receivedEvent.text, "私たちのclassでは、WTFと発言するのは禁止です。");
+
+    // E. すり抜け要求 -> 不適切応答のマスク検証
+    eventSpy.clear();
+    manager.on_requestAI("青くて丸いロボットを描いて");
+    sentEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(sentEvent.text, "青くて丸いロボットを描いて"); // 要求側はマスクされない
+
+    // AIからの応答にブラックリストワードが含まれる
+    eventSpy.clear();
+    manager.on_clientRequestFinished("これはbaka（ドラえもん）です。", true);
+    receivedEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    // 出力段階で正しくマスクされること
+    EXPECT_EQ(receivedEvent.text, "これは****（ドラえもん）です。");
+
+    // F. ブラックリスト無効化時の検証
+    eventSpy.clear();
+    testObj["blacklist_enabled"] = false;
+    {
+        QFile file(configPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+    manager.on_settingsUpdated(); // リロード
+
+    manager.on_requestAI("暴力をやめろ");
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent sentEvent2 = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(sentEvent2.text, "暴力をやめろ"); // マスクされない
+
+    // クリーニング：設定、ブラックリスト、ホワイトリストを元に戻す
+    if (!originalConfig.isEmpty()) {
+        QFile file(configPath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(originalConfig);
+            file.close();
+        }
+    } else {
+        QFile::remove(configPath);
+    }
+
+    if (!originalBlacklist.isEmpty()) {
+        QFile file(blacklistPath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(originalBlacklist);
+            file.close();
+        }
+    } else {
+        QFile::remove(blacklistPath);
+    }
+
+    if (!originalWhitelist.isEmpty()) {
+        QFile file(whitelistPath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(originalWhitelist);
+            file.close();
+        }
+    } else {
+        QFile::remove(whitelistPath);
+    }
+}
