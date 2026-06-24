@@ -144,3 +144,13 @@ AIの返答（吹き出し）が画面に表示される時間を調整します
 * **利用規約・ライセンス**: Mistral AIのサービス利用規約およびポリシーに従い動作します。
 * 詳細は [Mistral AI Terms of Service](https://mistral.ai/terms/) をご確認ください。
 
+#### 5. Web検索プロバイダ (Tavily API & DuckDuckGo)
+本アプリケーションは、AIによる最新情報のウェブ検索機能（ファンクション・コーリング）のために以下の外部サービスおよび検索エンジンを利用しています。
+* **Tavily API**: AI向けのウェブ検索サービス。詳細は [Tavily Terms of Service](https://tavily.com/) をご確認ください。
+* **DuckDuckGo**: プライバシーに配慮したウェブ検索エンジン（HTML検索のフォールバックとして利用）。詳細は [DuckDuckGo Privacy Policy](https://duckduckgo.com/privacy) をご確認ください。
+
+#### 6. アセットの帰属表記 (アバター画像)
+同梱されているアバター画像アセット（`pic/` フォルダ内のイラスト）は、以下の素材配布サイトより取得・利用しています。
+* イラストAC様から取得 (https://www.ac-illust.com)
+
+
