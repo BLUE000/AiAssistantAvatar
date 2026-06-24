@@ -7,12 +7,12 @@ trustchain_credentials.cmake
 local_env.cmake
 local_settings.json
 /build/
+/build_release/
 /build_trustchain/
 /scratch/
+
 *.user
 test_output.txt
 /DecisionLog/
 *.log
-AiAssistantAvatar_Release.zip
-
-
+/dist/

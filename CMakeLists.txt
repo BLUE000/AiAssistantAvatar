@@ -6,7 +6,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/local_env.cmake")
 endif()
 
 # 1. プロジェクト名とバージョン定義
-project(AiAssistantAvatar VERSION 1.0.0 LANGUAGES CXX)
+project(AiAssistantAvatar VERSION 0.9.0 LANGUAGES CXX)
 
 # バージョン情報をヘッダーファイルとして自動生成し、プログラムから参照できるようにする
 configure_file(
@@ -52,6 +52,14 @@ set(SOURCES
 )
 
 add_executable(AiAssistantAvatar WIN32 ${SOURCES})
+
+if(WIN32)
+    set_target_properties(AiAssistantAvatar PROPERTIES WIN32_EXECUTABLE TRUE)
+    if(MINGW)
+        target_link_options(AiAssistantAvatar PRIVATE "-mwindows" "-Wl,--subsystem,windows")
+    endif()
+endif()
+
 
 # インクルードパスの設定（生成された version.h がある binary_dir も追加）
 target_include_directories(AiAssistantAvatar PRIVATE
