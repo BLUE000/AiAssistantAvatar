@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <QTextStream>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <algorithm>
 
 AIClientManager::AIClientManager(QObject *parent)
@@ -240,6 +241,48 @@ QString AIClientManager::applyMask(const QString &text) const {
     return filtered;
 }
 
+bool AIClientManager::isLanguageIndicator(const QString &lang) const {
+    QString l = lang.trimmed().toLower();
+    // 2-3文字のISO言語コード (en, ja, ko, zh, fr, es, de, ru, it)
+    static const QRegularExpression isoCodeRegex("^[a-z]{2,3}$");
+    if (isoCodeRegex.match(l).hasMatch()) {
+        return true;
+    }
+    
+    // 既知の英語表記
+    static const QStringList englishNames = {
+        "english", "japanese", "korean", "chinese", "french", "spanish", 
+        "german", "russian", "italian", "arabic", "portuguese", "dutch", 
+        "polish", "swedish", "turkish"
+    };
+    if (englishNames.contains(l)) {
+        return true;
+    }
+    
+    // 既知の日本語表記（「語」で終わる、または「日本語」など）
+    if (l.endsWith("語") || l == "英語" || l == "日本語" || l == "中国語" || l == "韓国語" || l == "フランス語" || l == "スペイン語" || l == "ドイツ語" || l == "ロシア語" || l == "イタリア語") {
+        return true;
+    }
+    
+    return false;
+}
+
+QString AIClientManager::mapLanguage(const QString &lang) const {
+    QString l = lang.trimmed().toLower();
+    if (l == "ja" || l == "jp" || l == "japanese" || l == "日本語") return "Japanese";
+    if (l == "en" || l == "english" || l == "英語") return "English";
+    if (l == "ko" || l == "korean" || l == "韓国語" || l == "ハングル") return "Korean";
+    if (l == "zh" || l == "cn" || l == "chinese" || l == "中国語" || l == "中華") return "Chinese";
+    if (l == "fr" || l == "french" || l == "フランス語") return "French";
+    if (l == "es" || l == "spanish" || l == "スペイン語") return "Spanish";
+    if (l == "de" || l == "german" || l == "ドイツ語") return "German";
+    if (l == "ru" || l == "russian" || l == "ロシア語") return "Russian";
+    if (l == "it" || l == "italian" || l == "イタリア語") return "Italian";
+    
+    if (lang.isEmpty()) return "Japanese";
+    return lang.left(1).toUpper() + lang.mid(1);
+}
+
 void AIClientManager::setAIProvider(const QString &provider) {
     if (m_currentClient && m_provider == provider) return;
 
@@ -269,7 +312,49 @@ void AIClientManager::on_requestAI(const QString &prompt) {
     qDebug() << "AIClientManager: Received request for prompt:" << prompt;
 
     QString filteredPrompt = applyMask(prompt);
+    QString trimmedPrompt = filteredPrompt.trimmed();
 
+    // 翻訳コマンドの判定 ("trans" で始まるか)
+    if (trimmedPrompt.startsWith("trans", Qt::CaseInsensitive)) {
+        QString cmdArgs = trimmedPrompt.mid(5).trimmed(); // "trans" の後
+        QString targetLanguage = "Japanese";
+        QString textToTranslate = cmdArgs;
+
+        // 引数の分解
+        int firstSpaceIdx = cmdArgs.indexOf(QRegularExpression("\\s+"));
+        if (firstSpaceIdx != -1) {
+            QString possibleLang = cmdArgs.left(firstSpaceIdx).trimmed();
+            QString possibleText = cmdArgs.mid(firstSpaceIdx).trimmed();
+            if (isLanguageIndicator(possibleLang)) {
+                targetLanguage = mapLanguage(possibleLang);
+                textToTranslate = possibleText;
+            }
+        }
+
+        m_isTranslationRequest = true;
+
+        // コアへ送信開始イベントを通知
+        AppEvent event;
+        event.type = EventType::AIRequestSent;
+        event.source = "AIClientManager";
+        event.text = filteredPrompt;
+        emit notifyEvent(event);
+
+        if (m_currentClient) {
+            // 翻訳用のプロンプトを作成。
+            // 翻訳以外の不要な発言やクォートを排除するため、厳密なインストラクションを含める。
+            QString translationPrompt = QString("Translate the following text to %1. Output ONLY the translation without any other text, explanations, or quotes.\n\nText:\n%2")
+                                            .arg(targetLanguage)
+                                            .arg(textToTranslate);
+            
+            // 翻訳要求時は会話履歴とセッションコンテキストを空にして送信
+            m_currentClient->sendRequest(translationPrompt, QList<QPair<QString, QString>>(), "");
+        }
+        return;
+    }
+
+    // 通常のチャット要求
+    m_isTranslationRequest = false;
     m_lastPrompt = filteredPrompt;
 
     // コアへ送信開始イベントを通知
@@ -285,10 +370,23 @@ void AIClientManager::on_requestAI(const QString &prompt) {
 }
 
 void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success) {
-    qDebug() << "AIClientManager: Client request finished. Success:" << success << "Resetting:" << m_isResetting;
+    qDebug() << "AIClientManager: Client request finished. Success:" << success << "Resetting:" << m_isResetting << "Translation:" << m_isTranslationRequest;
 
     AppEvent event;
     event.source = "AIClientManager";
+
+    if (m_isTranslationRequest) {
+        m_isTranslationRequest = false;
+        if (success) {
+            event.type = EventType::AIResponseReceived;
+            event.text = applyMask(responseText);
+        } else {
+            event.type = EventType::ErrorOccurred;
+            event.text = responseText;
+        }
+        emit notifyEvent(event);
+        return;
+    }
 
     if (m_isResetting) {
         m_isResetting = false;

@@ -18,6 +18,7 @@ private:
     QJsonArray m_pendingMessages;
     QString m_activeToolCallId;
     bool m_isToolCalling;
+    QJsonArray m_toolsArray;
 
 public:
     explicit MistralAIClient(QObject *parent = nullptr);

@@ -22,6 +22,7 @@ private:
     bool m_blacklistEnabled = true;
     QStringList m_blacklist;
     QStringList m_whitelist;
+    bool m_isTranslationRequest = false;
 
     void loadCredentials();
     void loadSessionContext();
@@ -30,6 +31,8 @@ private:
     void loadBlacklist();
     void loadWhitelist();
     QString applyMask(const QString &text) const;
+    bool isLanguageIndicator(const QString &lang) const;
+    QString mapLanguage(const QString &lang) const;
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);

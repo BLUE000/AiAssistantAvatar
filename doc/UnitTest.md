@@ -73,6 +73,7 @@ classDiagram
 | :--- | :--- | :--- | :--- |
 | **UT-AI-01** | `AIClientManager` & `MockAIClient` | `on_requestAI("AIへの問いかけ")` を呼び出す。 | 1. `AIClientManager::notifyEvent` が `EventType::AIRequestSent` で発火すること。<br>2. `MockAIClient` の `sendRequest` が引数 `"AIへの問いかけ"` で呼ばれること。 |
 | **UT-AI-02** | `AIClientManager` & `MockAIClient` | `MockAIClient` に応答 `"AIの答え"` をセットし、`on_requestAI()` を呼ぶ。 | `AIClientManager::notifyEvent` シグナルが `EventType::AIResponseReceived` (text: `"AIの答え"`) で発火すること。 |
+| **UT-AI-03** | `AIClientManager` (翻訳コマンド) | `on_requestAI("trans en Hello")` および `on_requestAI("trans こんにちは")` を呼び出す。 | 1. コマンド判定により `AIRequestSent` および `AIResponseReceived` が発生し、翻訳結果のみが返ること。<br>2. 対話履歴（`m_chatHistory`）に追加されず、履歴の非汚染が保証されること。 |
 
 ---
 

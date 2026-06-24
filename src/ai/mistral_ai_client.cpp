@@ -47,13 +47,14 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = "open-mistral-7b"; // デフォルトの軽量モデル
+    requestBody["model"] = "mistral-small-latest"; // Function Callingに対応した標準モデル
 
     QJsonArray messages;
     QJsonObject systemMessage;
     systemMessage["role"] = "system";
 
-    QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。";
+    QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。"
+                           "また、あなたには翻訳機能があります。ユーザーが翻訳をしたい場合、チャット欄で「[ウェイクワード] trans [言語] [翻訳したいテキスト]」と入力すれば翻訳を実行できます（例：「!ai trans en こんにちは」）。[言語]を省略した場合はデフォルトで日本語に翻訳されます。ユーザーから翻訳の使い方を聞かれた場合は、この「[ウェイクワード] trans [言語] [テキスト]」というコマンドの使い方を親切に教えてあげてください。";
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
     }
@@ -107,15 +108,16 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     functionObj["parameters"] = parameters;
     tool["function"] = functionObj;
 
-    QJsonArray toolsArray;
-    toolsArray.append(tool);
-    requestBody["tools"] = toolsArray;
+    m_toolsArray = QJsonArray();
+    m_toolsArray.append(tool);
+    requestBody["tools"] = m_toolsArray;
     requestBody["tool_choice"] = "auto";
 
     QJsonDocument doc(requestBody);
     QByteArray postData = doc.toJson();
 
     qDebug() << "MistralAIClient: Sending request with tools, history size:" << history.size();
+    qDebug() << "MistralAIClient: Request Body:" << QString::fromUtf8(postData);
     m_networkManager->post(request, postData);
 }
 
@@ -132,6 +134,7 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     }
 
     QByteArray responseData = reply->readAll();
+    qDebug() << "MistralAIClient: Received response:" << QString::fromUtf8(responseData);
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (doc.isNull() || !doc.isObject()) {
         emit requestFinished("レスポンスJSONの解析に失敗しました。", false);
@@ -185,13 +188,19 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
 void MistralAIClient::on_searchFinished(const QString &resultText, bool success) {
     qDebug() << "MistralAIClient: Search finished. Success:" << success << "Result length:" << resultText.length();
+    qDebug() << "MistralAIClient: Search result content:" << resultText;
 
     // 検索結果 (toolロール) をメッセージ履歴に追加
     QJsonObject toolResponse;
     toolResponse["role"] = "tool";
     toolResponse["name"] = "web_search";
     toolResponse["tool_call_id"] = m_activeToolCallId;
-    toolResponse["content"] = resultText;
+    
+    // 指摘通り、ツールの応答コンテンツを JSON オブジェクトの文字列形式にする
+    QJsonObject contentObj;
+    contentObj["result"] = resultText;
+    toolResponse["content"] = QString::fromUtf8(QJsonDocument(contentObj).toJson(QJsonDocument::Compact));
+    
     m_pendingMessages.append(toolResponse);
 
     // 再度 Mistral に最終回答リクエストを送信
@@ -201,14 +210,13 @@ void MistralAIClient::on_searchFinished(const QString &resultText, bool success)
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = "open-mistral-7b";
+    requestBody["model"] = "mistral-small-latest";
     requestBody["messages"] = m_pendingMessages; // 検索結果を含んだメッセージ履歴
-
-    // 再送信時には tools は指定しない (最終テキスト生成モードにするため)
 
     QJsonDocument doc(requestBody);
     QByteArray postData = doc.toJson();
 
     qDebug() << "MistralAIClient: Sending final response request to Mistral...";
+    qDebug() << "MistralAIClient: Final Request Body:" << QString::fromUtf8(postData);
     m_networkManager->post(request, postData);
 }

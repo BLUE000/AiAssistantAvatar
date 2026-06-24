@@ -34,7 +34,7 @@ graph TD
 | **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合等にブラウザでOAuth画面（`force_verify=true`）を開き、一時HTTPサーバーを構築してリダイレクトを受け、JavaScript付きHTMLを返してURLハッシュ（フラグメント）からアクセストークンを受信・保存する<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
-| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
+| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
 
 ---
 
@@ -613,6 +613,37 @@ sequenceDiagram
 2. **改ざん検知時のUI表示**:
    - 改ざん（検証失敗、オフライン、非公式ビルド）検知時は、自身の実行バイナリ末尾から `BinMarkManager` 形式の平文コピーライトを動的抽出し、メインウィンドウ（`AvatarWindow`）のタイトルバーとステータスバーに強制的に表示する。
    - アプリケーションとしての機能制限は一切加えず、表示の強制変更のみに留める。
+
+### 5.11 翻訳コマンド処理フロー
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 視聴者 / ユーザー
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant Client as MistralAIClient
+
+    User->>UI: コマンド送信 (例: !ai trans en こんにちは)
+    UI->>Core: requestAIExecution ("trans en こんにちは")
+    Core->>AI: requestAI ("trans en こんにちは")
+
+    AI->>AI: 先頭の "trans" コマンドおよび引数を検出
+    AI->>AI: ターゲット言語(English)と翻訳対象("こんにちは")をパース
+    AI->>AI: m_isTranslationRequest = true を設定
+    AI->>AI: 履歴・コンテキストを「空」に設定し、翻訳指示プロンプトを構築
+
+    AI->>Client: sendRequest(translationPrompt, 空履歴, 空コンテキスト)
+    Client->>Client: APIリクエスト送信 (翻訳結果のみ出力するように指示)
+    Client-->>AI: 翻訳結果 ("Hello") を返却
+
+    AI->>AI: 翻訳要求の完了を検知 (履歴追加・ログ保存をバイパス)
+    AI->>AI: m_isTranslationRequest = false に戻す
+    AI->>Core: notifyEvent (AIResponseReceived, "Hello")
+    Core->>UI: notifyEventToUI (AIResponseReceived, "Hello")
+    UI->>UI: 右ペインに "Hello" を表示
+```
 
 ---
 

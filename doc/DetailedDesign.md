@@ -443,6 +443,7 @@ private:
     bool m_blacklistEnabled = true;
     QStringList m_blacklist;
     QStringList m_whitelist;
+    bool m_isTranslationRequest = false;
 
     void loadCredentials();
     void loadSessionContext();
@@ -452,6 +453,8 @@ private:
     void loadBlacklist();
     void loadWhitelist();
     QString applyMask(const QString &text) const;
+    bool isLanguageIndicator(const QString &lang) const;
+    QString mapLanguage(const QString &lang) const;
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);
@@ -892,3 +895,25 @@ OBSブラウザソース接続時等に、現在の最新状態を同期する�
 4. **出力（応答）のマスク制御フロー (`on_clientRequestFinished`)**
    - AIから返答を受信したら、その応答テキストに `applyMask` を適用し、マスク後の応答テキスト（`filteredResponse`）を作成する。
    - この `filteredResponse` を用いて、会話履歴への追加、難読化ログの保存、アバター発話イベント（UI用通知）の発行を行う。
+
+### 4.9 翻訳コマンドのパースと制御
+
+Twitchチャットなどのコメントから翻訳機能が要求された場合、`AIClientManager` は以下の処理フローを実行する。
+
+1. **コマンドの判定とパース (`on_requestAI`)**
+   - 入力されたプロンプトが `trans`（大文字小文字を区別しない）で始まっているかを判定する。
+   - `trans` コマンドが検出された場合、直後の引数を解析する：
+     - 空白で分割し、第一引数が「言語指示子」（例: `en`, `ja`, `english`, `日本語` など）に合致するかを `isLanguageIndicator` 関数で判定する。
+     - 言語指示子であると判定された場合はその指示子をターゲット言語（例: `English`）にマップし、残りの文字列を翻訳対象とする。
+     - 言語指示子ではない、または第一引数のみ（引数が1つ）の場合は、デフォルトで日本語（`Japanese`）をターゲット言語とし、全引数を翻訳対象とする。
+   - 内部フラグ `m_isTranslationRequest` を `true` に設定する。
+
+2. **APIリクエストの送信**
+   - 翻訳対象のテキストおよびターゲット言語に基づいて、翻訳指示プロンプト（例: `Translate the following text to [言語]. Output ONLY the translation without any other text, explanations, or quotes.\n\nText:\n[テキスト]`）を動的構築する。
+   - 会話履歴バッファ（`m_chatHistory`）およびセッションコンテキスト（`m_sessionContext`）を空にした状態で API クライアントに要求を委譲する。これにより、過去の会話やマスコット風キャラクター設定の口調に影響されるのを防止する。
+
+3. **応答受信時のバイパス処理 (`on_clientRequestFinished`)**
+   - `m_isTranslationRequest` が `true` の場合、以下の処理を行う：
+     - フラグを `false` に戻す。
+     - 得られた応答テキストを伏字マスク処理（`applyMask`）した上で、アバター発話イベント（UI用通知）を直接発行する。
+     - 会話履歴バッファ（`m_chatHistory`）への追加、会話数カウント、難読化ログファイル（`chat_history.enc`）への保存をすべてスキップ（バイパス）する。これにより、翻訳処理によるメモリバッファの汚染を防止する。

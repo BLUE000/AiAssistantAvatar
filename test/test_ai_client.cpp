@@ -468,3 +468,49 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
         QFile::remove(whitelistPath);
     }
 }
+
+TEST_F(AIClientTest, TranslationCommandTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy historySpy(&manager, &AIClientManager::chatHistoryUpdated);
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // 1. 言語指定ありの翻訳コマンドテスト ("trans en Hello World")
+    manager.on_requestAI("trans en Hello World");
+    
+    // AIRequestSent イベントを確認
+    EXPECT_GE(eventSpy.count(), 1);
+    AppEvent sentEvent = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(sentEvent.type, EventType::AIRequestSent);
+    EXPECT_EQ(sentEvent.text, "trans en Hello World");
+
+    // 完了シミュレート
+    manager.on_clientRequestFinished("Hello World", true);
+
+    // AIResponseReceived イベントを確認
+    EXPECT_GE(eventSpy.count(), 2);
+    AppEvent resEvent = eventSpy.at(1).at(0).value<AppEvent>();
+    EXPECT_EQ(resEvent.type, EventType::AIResponseReceived);
+    EXPECT_EQ(resEvent.text, "Hello World");
+
+    // 履歴に追加されていないことを確認
+    EXPECT_EQ(manager.chatHistory().size(), 0);
+    EXPECT_EQ(historySpy.count(), 0);
+
+    // 2. 言語省略の翻訳コマンドテスト ("trans こんにちは")
+    eventSpy.clear();
+    historySpy.clear();
+
+    manager.on_requestAI("trans こんにちは");
+    manager.on_clientRequestFinished("Hello", true);
+
+    EXPECT_GE(eventSpy.count(), 2);
+    EXPECT_EQ(eventSpy.at(0).at(0).value<AppEvent>().type, EventType::AIRequestSent);
+    EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().type, EventType::AIResponseReceived);
+    EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().text, "Hello");
+
+    // 履歴に追加されていないこと
+    EXPECT_EQ(manager.chatHistory().size(), 0);
+    EXPECT_EQ(historySpy.count(), 0);
+}
