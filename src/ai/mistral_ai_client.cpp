@@ -212,6 +212,8 @@ void MistralAIClient::on_searchFinished(const QString &resultText, bool success)
     QJsonObject requestBody;
     requestBody["model"] = "mistral-small-latest";
     requestBody["messages"] = m_pendingMessages; // 検索結果を含んだメッセージ履歴
+    requestBody["tools"] = m_toolsArray; // 再送信リクエストでもツール定義を渡す
+    requestBody["tool_choice"] = "auto"; // モデルにツール使用権限を与える
 
     QJsonDocument doc(requestBody);
     QByteArray postData = doc.toJson();
