@@ -37,7 +37,7 @@ TEST_F(AIClientTest, HistoryAndAutoResetTest) {
     EXPECT_EQ(historySpy.count(), 1);
     auto history = manager.chatHistory();
     EXPECT_EQ(history.size(), 1);
-    EXPECT_EQ(history.last().first, "Hello 1");
+    EXPECT_EQ(history.last().first, "[Direct] Hello 1");
     EXPECT_EQ(history.last().second, "Response 1");
 
     // 2. 履歴が5ペア（10メッセージ）に到達するまで対話を繰り返す
@@ -88,7 +88,7 @@ TEST_F(AIClientTest, ManualResetTest) {
     bool foundUIEvent = false;
     for (int i = 0; i < eventSpy.count(); ++i) {
         AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
-        if (event.type == EventType::AIResponseReceived && event.text.contains("会話履歴をクリアし、コンテキスト要約を保存しました。")) {
+        if (event.type == EventType::AIResponseReceived && event.text.contains("長期記憶サマリを生成しました。")) {
             foundUIEvent = true;
             break;
         }
@@ -617,4 +617,148 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     if (hasBackupUserNames) {
         QFile::rename("user_names.json.bak", "user_names.json");
     }
+}
+
+TEST_F(AIClientTest, DiscordPlatformMessageTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // 1. Discord プレフィックス付きリクエスト
+    manager.on_requestAI("こんにちは", "[Discord:channel123] alice");
+    manager.on_clientRequestFinished("こんにちは！aliceさん", true);
+
+    // 履歴に [Discord] タグ付きで保存されていることを検証
+    auto history = manager.chatHistory();
+    ASSERT_EQ(history.size(), 1);
+    EXPECT_EQ(history.first().first, "[Discord] alice: こんにちは");
+    EXPECT_EQ(history.first().second, "こんにちは！aliceさん");
+
+    // イベント通知に Discord channel_id が正しく含まれていることを検証
+    ASSERT_GE(eventSpy.count(), 1);
+    bool foundDiscordResponse = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
+        if (event.type == EventType::AIResponseReceived) {
+            if (event.extraData.value("channel_id").toString() == "channel123") {
+                foundDiscordResponse = true;
+                break;
+            }
+        }
+    }
+    EXPECT_TRUE(foundDiscordResponse);
+}
+
+TEST_F(AIClientTest, HierarchicalMemoryArchiveAndRecallTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // log/archive ディレクトリをクリーンアップ
+    QDir().mkpath("log/archive");
+    QDir("log/archive").removeRecursively();
+    QDir().mkpath("log/archive");
+
+    // 1. 過去のダミーサマリと詳細を作成
+    QString sessionId = "session_20260629_120000";
+    
+    QJsonObject summaryObj;
+    summaryObj["session_id"] = sessionId;
+    QJsonObject timeRange;
+    timeRange["start"] = "2026-06-29T12:00:00Z";
+    timeRange["end"] = "2026-06-29T12:05:00Z";
+    summaryObj["time_range"] = timeRange;
+    QJsonArray kwArr;
+    kwArr.append("ゲーム開発");
+    kwArr.append("Qt6");
+    summaryObj["keywords"] = kwArr;
+    summaryObj["summary"] = "ユーザーとアバター用のQt6によるゲーム開発について話し合った。";
+
+    QFile sumFile(QString("log/archive/summary_%1.json").arg(sessionId));
+    ASSERT_TRUE(sumFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    sumFile.write(QJsonDocument(summaryObj).toJson());
+    sumFile.close();
+
+    QJsonObject detailObj;
+    detailObj["session_id"] = sessionId;
+    QJsonArray histArr;
+    QJsonObject userMsg;
+    userMsg["source"] = "[Twitch] alice";
+    userMsg["message"] = "ゲーム開発でQt6を使いたいな";
+    QJsonObject aiMsg;
+    aiMsg["source"] = "[AI]";
+    aiMsg["message"] = "Qt6はアバター開発に最適ですね！";
+    histArr.append(userMsg);
+    histArr.append(aiMsg);
+    detailObj["chat_history"] = histArr;
+
+    QFile detFile(QString("log/archive/detail_%1.json").arg(sessionId));
+    ASSERT_TRUE(detFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    detFile.write(QJsonDocument(detailObj).toJson());
+    detFile.close();
+
+    // 2. 過去想起ワード「以前」および「ゲーム開発」キーワードを含む発言を投げる
+    manager.on_requestAI("以前話したゲーム開発について覚えている？", "alice");
+
+    manager.on_clientRequestFinished("はい、覚えています。", true);
+
+    QDir("log").removeRecursively();
+}
+
+TEST_F(AIClientTest, MetaSummaryMergeTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // クリーンアップ
+    QDir().mkpath("log/archive");
+    QDir("log/archive").removeRecursively();
+    QDir().mkpath("log/archive");
+
+    // 10個のダミーサマリを作成
+    for (int i = 1; i <= 10; ++i) {
+        QString sid = QString("session_dummy_%1").arg(i);
+        QJsonObject summaryObj;
+        summaryObj["session_id"] = sid;
+        QJsonObject timeRange;
+        timeRange["start"] = "2026-06-29T12:00:00Z";
+        timeRange["end"] = "2026-06-29T12:05:00Z";
+        summaryObj["time_range"] = timeRange;
+        QJsonArray kwArr;
+        kwArr.append(QString("トピック_%1").arg(i));
+        summaryObj["keywords"] = kwArr;
+        summaryObj["summary"] = QString("セッション%1の要約内容です。").arg(i);
+
+        QFile sumFile(QString("log/archive/summary_%1.json").arg(sid));
+        ASSERT_TRUE(sumFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        sumFile.write(QJsonDocument(summaryObj).toJson());
+        sumFile.close();
+    }
+
+    // 履歴リセットをダミーでキックして checkAndMergeSummaries を間接的に呼び出す
+    QList<QPair<QString, QString>> mockHistory;
+    mockHistory.append(QPair<QString, QString>("Q", "A"));
+    manager.setChatHistory(mockHistory);
+    
+    // resetSessionを実行 (これで11個目のサマリが生成され、マージ判定 checkAndMergeSummaries がキックされる)
+    manager.resetSession(false);
+    
+    // 最初のAIリクエスト (個別サマリの要約) の完了シミュレート
+    manager.on_clientRequestFinished("Keywords: キーワードA, キーワードB\nSummary: 個別要約文", true);
+
+    // メタサマリマージ処理 (m_isMergingSummaries) が開始されているため、AIマージ要約完了シミュレート
+    manager.on_clientRequestFinished("Keywords: 総合A, 総合B\nSummary: 10件マージした総合サマリ文", true);
+
+    // メタサマリファイルが生成されたか検証
+    QDir archiveDir("log/archive");
+    QStringList metaFilters;
+    metaFilters << "meta_summary_*.json";
+    EXPECT_FALSE(archiveDir.entryList(metaFilters, QDir::Files).isEmpty());
+
+    // 旧個別サマリファイルが退避されたか検証
+    QDir archivedDir("log/archive/archived_summaries");
+    QStringList sumFilters;
+    sumFilters << "summary_*.json";
+    EXPECT_GE(archivedDir.entryList(sumFilters, QDir::Files).size(), 10);
+
+    QDir("log").removeRecursively();
 }

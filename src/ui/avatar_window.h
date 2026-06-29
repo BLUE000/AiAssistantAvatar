@@ -95,11 +95,16 @@ private:
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
     QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
+    QCheckBox *m_discordEnabledCheckbox = nullptr;
+    QLineEdit *m_discordBotTokenEdit = nullptr;
+    QLineEdit *m_discordChannelIdEdit = nullptr;
     QLineEdit *m_bubbleShortEdit = nullptr;
     QLineEdit *m_bubbleLongEdit = nullptr;
     QLineEdit *m_obsPathEdit = nullptr;
     QLineEdit *m_avatarNameEdit = nullptr;
     QCheckBox *m_nameReactionCheckbox = nullptr;
+    QCheckBox *m_obsHttpEnabledCheckbox = nullptr;
+    QLineEdit *m_obsHttpPortEdit = nullptr;
 
     int m_bubbleDisplayShortSec = 5;
     int m_bubbleDisplayLongSec = 10;

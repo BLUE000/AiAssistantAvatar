@@ -18,6 +18,7 @@
 AIClientManager::AIClientManager(QObject *parent)
     : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
+    m_currentResetStartTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     loadCredentials();
     loadBlacklist();
     loadWhitelist();
@@ -352,13 +353,33 @@ void AIClientManager::setAIProvider(const QString &provider) {
 void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     qDebug() << "AIClientManager: Received request for prompt:" << prompt << "from user:" << user;
 
-    m_currentRequester = user.trimmed().toLower();
+    // Discordユーザー情報のパース
+    QString channelId;
+    QString cleanUser = user;
+    if (user.startsWith("[Discord:")) {
+        int closeBracketIdx = user.indexOf(']');
+        if (closeBracketIdx != -1) {
+            channelId = user.mid(9, closeBracketIdx - 9);
+            cleanUser = user.mid(closeBracketIdx + 1).trimmed();
+        }
+    }
+    m_currentDiscordChannelId = channelId;
+    m_currentRequester = cleanUser.trimmed().toLower();
 
     // ニックネームファイルを再ロード
     loadUserNames();
 
     QString filteredPrompt = applyMask(prompt);
     QString trimmedPrompt = filteredPrompt.trimmed();
+
+    // 送信元タグ付きプロンプトの作成（履歴保存用）
+    if (!m_currentDiscordChannelId.isEmpty()) {
+        m_lastPromptWithTag = QString("[Discord] %1: %2").arg(cleanUser, filteredPrompt);
+    } else if (!user.isEmpty()) {
+        m_lastPromptWithTag = QString("[Twitch] %1: %2").arg(user, filteredPrompt);
+    } else {
+        m_lastPromptWithTag = QString("[Direct] %1").arg(filteredPrompt);
+    }
 
     // 翻訳コマンドの判定 ("trans" で始まるか)
     if (trimmedPrompt.startsWith("trans", Qt::CaseInsensitive)) {
@@ -404,11 +425,12 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
     // ユーザー名に対応した呼びかけ指示プロンプトの構築
     QString finalPrompt = filteredPrompt;
-    if (!user.isEmpty()) {
+    if (!cleanUser.isEmpty()) {
         QString systemInstructions;
+        QString platformName = m_currentDiscordChannelId.isEmpty() ? "Twitch" : "Discord";
         QJsonObject usersMap = m_userNamesObj.value("users").toObject();
-        if (usersMap.contains(user)) {
-            QJsonObject userData = usersMap.value(user).toObject();
+        if (usersMap.contains(cleanUser)) {
+            QJsonObject userData = usersMap.value(cleanUser).toObject();
             QString preferred = userData.value("preferred").toString().trimmed();
             QJsonArray nicknamesArray = userData.value("nicknames").toArray();
             QStringList nicknames;
@@ -427,19 +449,19 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
                 // 愛称リストがある場合
                 QString nicknamesStr = nicknames.join("、");
                 systemInstructions = QString(
-                    "[システム指示: このコメントの投稿者のTwitchアカウント名は「%1」です。愛称（呼び名）の候補は「%2」です。回答の冒頭で、これらの愛称候補からいずれか1つをランダムに選んで『〇〇さん、』や『〇〇ちゃん、』などと呼びかけて回答してください。また、もし今回のコメント内で「〇〇と呼んで」のような呼び方の指定・変更指示、あるいは「〇〇です」といった自己紹介があった場合は、その指示した呼び方を最優先で使用し、今後の回答でもその呼び方を使用してください。]"
-                ).arg(user).arg(nicknamesStr);
+                    "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。愛称（呼び名）の候補は「%3」です。回答の冒頭で、これらの愛称候補からいずれか1つをランダムに選んで『〇〇さん、』や『〇〇ちゃん、』などと呼びかけて回答してください。また、もし今回のコメント内で「〇〇と呼んで」のような呼び方の指定・変更指示、あるいは「〇〇です」といった自己紹介があった場合は、その指示した呼び方を最優先で使用し、今後の回答でもその呼び方を使用してください。]"
+                ).arg(platformName).arg(cleanUser).arg(nicknamesStr);
             } else {
                 // 登録はあるが愛称リストも優先呼び名も空の場合
                 systemInstructions = QString(
-                    "[システム指示: このコメントの投稿者のTwitchアカウント名は「%1」です。冒頭で『%1さん、』と呼びかけて回答してください。もし今回のコメントで別の呼び方の指示や「〇〇です」などの自己紹介があれば、その指示した呼び方を使用してください。]"
-                ).arg(user);
+                    "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。冒頭で『%2さん、』と呼びかけて回答してください。もし今回のコメントで別の呼び方の指示や「〇〇です」などの自己紹介があれば、その指示した呼び方を使用してください。]"
+                ).arg(platformName).arg(cleanUser);
             }
         } else {
             // 新規ユーザー（JSONに未登録）の場合
             systemInstructions = QString(
-                "[システム指示: このコメントの投稿者のTwitchアカウント名は「%1」です。アカウント名（英語等）から、自然な日本語の読み方（カタカナなど）や愛称をあなたが推測し、冒頭で『〇〇さん、』などと呼びかけて回答してください。もし今回のコメント内で「〇〇と呼んで」などの呼び方の指定・変更指示、または「〇〇です」といった自己紹介があった場合は、その指示した呼び方を使用してください。]"
-            ).arg(user);
+                "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。アカウント名（英語等）から、自然な日本語の読み方（カタカナなど）や愛称をあなたが推測し、冒頭で『〇〇さん、』などと呼びかけて回答してください。もし今回のコメント内で「〇〇と呼んで」などの呼び方の指定・変更指示、または「〇〇です」といった自己紹介があった場合は、その指示した呼び方を使用してください。]"
+            ).arg(platformName).arg(cleanUser);
         }
 
         if (!systemInstructions.isEmpty()) {
@@ -448,6 +470,13 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     }
 
     m_lastPrompt = filteredPrompt;
+
+    // 長期記憶想起（RAG）処理の実行
+    m_recalledContext.clear();
+    scanMemorySummaries(filteredPrompt);
+    if (!m_recalledContext.isEmpty()) {
+        finalPrompt = m_recalledContext + "\n\n" + finalPrompt;
+    }
 
     // コアへ送信開始イベントを通知
     AppEvent event;
@@ -462,10 +491,87 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 }
 
 void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success) {
-    qDebug() << "AIClientManager: Client request finished. Success:" << success << "Resetting:" << m_isResetting << "Translation:" << m_isTranslationRequest;
+    qDebug() << "AIClientManager: Client request finished. Success:" << success 
+             << "Resetting:" << m_isResetting 
+             << "Merging:" << m_isMergingSummaries
+             << "Translation:" << m_isTranslationRequest;
 
     AppEvent event;
     event.source = "AIClientManager";
+
+    if (m_isMergingSummaries) {
+        m_isMergingSummaries = false;
+        if (success) {
+            QString summaryStr = responseText;
+            QStringList keywordsList;
+
+            int kwIdx = responseText.indexOf("Keywords:", 0, Qt::CaseInsensitive);
+            int sumIdx = responseText.indexOf("Summary:", 0, Qt::CaseInsensitive);
+            if (kwIdx != -1 && sumIdx != -1) {
+                QString keywordsStr;
+                if (kwIdx < sumIdx) {
+                    keywordsStr = responseText.mid(kwIdx + 9, sumIdx - (kwIdx + 9)).trimmed();
+                    summaryStr = responseText.mid(sumIdx + 8).trimmed();
+                } else {
+                    summaryStr = responseText.mid(sumIdx + 8, kwIdx - (sumIdx + 8)).trimmed();
+                    keywordsStr = responseText.mid(kwIdx + 9).trimmed();
+                }
+
+                for (const QString &k : keywordsStr.split(",")) {
+                    QString tk = k.trimmed();
+                    if (!tk.isEmpty()) keywordsList.append(tk);
+                }
+            } else {
+                keywordsList.append("アーカイブ");
+            }
+
+            QDir().mkpath("log/archive");
+            QString metaId = QString("meta_%1").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
+            QJsonObject metaObj;
+            metaObj["meta_id"] = metaId;
+            
+            QJsonObject timeRange;
+            timeRange["start"] = "unknown";
+            timeRange["end"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+            metaObj["time_range"] = timeRange;
+
+            QJsonArray kwArr;
+            for (const QString &kw : keywordsList) kwArr.append(kw);
+            metaObj["keywords"] = kwArr;
+            metaObj["meta_summary"] = summaryStr;
+
+            QJsonArray childSessions;
+            for (const QString &sid : m_mergingSessionIds) childSessions.append(sid);
+            metaObj["child_sessions"] = childSessions;
+
+            QString metaPath = QString("log/archive/meta_summary_%1.json").arg(metaId);
+            QFile metaFile(metaPath);
+            if (metaFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QJsonDocument doc(metaObj);
+                metaFile.write(doc.toJson());
+                metaFile.close();
+                qDebug() << "AIClientManager: Saved meta-summary to" << metaPath;
+            }
+
+            QDir().mkpath("log/archive/archived_summaries");
+            for (const QString &sid : m_mergingSessionIds) {
+                QString src = QString("log/archive/summary_%1.json").arg(sid);
+                QString dst = QString("log/archive/archived_summaries/summary_%1.json").arg(sid);
+                if (QFile::exists(src)) {
+                    if (QFile::exists(dst)) QFile::remove(dst);
+                    if (QFile::rename(src, dst)) {
+                        qDebug() << "AIClientManager: Archived summary to" << dst;
+                    } else {
+                        qWarning() << "AIClientManager: Failed to archive summary to" << dst;
+                    }
+                }
+            }
+        } else {
+            qWarning() << "AIClientManager: Meta-summary merge request failed:" << responseText;
+        }
+        m_mergingSessionIds.clear();
+        return;
+    }
 
     if (m_isTranslationRequest) {
         m_isTranslationRequest = false;
@@ -482,15 +588,76 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
 
     if (m_isResetting) {
         m_isResetting = false;
+        
+        QString summaryStr = responseText;
+        QStringList keywordsList;
+
         if (success) {
-            // AIから返ってきた要約を session_context.md に平文保存
-            saveSessionContext(responseText);
+            // AI応答をパース
+            int kwIdx = responseText.indexOf("Keywords:", 0, Qt::CaseInsensitive);
+            int sumIdx = responseText.indexOf("Summary:", 0, Qt::CaseInsensitive);
+            if (kwIdx != -1 && sumIdx != -1) {
+                QString keywordsStr;
+                if (kwIdx < sumIdx) {
+                    keywordsStr = responseText.mid(kwIdx + 9, sumIdx - (kwIdx + 9)).trimmed();
+                    summaryStr = responseText.mid(sumIdx + 8).trimmed();
+                } else {
+                    summaryStr = responseText.mid(sumIdx + 8, kwIdx - (sumIdx + 8)).trimmed();
+                    keywordsStr = responseText.mid(kwIdx + 9).trimmed();
+                }
+
+                // キーワードの分解
+                for (const QString &k : keywordsStr.split(",")) {
+                    QString tk = k.trimmed();
+                    if (!tk.isEmpty()) {
+                        keywordsList.append(tk);
+                    }
+                }
+            } else {
+                keywordsList.append("対話");
+                keywordsList.append("セッション");
+            }
+
+            // session_context.md の更新
+            saveSessionContext(summaryStr);
         } else {
             qWarning() << "AIClientManager: Context summarization failed:" << responseText;
+            keywordsList.append("エラー");
+            summaryStr = "会話要約の生成に失敗しました。";
         }
 
+        // 2. サマリメタデータファイルの保存 (log/archive/summary_<session_id>.json)
+        QDir().mkpath("log/archive");
+        QJsonObject summaryObj;
+        summaryObj["session_id"] = m_currentResetSessionId;
+        
+        QJsonObject timeRange;
+        timeRange["start"] = m_currentResetStartTime;
+        timeRange["end"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+        summaryObj["time_range"] = timeRange;
+        
+        QJsonArray kwArr;
+        for (const QString &kw : keywordsList) {
+            kwArr.append(kw);
+        }
+        summaryObj["keywords"] = kwArr;
+        summaryObj["summary"] = summaryStr;
+
+        QString summaryPath = QString("log/archive/summary_%1.json").arg(m_currentResetSessionId);
+        QFile summaryFile(summaryPath);
+        if (summaryFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QJsonDocument doc(summaryObj);
+            summaryFile.write(doc.toJson());
+            summaryFile.close();
+            qDebug() << "AIClientManager: Saved session summary to" << summaryPath;
+        } else {
+            qWarning() << "AIClientManager: Failed to write session summary to" << summaryPath;
+        }
+
+        // 次回セッションの開始日時を更新
+        m_currentResetStartTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
         // メモリ上の m_chatHistory を暗号化バックアップ (log/session_backup_<timestamp>.enc)
-        QDir().mkpath("log");
         QJsonArray histArray;
         for (const auto &pair : m_chatHistory) {
             QJsonObject entry;
@@ -521,10 +688,13 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         m_chatHistory.clear();
         emit chatHistoryUpdated(m_chatHistory);
 
+        // 個別サマリが溜まった場合の自動階層マージ（メタサマリ生成）判定
+        checkAndMergeSummaries();
+
         // 通知イベントを送信
         if (m_isManualReset) {
             event.type = success ? EventType::AIResponseReceived : EventType::ErrorOccurred;
-            event.text = success ? "会話履歴をクリアし、コンテキスト要約を保存しました。" : "会話履歴をクリアしましたが、要約の保存に失敗しました。";
+            event.text = success ? "会話履歴をクリアし、長期記憶サマリを生成しました。" : "会話履歴をクリアしましたが、サマリの保存に失敗しました。";
             emit notifyEvent(event);
         }
         return;
@@ -538,15 +708,20 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         QString filteredResponse = applyMask(responseText);
         event.text = filteredResponse;
 
+        // Discord宛てであれば返信先チャンネルIDを設定
+        if (!m_currentDiscordChannelId.isEmpty()) {
+            event.extraData["channel_id"] = m_currentDiscordChannelId;
+        }
+
         // 履歴にペアを追加し、シグナルで通知
-        m_chatHistory.append(QPair<QString, QString>(m_lastPrompt, filteredResponse));
+        m_chatHistory.append(QPair<QString, QString>(m_lastPromptWithTag, filteredResponse));
         emit chatHistoryUpdated(m_chatHistory);
 
         // 【TransCipher難読化要件の適用】
         // 会話ログを暗号化（難読化）してローカルファイルに保存する（従来のブロック蓄積）
         QString logText = QString("[%1] Prompt: %2 -> Response: %3")
                             .arg(QDateTime::currentDateTime().toString(Qt::ISODate))
-                            .arg(m_lastPrompt)
+                            .arg(m_lastPromptWithTag)
                             .arg(filteredResponse);
         saveObfuscatedLog(logText);
 
@@ -578,6 +753,67 @@ void AIClientManager::resetSession(bool isManual) {
         return;
     }
 
+    // セッションIDとタイムスタンプの決定
+    m_currentResetSessionId = QString("session_%1").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
+    QString endTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
+    qDebug() << "AIClientManager: Archiving detailed log for session:" << m_currentResetSessionId;
+
+    // 1. 詳細ログの保存 (log/archive/detail_<session_id>.json)
+    QDir().mkpath("log/archive");
+    QJsonObject detailObj;
+    detailObj["session_id"] = m_currentResetSessionId;
+
+    QJsonArray histArray;
+    for (const auto &pair : m_chatHistory) {
+        QJsonObject userMsg;
+        QJsonObject aiMsg;
+
+        QString userPrompt = pair.first;
+        QString aiResponse = pair.second;
+
+        // ユーザー発言のパース
+        QString source = "[User]";
+        QString message = userPrompt;
+        if (userPrompt.startsWith("[")) {
+            int closeBracketIdx = userPrompt.indexOf(']');
+            if (closeBracketIdx != -1) {
+                QString tag = userPrompt.left(closeBracketIdx + 1);
+                int colonIdx = userPrompt.indexOf(':', closeBracketIdx + 1);
+                if (colonIdx != -1 && (tag == "[Discord]" || tag == "[Twitch]")) {
+                    source = tag + " " + userPrompt.mid(closeBracketIdx + 1, colonIdx - (closeBracketIdx + 1)).trimmed();
+                    message = userPrompt.mid(colonIdx + 1).trimmed();
+                } else {
+                    source = tag;
+                    message = userPrompt.mid(closeBracketIdx + 1).trimmed();
+                }
+            }
+        }
+
+        userMsg["source"] = source;
+        userMsg["message"] = message;
+        userMsg["timestamp"] = m_currentResetStartTime;
+
+        aiMsg["source"] = "[AI]";
+        aiMsg["message"] = aiResponse;
+        aiMsg["timestamp"] = endTime;
+
+        histArray.append(userMsg);
+        histArray.append(aiMsg);
+    }
+    detailObj["chat_history"] = histArray;
+
+    QString detailPath = QString("log/archive/detail_%1.json").arg(m_currentResetSessionId);
+    QFile detailFile(detailPath);
+    if (detailFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument doc(detailObj);
+        detailFile.write(doc.toJson());
+        detailFile.close();
+        qDebug() << "AIClientManager: Saved detailed session log to" << detailPath;
+    } else {
+        qWarning() << "AIClientManager: Failed to write detailed session log to" << detailPath;
+    }
+
     qDebug() << "AIClientManager: Requesting AI to summarize conversation context. Manual:" << isManual;
 
     m_isResetting = true;
@@ -588,16 +824,18 @@ void AIClientManager::resetSession(bool isManual) {
         AppEvent event;
         event.type = EventType::AIRequestSent;
         event.source = "AIClientManager";
-        event.text = "これまでの会話履歴から、今後の会話に引き継ぐべきコンテキスト（ユーザーの関心事、キャラクター設定、要約など）をマークダウン形式で要約しています...";
+        event.text = "これまでの会話履歴から要約および検索用キーワードを抽出し、長期記憶アーカイブを生成しています...";
         emit notifyEvent(event);
     }
 
     if (m_currentClient) {
-        // AIに要約を求める。プロンプトとして指示。履歴も一緒に渡す。
+        // AIに要約とキーワードの抽出を依頼する特別なプロンプト
         QString summaryPrompt = 
-            "これまでの対話から、今後の会話に引き継ぐべきコンテキスト（ユーザーの関心事、キャラクター設定、要約など）をマークダウン形式で簡潔にまとめてください。"
-            "余計な前置きや挨拶、締めくくりの言葉などは一切省き、マークダウンのみを出力してください。";
-        // 要約リクエスト時には sessionContext は空にする
+            "これまでの対話から、主要なトピックキーワード（3〜5個）をカンマ区切りで抽出し、さらに会話の簡潔な要約（2〜3文）を作成してください。\n"
+            "形式は必ず以下の通りにしてください（これ以外の挨拶や余計な説明文章は絶対に含めないでください）：\n"
+            "Keywords: キーワード1, キーワード2, キーワード3\n"
+            "Summary: 要約文";
+        
         m_currentClient->sendRequest(summaryPrompt, m_chatHistory, "");
     }
 }
@@ -953,4 +1191,226 @@ void AIClientManager::updateNicknamePreferred(const QString &user, const QString
     m_userNamesObj["users"] = usersMap;
     
     saveUserNames();
+}
+
+void AIClientManager::checkAndMergeSummaries() {
+    QDir dir("log/archive");
+    if (!dir.exists()) return;
+
+    QStringList filters;
+    filters << "summary_*.json";
+    QFileInfoList fileList = dir.entryInfoList(filters, QDir::Files, QDir::Name); // 名前順 (日付順)
+
+    if (fileList.size() < 10) {
+        return;
+    }
+
+    qDebug() << "AIClientManager: Found" << fileList.size() << "summaries. Triggering meta-summary merge.";
+
+    m_isMergingSummaries = true;
+    m_mergingSessionIds.clear();
+
+    QString combinedText;
+    int count = 0;
+    for (const QFileInfo &fileInfo : fileList) {
+        if (count >= 10) break;
+        
+        QFile file(fileInfo.absoluteFilePath());
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QByteArray data = file.readAll();
+            file.close();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (!doc.isNull() && doc.isObject()) {
+                QJsonObject obj = doc.object();
+                QString sessionId = obj.value("session_id").toString();
+                QString summary = obj.value("summary").toString();
+                QJsonArray kwArr = obj.value("keywords").toArray();
+                QStringList kws;
+                for (const QJsonValue &v : kwArr) kws.append(v.toString());
+
+                combinedText += QString("Session ID: %1 (Keywords: %2)\nSummary: %3\n\n")
+                                    .arg(sessionId, kws.join(", "), summary);
+                
+                m_mergingSessionIds.append(sessionId);
+                count++;
+            }
+        }
+    }
+
+    if (m_currentClient && !m_mergingSessionIds.isEmpty()) {
+        QString mergePrompt = 
+            "以下は、過去のいくつかの対話セッションのサマリ情報です。これらを統合し、この期間全体の主要トピックを表す1つの「マージ要約（メタサマリ）」と、全体を代表するキーワード（5〜8個）を抽出してください。\n"
+            "形式は必ず以下の通りにしてください（余計な挨拶や説明は絶対に含めないでください）：\n"
+            "Keywords: キーワード1, キーワード2, キーワード3\n"
+            "Summary: 要約文\n\n"
+            "--- 対話セッションサマリ群 ---\n" + combinedText;
+
+        m_currentClient->sendRequest(mergePrompt, QList<QPair<QString, QString>>(), "");
+    } else {
+        m_isMergingSummaries = false;
+    }
+}
+
+void AIClientManager::scanMemorySummaries(const QString &prompt) {
+    // 過去想起を示すトリガーワードの検知
+    QStringList triggerWords = { "過去", "以前", "前話した", "前言った", "前回の会話", "昔", "覚えている", "おぼえている", "記憶" };
+    bool triggered = false;
+    for (const QString &tw : triggerWords) {
+        if (prompt.contains(tw)) {
+            triggered = true;
+            break;
+        }
+    }
+
+    if (!triggered) {
+        return;
+    }
+
+    QDir archiveDir("log/archive");
+    if (!archiveDir.exists()) return;
+
+    QString bestSessionId;
+    int bestScore = 0;
+    QString targetMetaFile;
+
+    // --- 第一段階: メタサマリ & 未マージサマリのスキャン ---
+    // A. メタサマリのスキャン
+    QStringList metaFilters;
+    metaFilters << "meta_summary_*.json";
+    QFileInfoList metaFiles = archiveDir.entryInfoList(metaFilters, QDir::Files);
+    for (const QFileInfo &fileInfo : metaFiles) {
+        QFile file(fileInfo.absoluteFilePath());
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            file.close();
+            
+            QJsonArray kwArr = obj.value("keywords").toArray();
+            int score = 0;
+            for (const QJsonValue &v : kwArr) {
+                if (prompt.contains(v.toString(), Qt::CaseInsensitive)) {
+                    score += 2;
+                }
+            }
+            if (prompt.contains(obj.value("meta_summary").toString(), Qt::CaseInsensitive)) {
+                score += 1;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestSessionId = obj.value("meta_id").toString();
+                targetMetaFile = fileInfo.absoluteFilePath();
+            }
+        }
+    }
+
+    // B. 未マージサマリのスキャン
+    QStringList sumFilters;
+    sumFilters << "summary_*.json";
+    QFileInfoList sumFiles = archiveDir.entryInfoList(sumFilters, QDir::Files);
+    bool hitMeta = false;
+    if (bestScore > 0 && bestSessionId.startsWith("meta_")) {
+        hitMeta = true;
+    }
+
+    for (const QFileInfo &fileInfo : sumFiles) {
+        QFile file(fileInfo.absoluteFilePath());
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            file.close();
+
+            QJsonArray kwArr = obj.value("keywords").toArray();
+            int score = 0;
+            for (const QJsonValue &v : kwArr) {
+                if (prompt.contains(v.toString(), Qt::CaseInsensitive)) {
+                    score += 2;
+                }
+            }
+            if (prompt.contains(obj.value("summary").toString(), Qt::CaseInsensitive)) {
+                score += 1;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestSessionId = obj.value("session_id").toString();
+                hitMeta = false;
+            }
+        }
+    }
+
+    // --- 第二段階: メタサマリ配下の個別サミリスキャン (メタサマリがヒットした場合) ---
+    if (hitMeta && !targetMetaFile.isEmpty()) {
+        QFile file(targetMetaFile);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            file.close();
+
+            QJsonArray childSessions = obj.value("child_sessions").toArray();
+            QString bestChildSession;
+            int bestChildScore = 0;
+
+            QDir childDir("log/archive/archived_summaries");
+            for (const QJsonValue &v : childSessions) {
+                QString sid = v.toString();
+                QString childPath = childDir.absoluteFilePath(QString("summary_%1.json").arg(sid));
+                QFile cfile(childPath);
+                if (cfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QJsonObject cobj = QJsonDocument::fromJson(cfile.readAll()).object();
+                    cfile.close();
+
+                    QJsonArray ckwArr = cobj.value("keywords").toArray();
+                    int score = 0;
+                    for (const QJsonValue &cv : ckwArr) {
+                        if (prompt.contains(cv.toString(), Qt::CaseInsensitive)) {
+                            score += 2;
+                        }
+                    }
+                    if (prompt.contains(cobj.value("summary").toString(), Qt::CaseInsensitive)) {
+                        score += 1;
+                    }
+
+                    if (score >= bestChildScore) {
+                        bestChildScore = score;
+                        bestChildSession = sid;
+                    }
+                }
+            }
+
+            if (!bestChildSession.isEmpty()) {
+                bestSessionId = bestChildSession;
+            }
+        }
+    }
+
+    if (bestScore > 0 && !bestSessionId.isEmpty() && !bestSessionId.startsWith("meta_")) {
+        qDebug() << "AIClientManager: Recalled session identified:" << bestSessionId << "with score:" << bestScore;
+        loadMemoryDetail(bestSessionId);
+    }
+}
+
+void AIClientManager::loadMemoryDetail(const QString &sessionId) {
+    QString detailPath = QString("log/archive/detail_%1.json").arg(sessionId);
+    QFile file(detailPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "AIClientManager: Recalled detail file not found:" << detailPath;
+        return;
+    }
+
+    QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+    file.close();
+
+    QJsonArray chatHistory = obj.value("chat_history").toArray();
+    if (chatHistory.isEmpty()) return;
+
+    QString recalledText = QString("[過去の関連会話の記憶 (セッションID: %1):\n").arg(sessionId);
+    int startIdx = qMax(0, chatHistory.size() - 6);
+    for (int i = startIdx; i < chatHistory.size(); ++i) {
+        QJsonObject msgObj = chatHistory[i].toObject();
+        QString source = msgObj.value("source").toString();
+        QString msg = msgObj.value("message").toString();
+        recalledText += QString("%1: %2\n").arg(source, msg);
+    }
+    recalledText += "]";
+
+    m_recalledContext = recalledText;
+    qDebug() << "AIClientManager: Injected memory context size:" << m_recalledContext.length() << "chars.";
 }

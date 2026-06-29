@@ -11,6 +11,11 @@
 #include "twitch/twitch_reader.h"
 #include "stt/stt_manager.h"
 #include "ai/ai_client_manager.h"
+#include "discord/discord_reader.h"
+#include "obs/obs_http_server.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFileInfo>
 
 // TrustChain のヘッダーインクルード
 #include "TrustChainCore.hpp"
@@ -62,20 +67,60 @@ int main(int argc, char *argv[]) {
 
     window.show();
 
+    // OBS用簡易HTTPサーバーの初期化
+    ObsHttpServer *httpServer = new ObsHttpServer();
+    QString settingsPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(settingsPath)) {
+        settingsPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+    }
+#endif
+    if (!QFile::exists(settingsPath)) {
+        settingsPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
+
+    auto loadAndStartHttpServer = [httpServer, settingsPath]() {
+        bool enabled = false;
+        quint16 port = 58082;
+        QFile file(settingsPath);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            file.close();
+            enabled = obj.value("obs_http_enabled").toBool(false);
+            port = obj.value("obs_http_port").toInt(58082);
+        }
+        if (enabled) {
+            httpServer->start(port);
+        } else {
+            httpServer->stop();
+        }
+    };
+
+    // 初期起動
+    loadAndStartHttpServer();
+
+    // 設定変更時の再ロード
+    QObject::connect(&window, &AvatarWindow::settingsUpdated, [loadAndStartHttpServer]() {
+        loadAndStartHttpServer();
+    });
+
     // 5. 各種モジュールと常駐スレッドの生成
     QThread coreThread;
     QThread twitchThread;
+    QThread discordThread;
     QThread sttThread;
     QThread aiThread;
 
     CoreModule *core = new CoreModule();
     TwitchReader *twitch = new TwitchReader();
+    DiscordReader *discord = new DiscordReader();
     STTManager *stt = new STTManager();
     AIClientManager *ai = new AIClientManager();
 
     // 各オブジェクトを対応する常駐スレッドに移動
     core->moveToThread(&coreThread);
     twitch->moveToThread(&twitchThread);
+    discord->moveToThread(&discordThread);
     stt->moveToThread(&sttThread);
     ai->moveToThread(&aiThread);
 
@@ -124,11 +169,17 @@ int main(int argc, char *argv[]) {
                      ai, &AIClientManager::on_settingsUpdated, Qt::QueuedConnection);
     QObject::connect(core, &CoreModule::settingsUpdated,
                      twitch, &TwitchReader::on_settingsUpdated, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::settingsUpdated,
+                     discord, &DiscordReader::on_settingsUpdated, Qt::QueuedConnection);
     QObject::connect(core, &CoreModule::requestTwitchReauth,
                      twitch, &TwitchReader::on_twitchReauthRequested, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestDiscordSend,
+                     discord, &DiscordReader::on_requestDiscordSend, Qt::QueuedConnection);
 
     // SubModules -> Core (イベント通知)
     QObject::connect(twitch, &TwitchReader::notifyEvent,
+                     core, &CoreModule::on_notify_events, Qt::QueuedConnection);
+    QObject::connect(discord, &DiscordReader::notifyEvent,
                      core, &CoreModule::on_notify_events, Qt::QueuedConnection);
     QObject::connect(stt, &STTManager::notifyEvent,
                      core, &CoreModule::on_notify_events, Qt::QueuedConnection);
@@ -152,11 +203,13 @@ int main(int argc, char *argv[]) {
     // 7. スレッドの開始
     coreThread.start();
     twitchThread.start();
+    discordThread.start();
     sttThread.start();
     aiThread.start();
 
     // Twitchコメント取得の自動開始要求
     emit core->requestTwitchStart();
+    QMetaObject::invokeMethod(discord, "on_startReading", Qt::QueuedConnection);
 
     // 起動時の初期ニックネームデータ送信要求
     QMetaObject::invokeMethod(ai, "saveUserNames", Qt::QueuedConnection);
@@ -167,23 +220,30 @@ int main(int argc, char *argv[]) {
 
         // Twitchの停止
         twitch->on_stopReading();
+        discord->on_stopReading();
         stt->on_stopListening();
 
         // 各スレッドに終了をシグナル
         coreThread.quit();
         twitchThread.quit();
+        discordThread.quit();
         sttThread.quit();
         aiThread.quit();
 
         // 完全な終了をJOIN待機
         coreThread.wait();
         twitchThread.wait();
+        discordThread.wait();
         sttThread.wait();
         aiThread.wait();
 
         // オブジェクトの破棄
+        httpServer->stop();
+        delete httpServer;
+
         delete core;
         delete twitch;
+        delete discord;
         delete stt;
         delete ai;
 

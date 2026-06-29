@@ -20,6 +20,11 @@ private:
     bool m_isResetting = false; // 要約要求中かどうかのフラグ
     bool m_isManualReset = false; // 手動リセット中かどうかのフラグ
     QString m_lastPrompt; // 応答待ち中の最新プロンプト
+    QString m_lastPromptWithTag; // 送信元タグ付きの最新プロンプト
+    QString m_currentResetSessionId;
+    QString m_currentResetStartTime;
+    bool m_isMergingSummaries = false;
+    QStringList m_mergingSessionIds;
     bool m_blacklistEnabled = true;
     QStringList m_blacklist;
     QStringList m_whitelist;
@@ -35,6 +40,13 @@ private:
     void loadWhitelist();
     void loadUserNames();
     QString applyMask(const QString &text) const;
+
+    // Discord / 長期記憶用メンバ
+    QString m_currentDiscordChannelId;
+    QString m_recalledContext;
+    void scanMemorySummaries(const QString &prompt);
+    void loadMemoryDetail(const QString &sessionId);
+    void checkAndMergeSummaries();
 
     QJsonObject m_userNamesObj;
     bool isLanguageIndicator(const QString &lang) const;

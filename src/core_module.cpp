@@ -12,11 +12,28 @@ CoreModule::~CoreModule() {
 void CoreModule::on_notify_events(const AppEvent &event) {
     qDebug() << "CoreModule received event from" << event.source << "Type:" << static_cast<int>(event.type);
     
-    // イベント種別ごとの中継ロジック
     switch (event.type) {
+        case EventType::DiscordMessageReceived: {
+            // DiscordからのメッセージはUIに中継せず、直接AIにリクエストする (アバター非連動)
+            QString channelId = event.extraData.value("channel_id").toString();
+            QString username = event.extraData.value("username").toString();
+            // userパラメータに [Discord:channelId] username 形式で埋め込む
+            QString encodedUser = QString("[Discord:%1] %2").arg(channelId, username);
+            
+            qDebug() << "CoreModule: Routing Discord message to AI. User:" << encodedUser;
+            emit requestAI(event.text, encodedUser);
+            break;
+        }
         case EventType::AIResponseReceived: {
-            // そのままUIにパス
-            emit notifyEventToUI(event);
+            // AI応答受信時、Discord宛てであればUIへ送らずDiscordReaderへ送信要求
+            if (event.extraData.contains("channel_id")) {
+                QString channelId = event.extraData.value("channel_id").toString();
+                qDebug() << "CoreModule: Routing AI response back to Discord. Channel:" << channelId;
+                emit requestDiscordSend(channelId, event.text);
+            } else {
+                // 通常（Twitchや音声・直接入力）はUIに中継
+                emit notifyEventToUI(event);
+            }
             break;
         }
         default:

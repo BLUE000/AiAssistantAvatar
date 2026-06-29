@@ -4,6 +4,7 @@
 
 enum class EventType {
     TwitchCommentReceived,  // 対象のコメント受信
+    DiscordMessageReceived, // Discordメッセージ受信
     VoiceInputStarted,       // 音声認識開始
     VoiceInputCompleted,     // 音声認識完了 (テキスト有り)
     DirectInputSubmitted,    // キーボード直接入力

@@ -35,6 +35,8 @@ set(TEST_SOURCES
     ../src/search/search_manager.cpp
     ../src/search/tavily_search_provider.cpp
     ../src/search/duckduckgo_search_provider.cpp
+    test_obs_http_server.cpp
+    ../src/obs/obs_http_server.cpp
 )
 
 add_executable(AiAssistantAvatarTest ${TEST_SOURCES})

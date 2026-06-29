@@ -968,6 +968,8 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     mainLayout->setSpacing(8);
 
     m_wsPortEdit = new QLineEdit(scrollContent);
+    m_obsHttpEnabledCheckbox = new QCheckBox("簡易HTTPサーバーを有効にする（別PCのOBS接続用）", scrollContent);
+    m_obsHttpPortEdit = new QLineEdit(scrollContent);
     m_twitchChannelEdit = new QLineEdit(scrollContent);
     
     m_twitchClientIdEdit = new QLineEdit(scrollContent);
@@ -1002,6 +1004,8 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     obsLayout->setContentsMargins(10, 10, 10, 10);
     obsLayout->setSpacing(6);
     obsLayout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
+    obsLayout->addRow("OBS用HTTPサーバー有効化:", m_obsHttpEnabledCheckbox);
+    obsLayout->addRow("HTTP配信ポート:", m_obsHttpPortEdit);
 
     // 表示秒数の横並びレイアウト
     QWidget *bubbleDurationWidget = new QWidget(scrollContent);
@@ -1107,6 +1111,25 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     notifyLayout->addStretch();
     mainLayout->addWidget(notifyGroup);
 
+    // 5. Discord 連携設定グループ
+    QGroupBox *discordGroup = new QGroupBox("Discord 連携設定", scrollContent);
+    QFormLayout *discordLayout = new QFormLayout(discordGroup);
+    discordLayout->setContentsMargins(10, 10, 10, 10);
+    discordLayout->setSpacing(6);
+    
+    m_discordEnabledCheckbox = new QCheckBox("Discordボット連携を有効化", scrollContent);
+    m_discordBotTokenEdit = new QLineEdit(scrollContent);
+    m_discordBotTokenEdit->setEchoMode(QLineEdit::Password);
+    m_discordBotTokenEdit->setPlaceholderText("ボットのトークンを入力...");
+
+    m_discordChannelIdEdit = new QLineEdit(scrollContent);
+    m_discordChannelIdEdit->setPlaceholderText("対象のテキストチャンネルIDを入力...");
+
+    discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
+    discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
+    discordLayout->addRow("チャンネル ID:", m_discordChannelIdEdit);
+    mainLayout->addWidget(discordGroup);
+
     // 保存・適用ボタン
     QHBoxLayout *btnLayout = new QHBoxLayout();
     QPushButton *btnSave = new QPushButton("設定を保存して適用", scrollContent);
@@ -1191,6 +1214,13 @@ void AvatarWindow::loadSettingsToUI() {
             m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
             m_avatarNameEdit->setText(m_avatarName);
             m_nameReactionCheckbox->setChecked(m_nameReactionEnabled);
+
+            m_discordEnabledCheckbox->setChecked(obj.value("discord_enabled").toBool(false));
+            m_discordBotTokenEdit->setText(obj.value("discord_bot_token").toString());
+            m_discordChannelIdEdit->setText(obj.value("discord_channel_id").toString());
+
+            m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
+            m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
         }
     }
 }
@@ -1245,6 +1275,13 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["avatar_name"] = m_avatarName;
     obj["name_reaction_enabled"] = m_nameReactionEnabled;
 
+    obj["discord_enabled"] = m_discordEnabledCheckbox->isChecked();
+    obj["discord_bot_token"] = m_discordBotTokenEdit->text().trimmed();
+    obj["discord_channel_id"] = m_discordChannelIdEdit->text().trimmed();
+
+    obj["obs_http_enabled"] = m_obsHttpEnabledCheckbox->isChecked();
+    obj["obs_http_port"] = m_obsHttpPortEdit->text().trimmed().toInt();
+
     m_bubbleDisplayShortSec = m_bubbleShortEdit->text().trimmed().toInt();
     if (m_bubbleDisplayShortSec <= 0) m_bubbleDisplayShortSec = 5;
     m_bubbleDisplayLongSec = m_bubbleLongEdit->text().trimmed().toInt();
@@ -1279,8 +1316,14 @@ void AvatarWindow::saveSettingsFromUI() {
             int wsPort = obj["websocket_port"].toInt();
             if (wsPort <= 0) wsPort = ConfigDefaults::WEBSOCKET_PORT;
 
-            QRegularExpression re("ws://localhost:\\d+");
-            content.replace(re, QString("ws://localhost:%1").arg(wsPort));
+            QRegularExpression reNew("const wsUri = \"ws://\" \\+ \\(window\\.location\\.hostname \\|\\| \"localhost\"\\) \\+ \":\\d+\";");
+            QRegularExpression reOld("ws://localhost:\\d+");
+
+            if (content.contains(reNew)) {
+                content.replace(reNew, QString("const wsUri = \"ws://\" + (window.location.hostname || \"localhost\") + \":%1\";").arg(wsPort));
+            } else {
+                content.replace(reOld, QString("ws://localhost:%1").arg(wsPort));
+            }
 
             if (htmlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 htmlFile.write(content.toUtf8());
