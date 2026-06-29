@@ -20,6 +20,10 @@ private:
     int m_lastSequence = 0;
     bool m_hasAck = true;
     QString m_botUserId; // ボット自身のID（無限ループ防止用）
+    QString m_wakeWord;
+    QString m_wakeWordMode;
+    bool m_nameReactionEnabled = true;
+    QString m_avatarName;
 
     void loadSettings();
     void connectToDiscord();

@@ -49,6 +49,10 @@ void DiscordReader::loadSettings() {
             m_enabled = obj.value("discord_enabled").toBool(false);
             m_botToken = obj.value("discord_bot_token").toString().trimmed();
             m_channelId = obj.value("discord_channel_id").toString().trimmed();
+            m_wakeWord = obj.value("twitch_wakeword").toString().trimmed();
+            m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed();
+            m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
+            m_avatarName = obj.value("avatar_name").toString().trimmed();
         }
     }
 }
@@ -165,17 +169,49 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                         QString username = authorObj.value("username").toString();
 
                         if (!content.isEmpty()) {
-                            qDebug() << "DiscordReader: Message received in target channel from" << username << ":" << content;
-                            
-                            AppEvent event;
-                            event.type = EventType::DiscordMessageReceived;
-                            event.source = "DiscordReader";
-                            event.text = content;
-                            event.extraData["channel_id"] = channelId;
-                            event.extraData["username"] = username;
-                            event.extraData["user_id"] = authorId;
+                            bool isMatch = false;
+                            QString cleanMessage = content;
 
-                            emit notifyEvent(event);
+                            // 1. まずウェイクワードで判定
+                            if (!m_wakeWord.isEmpty()) {
+                                if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
+                                    if (content.startsWith(m_wakeWord)) {
+                                        isMatch = true;
+                                        cleanMessage = content.mid(m_wakeWord.length()).trimmed();
+                                    }
+                                } else {
+                                    if (content.contains(m_wakeWord)) {
+                                        isMatch = true;
+                                        cleanMessage = content;
+                                        cleanMessage.replace(m_wakeWord, "");
+                                        cleanMessage = cleanMessage.trimmed();
+                                    }
+                                }
+                            }
+
+                            // 2. ウェイクワードでマッチせず、名前で反応が有効な場合、アバター名で判定
+                            if (!isMatch && m_nameReactionEnabled && !m_avatarName.isEmpty()) {
+                                if (content.contains(m_avatarName)) {
+                                    isMatch = true;
+                                    cleanMessage = content;
+                                    cleanMessage.replace(m_avatarName, "");
+                                    cleanMessage = cleanMessage.trimmed();
+                                }
+                            }
+
+                            if (isMatch) {
+                                qDebug() << "DiscordReader: Message matched WakeWord. From" << username << ":" << cleanMessage;
+                                
+                                AppEvent event;
+                                event.type = EventType::DiscordMessageReceived;
+                                event.source = "DiscordReader";
+                                event.text = cleanMessage;
+                                event.extraData["channel_id"] = channelId;
+                                event.extraData["username"] = username;
+                                event.extraData["user_id"] = authorId;
+
+                                emit notifyEvent(event);
+                            }
                         }
                     }
                 }
