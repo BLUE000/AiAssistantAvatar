@@ -48,7 +48,7 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     connect(m_webhookNetworkManager, &QNetworkAccessManager::finished, this, &AvatarWindow::onWebHookReplyFinished);
 
     // 通常ウィンドウの設定（背景透過なし・枠あり）
-    setWindowFlags(Qt::WindowStaysOnTopHint);
+    // setWindowFlags(Qt::WindowStaysOnTopHint); // 最前面表示をやめるためコメントアウト
     
     // ウィンドウサイズを横方向に拡張 (幅750, 高さ480)
     setFixedSize(750, 480);
