@@ -1,5 +1,6 @@
 #include "dummy_ai_client.h"
 #include <QDebug>
+#include <QRegularExpression>
 
 DummyAIClient::DummyAIClient(QObject *parent) 
     : IAIClient(parent) 
@@ -23,7 +24,12 @@ void DummyAIClient::setApiKey(const QString &apiKey) {
 void DummyAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext) {
     Q_UNUSED(history);
     Q_UNUSED(sessionContext);
-    m_lastPrompt = prompt;
-    qDebug() << "DummyAIClient: Simulating AI request processing for prompt:" << prompt;
+    
+    // [システム指示: ...] や [RAG: ...] 等のブラケット指示部分をオウム返しから除去する
+    QString cleanPrompt = prompt;
+    cleanPrompt.remove(QRegularExpression("\\[[^\\]]*\\]\\s*"));
+    m_lastPrompt = cleanPrompt.trimmed();
+    
+    qDebug() << "DummyAIClient: Simulating AI request processing for prompt:" << prompt << "Cleaned:" << m_lastPrompt;
     m_dummyTimer->start(2000); // 2秒後に応答
 }
