@@ -1,1 +1,233 @@
-<html><body>Test Avatar OBS</body></html>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>AiAssistantAvatar OBS Overlay</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: transparent;
+      overflow: hidden;
+      font-family: 'Outfit', 'Inter', 'Noto Sans JP', sans-serif;
+    }
+
+    #container {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 400px;
+    }
+
+    /* 吹き出し（バルーン）のスタイル */
+    #speech-bubble {
+      position: relative;
+      background: rgba(255, 255, 255, 0.95);
+      border: 3px solid #333;
+      border-radius: 16px;
+      padding: 12px 16px;
+      margin-bottom: 15px;
+      width: 280px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      font-size: 15px;
+      color: #222;
+      line-height: 1.5;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      word-wrap: break-word;
+    }
+
+    #speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -15px;
+      left: 50px;
+      border-width: 15px 15px 0;
+      border-style: solid;
+      border-color: #333 transparent;
+      display: block;
+      width: 0;
+    }
+
+    #speech-bubble::before {
+      content: '';
+      position: absolute;
+      bottom: -11px;
+      left: 50px;
+      border-width: 15px 15px 0;
+      border-style: solid;
+      border-color: rgba(255, 255, 255, 0.95) transparent;
+      display: block;
+      width: 0;
+      z-index: 1;
+    }
+
+    #speech-bubble.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* アバター画像のスタイル */
+    #avatar {
+      max-width: 250px;
+      max-height: 250px;
+      image-rendering: -webkit-optimize-contrast; /* 高画質描画 */
+      transition: transform 0.2s ease;
+    }
+
+    /* 接続状態インジケータ（デバッグ用） */
+    #status {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+      font-family: monospace;
+      opacity: 0; /* 通常は見えないようにし、エラー等時のみ表示 */
+      transition: opacity 0.3s ease;
+    }
+
+    #status.error {
+      opacity: 1;
+      color: #ff6b6b;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="container">
+    <div id="speech-bubble">こんにちは！準備完了です。</div>
+    <img id="avatar" src="Front01.png" alt="Avatar">
+  </div>
+
+  <div id="status">Connecting...</div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const avatarEl = document.getElementById('avatar');
+    const bubbleEl = document.getElementById('speech-bubble');
+
+    // WebSocketの設定（アプリ側のデフォルトポート58081に接続、IPは自動解決）
+    const wsUri = "ws://" + (window.location.hostname || "localhost") + ":58081";
+    let socket = null;
+    let reconnectTimer = null;
+
+    function connect() {
+      showStatus('Connecting...', false);
+      socket = new WebSocket(wsUri);
+
+      socket.onopen = () => {
+        showStatus('Connected', false);
+        statusEl.style.opacity = 0; // 接続成功時はステータスを隠す
+      };
+
+      socket.onclose = () => {
+        showStatus('Disconnected. Reconnecting...', true);
+        triggerReconnect();
+      };
+
+      socket.onerror = (err) => {
+        showStatus('Connection Error', true);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleMessage(data);
+        } catch (e) {
+          console.error("Failed to parse message:", e);
+        }
+      };
+    }
+
+    function triggerReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, 3000);
+    }
+
+    function showStatus(msg, isError) {
+      statusEl.textContent = msg;
+      if (isError) {
+        statusEl.className = 'error';
+        statusEl.style.opacity = 1;
+      } else {
+        statusEl.className = '';
+      }
+      console.log("[WebSocket]", msg);
+    }
+
+    function handleMessage(data) {
+      console.log("Received:", data);
+
+      if (data.type === "Init") {
+        // 初期同期
+        if (data.avatarImage) {
+          avatarEl.src = data.avatarImage;
+        }
+        if (data.lastResponseText) {
+          showBubble(data.lastResponseText);
+        } else {
+          hideBubble();
+        }
+      } 
+      else if (data.type === "AvatarChanged") {
+        // アバター変更通知
+        if (data.avatarImage) {
+          avatarEl.src = data.avatarImage;
+        }
+        // アンカー座標に応じた配置調整
+        if (data.anchorX !== undefined && data.anchorY !== undefined) {
+          avatarEl.style.transformOrigin = `${data.anchorX}px ${data.anchorY}px`;
+        }
+      } 
+      else if (data.type === "AIResponseReceived") {
+        // セリフ（吹き出し）更新
+        if (data.responseText) {
+          showBubble(data.responseText);
+        } else {
+          hideBubble();
+        }
+      }
+    }
+
+    function showBubble(text) {
+      // 簡易HTMLエスケープと改行のbr変換
+      const safeText = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;")
+        .replace(/\n/g, "<br>");
+
+      bubbleEl.innerHTML = safeText;
+      bubbleEl.classList.add('visible');
+
+      // 吹き出しの自動消去（30秒間話さない場合は消す）
+      clearTimeout(window.bubbleTimer);
+      window.bubbleTimer = setTimeout(() => {
+        hideBubble();
+      }, 30000);
+    }
+
+    function hideBubble() {
+      bubbleEl.classList.remove('visible');
+    }
+
+    // 初回接続開始
+    connect();
+  </script>
+</body>
+</html>

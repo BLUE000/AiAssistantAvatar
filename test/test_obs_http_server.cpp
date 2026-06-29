@@ -12,9 +12,9 @@
 class ObsHttpServerTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // テスト用のダミードキュメントルートを準備 (pic ディレクトリがない場合に備えてダミーファイルを作る)
+        // テスト用のダミードキュメントルートを準備 (avatar_obs.html を汚染しないよう別名で作る)
         QDir().mkpath("pic");
-        QFile file("pic/avatar_obs.html");
+        QFile file("pic/test_temp.html");
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             file.write("<html><body>Test Avatar OBS</body></html>");
             file.close();
@@ -22,7 +22,8 @@ protected:
     }
 
     void TearDown() override {
-        // テスト用ファイルのクリーンアップは通常行わなくても良いが、行っておく
+        // 一時ファイルの削除
+        QFile::remove("pic/test_temp.html");
     }
 };
 
@@ -45,7 +46,7 @@ TEST_F(ObsHttpServerTest, GetHtmlFileTest) {
     ASSERT_TRUE(server.start(testPort));
 
     QNetworkAccessManager manager;
-    QUrl url(QString("http://127.0.0.1:%1/avatar_obs.html").arg(testPort));
+    QUrl url(QString("http://127.0.0.1:%1/test_temp.html").arg(testPort));
     QNetworkRequest request(url);
 
     QNetworkReply *reply = manager.get(request);
