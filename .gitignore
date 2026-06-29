@@ -16,3 +16,6 @@ test_output.txt
 /DecisionLog/
 *.log
 /dist/
+*.zip
+err.txt
+out.txt
