@@ -8,6 +8,7 @@ graph TD
     UI[UIモジュール: AvatarWindow/バルーン]
     Core[コアモジュール: CoreModule]
     Twitch[Twitchモジュール: TwitchReader]
+    Discord[Discordモジュール: DiscordReader]
     STT[STTモジュール: STTManager]
     AI[AIモジュール: AIClientManager]
     SM[AIモジュール内部: SearchManager]
@@ -15,12 +16,14 @@ graph TD
     %% 要求フロー (スレッド呼び出し)
     UI -- 1. スレッド呼び出し --> Core
     Core -- 2. 要求 --> Twitch
+    Core -- 2. 要求 --> Discord
     Core -- 2. 要求 --> STT
     Core -- 2. 要求 --> AI
     AI -. 2.5 検索実行 .-> SM
 
     %% イベント通知フロー (非同期通知)
     Twitch -- 3. on_notify_events --> Core
+    Discord -- 3. on_notify_events --> Core
     STT -- 3. on_notify_events --> Core
     AI -- 3. on_notify_events --> Core
     Core -- 4. on_notify_events --> UI
@@ -30,11 +33,12 @@ graph TD
 
 | モジュール名 | 主要クラス名 | 動作スレッド | 主な責務 |
 | :--- | :--- | :--- | :--- |
-| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認可、WebHook設定）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・アバター状態変化やAI応答テキストの外部WebHookへのPOST送信（非同期）<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
+| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認可、WebHook設定、Discord連携設定）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・アバター状態変化やAI応答テキストの外部WebHookへのPOST送信（非同期）<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
 | **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合等にブラウザでOAuth画面（`force_verify=true`）を開き、一時HTTPサーバーを構築してリダイレクトを受け、JavaScript付きHTMLを返してURLハッシュ（フラグメント）からアクセストークンを受信・保存する<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
+| **Discordモジュール**| `DiscordReader` | Discordスレッド | ・Discordボット接続（WebSocketゲートウェイ）の維持および定期ハートビート送信<br>・対象チャンネルでのメッセージ受信（`MESSAGE_CREATE`）監視とイベント通知<br>・AI応答を指定されたDiscordチャンネルへ非同期でPOST送信（REST API） |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
-| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
+| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
 
 ---
 
@@ -126,15 +130,24 @@ classDiagram
     class AIClientManager {
         -IAIClient* currentClient
         -QList<QPair<QString, QString>> m_chatHistory
-        +on_requestAI(QString text) void
+        -QJsonObject m_userNamesObj
+        -QString m_streamerName
+        -QString m_currentRequester
+        +on_requestAI(const QString& text, const QString& user) void
         +setAIProvider(QString provider) void
         +getChatHistory() QList<QPair<QString, QString>>
         +resetSession(bool isManual) void
         +importSessionBackup(QString filePath) bool
         +exportSessionBackup(QString encPath, QString txtPath) void
+        +handleNicknameUpdateRequest(QString target, QString nickname) QString
+        +approveNicknameRequest(QString requester, QString target, QString nickname) void
+        +rejectNicknameRequest(QString requester, QString target, QString nickname) void
+        +deleteNickname(QString user) void
+        +updateNicknamePreferred(QString user, QString preferred) void
         <<signal>>
         +notifyEvent(AppEvent event)
         +chatHistoryUpdated(QList<QPair<QString, QString>> history)
+        +userNamesUpdated(QJsonObject data)
     }
     class IAIClient {
         <<interface>>
@@ -655,3 +668,232 @@ sequenceDiagram
    - Mistral API（HTTPS）を叩くための `QNetworkAccessManager` (Qt Networkモジュール) の追加。
 2. **透過ウィンドウの実現性:**
    - Qtにおける透明度やクリック透過の設定（`Qt::WA_NoSystemBackground`, `Qt::WA_TranslucentBackground`）。
+
+### 5.12 ニックネーム自動登録および承認保留シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Twitch視聴者
+    actor Streamer as 配信主
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant Client as MistralAIClient
+
+    User->>UI: コメント送信 (例: 「ボブです」「アリスをありりんと呼んで」)
+    UI->>Core: requestAIExecution (prompt, user)
+    Core->>AI: requestAI (prompt, user)
+    
+    %% AIによるツール検出
+    AI->>Client: sendRequest(prompt, history)
+    Client->>Client: APIリクエスト送信 (update_nickname定義を含む)
+    Note over Client: AIがニックネーム登録要求を検出
+    Client->>AI: handleNicknameUpdateRequest(target, nickname)
+
+    alt 自動登録 (申請者==対象者 または 申請者==配信主)
+        AI->>AI: user_names.json の users セクションを即時更新・保存
+        AI-->>Client: 登録成功ステータス ("Success: ...") を返却
+    else 承認待ち保留 (申請者!=対象者 かつ 申請者が配信主ではない)
+        AI->>AI: user_names.json の pending_requests セクションに保留追加・保存
+        AI-->>Client: 承認待ちステータス ("Notification: ...") を返却
+    end
+
+    Client->>Client: API再リクエスト (ツール実行結果を注入)
+    Client-->>AI: 最終対話テキスト (「登録しました」/「承認待ちです」)
+    AI->>Core: notifyEvent (AIResponseReceived, responseText)
+    Core->>UI: notifyEventToUI (AIResponseReceived, responseText)
+    UI->>UI: 右ペインに回答を表示
+
+    %% GUI側の非同期同期
+    AI->>UI: userNamesUpdated(data) シグナル発火 (QueuedConnection)
+    UI->>UI: 「ニックネーム」管理タブの各テーブルを最新化
+
+    %% 配信主による手動承認
+    Streamer->>UI: 承認待ちテーブルの「許可」ボタンを押下
+    UI->>AI: approveNicknameRequested(requester, target, nickname)
+    AI->>AI: pending_requests から削除し users.target.preferred に適用・保存
+    AI->>UI: userNamesUpdated(data) シグナルでUIテーブル更新
+```
+
+### 5.13 ニックネーム管理データ構造 (`user_names.json`)
+
+ニックネームの愛称リストおよび保留中のリクエストは、以下のスキーマの JSON 形式で永続化する。
+
+```json
+{
+  "users": {
+    "alice": {
+      "nicknames": [
+        "ありちゃん",
+        "ありりん"
+      ],
+      "preferred": "ありりん"
+    }
+  },
+  "pending_requests": [
+    {
+      "requester": "bob",
+      "target": "alice",
+      "nickname": "ありんこ",
+      "timestamp": "2026-06-29T23:00:00Z"
+    }
+  ]
+}
+
+### 5.14 Discord独立会話処理シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Discordユーザー
+    participant Discord as Discordサーバー
+    participant DR as Discordモジュール (DiscordReader)
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant UI as UIモジュール (AvatarWindow)
+
+    User->>Discord: メッセージ送信 (対象チャンネル)
+    Discord->>DR: Gateway経由で MESSAGE_CREATE を受信
+    DR->>Core: notifyEvent (DiscordMessageReceived, text) [channelId含む]
+    
+    %% コアがアバター表示をバイパスしてAIへ直接要求
+    Note over Core: アバター表情変更およびOBS配信をバイパス
+    Core->>AI: requestAI(prompt, "[Discord] user") [channelId保持]
+
+    AI->>AI: 共通対話履歴 m_chatHistory に送信元タグ付きで追加
+    AI->>AI: 応答生成 (Mistral API)
+    AI-->>Core: notifyEvent (AIResponseReceived, replyText) [channelId保持]
+
+    %% コアからDiscordへ直接返信
+    Core->>DR: requestDiscordSend(channelId, replyText)
+    DR->>Discord: REST API経由でメッセージ送信 (POST /channels/{id}/messages)
+    Discord-->>User: ボットが返信を表示
+
+    Note over Core,UI: UI吹き出し更新、アバター表情変更、TTS読み上げは一切行われない
+```
+
+### 5.15 長期記憶アーカイブ（サマリ＆詳細）生成と動的想起シーケンス
+
+#### A. セッションリセット（記憶アーカイブ生成）
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー (手動) / システム (自動)
+    participant AI as AIモジュール (AIClientManager)
+    
+    User->>AI: セッションリセット要求 (resetSession)
+    AI->>AI: 現在の履歴詳細データ (JSON) を構築
+    AI->>AI: AIに依頼し、この会話の「サマリ（要約）」を生成
+    
+    %% アーカイブファイル保存 (ID・時間範囲の付与)
+    Note over AI: セッションID = session_<timestamp><br/>期間 = 開始日時〜終了日時
+    AI->>AI: サマリJSONファイル保存 (log/archive/summary_<ID>.json)
+    Note over AI: サマリファイルにはID、期間、要約文、主要キーワードを保持
+    AI->>AI: 詳細ログJSONファイル保存 (log/archive/detail_<ID>.json)
+    
+    AI->>AI: 現在のメモリ履歴 m_chatHistory をクリア
+```
+
+#### B. 過去の記憶の動的想起（会話時）
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー
+    participant Core as コアモジュール (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant Client as MistralAIClient
+
+    User->>Core: 会話メッセージ送信 (例:「前に話した〇〇だけど」)
+    Core->>AI: requestAI(prompt)
+    
+    AI->>AI: ユーザー発言を解析 (想起ワード検出またはキーワード関連性検出)
+    opt 想起ワードの検出、またはキーワード関連性の合致
+        AI->>AI: メタサマリ群 (meta_*.json) および未マージの最新サマリ群 (summary_*.json) をスキャン
+        AI->>AI: 発言キーワードと各メタサマリ/最新サマリの概要・キーワードを照合
+        alt メタサマリ (meta_*.json) に合致した場合
+            AI->>AI: そのメタサマリに紐づく過去の個別サマリ群 (summary_*.json) を二次スキャン
+            AI->>AI: 合致する詳細セッションIDを特定
+        else 最新サマリ (summary_*.json) に直接合致した場合
+            AI->>AI: 直接セッションIDを特定
+        end
+        
+        alt セッションIDが特定された場合
+            AI->>AI: 該当する詳細ログ (detail_<ID>.json) をディスクからロード
+            AI->>AI: 詳細ログから主要な会話抜粋を抽出し、一時コンテキストバッファへ格納
+        end
+    end
+
+    %% 一時的に過去記憶をインジェクションしてAIへ送信
+    AI->>Client: sendRequest(prompt, 共通履歴, 想起された一時コンテキスト + 共通コンテキスト)
+    Client-->>AI: 過去の記憶を踏まえた応答テキスト
+    AI->>Core: notifyEvent (AIResponseReceived, responseText)
+```
+
+### 5.16 長期記憶ファイルデータ構造
+
+セッションリセット時に `log/archive/` ディレクトリ配下に以下の形式でサマリファイルおよび詳細ログファイルを対で保存する。
+
+#### A. サマリメタデータファイル (`summary_<session_id>.json`)
+```json
+{
+  "session_id": "session_20260629_233000",
+  "time_range": {
+    "start": "2026-06-29T23:00:00Z",
+    "end": "2026-06-29T23:30:00Z"
+  },
+  "keywords": [
+    "りんご",
+    "ゲーム開発",
+    "Qt6"
+  ],
+  "summary": "ユーザーとアバター開発について対話し、Qt6でのマルチスレッド設計やニックネーム機能の追加を決定した。また、ユーザーはりんごが好きであると述べた。"
+}
+```
+
+#### B. 詳細ログファイル (`detail_<session_id>.json`)
+```json
+{
+  "session_id": "session_20260629_233000",
+  "chat_history": [
+    {
+      "source": "[Twitch] alice",
+      "message": "りんごって美味しいよね",
+      "timestamp": "2026-06-29T23:05:00Z"
+    },
+    {
+      "source": "[AI]",
+      "message": "aliceさん、りんごは甘くて美味しいですよね！",
+      "timestamp": "2026-06-29T23:05:05Z"
+    }
+  ]
+}
+```
+
+#### C. メタサマリファイル (`meta_summary_<meta_id>.json`)
+保存された個別サマリファイルが規定数（例: 10件）に達した際、これらをさらに統合してマージした「サマリのサマリ」ファイル。
+```json
+{
+  "meta_id": "meta_2026_Q2",
+  "time_range": {
+    "start": "2026-04-01T00:00:00Z",
+    "end": "2026-06-29T23:59:59Z"
+  },
+  "keywords": [
+    "りんご",
+    "ゲーム開発",
+    "Qt6",
+    "ニックネーム機能",
+    "認証"
+  ],
+  "meta_summary": "この期間の主な話題は、アバター開発におけるQt6や認証、およびユーザー「alice」とりんごやゲーム設計について話したことである。",
+  "child_sessions": [
+    "session_20260629_233000",
+    "session_20260629_120000"
+  ]
+}
+```
+
+
+```
+

@@ -48,7 +48,7 @@ void CoreModule::on_directInputSubmitted(const QString &text) {
     sentEvent.text = text;
     emit notifyEventToUI(sentEvent);
 
-    emit requestAI(text);
+    emit requestAI(text, "");
 }
 
 void CoreModule::on_resetSessionRequested() {

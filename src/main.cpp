@@ -135,6 +135,20 @@ int main(int argc, char *argv[]) {
     QObject::connect(ai, &AIClientManager::notifyEvent,
                      core, &CoreModule::on_notify_events, Qt::QueuedConnection);
 
+    // AI -> UI (ニックネームデータ同期)
+    QObject::connect(ai, &AIClientManager::userNamesUpdated,
+                     &window, &AvatarWindow::onNicknameDataUpdated, Qt::QueuedConnection);
+
+    // UI -> AI (ニックネーム操作要求)
+    QObject::connect(&window, &AvatarWindow::approveNicknameRequested,
+                     ai, &AIClientManager::approveNicknameRequest, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::rejectNicknameRequested,
+                     ai, &AIClientManager::rejectNicknameRequest, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::deleteNicknameRequested,
+                     ai, &AIClientManager::deleteNickname, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::updateNicknamePreferredRequested,
+                     ai, &AIClientManager::updateNicknamePreferred, Qt::QueuedConnection);
+
     // 7. スレッドの開始
     coreThread.start();
     twitchThread.start();
@@ -143,6 +157,9 @@ int main(int argc, char *argv[]) {
 
     // Twitchコメント取得の自動開始要求
     emit core->requestTwitchStart();
+
+    // 起動時の初期ニックネームデータ送信要求
+    QMetaObject::invokeMethod(ai, "saveUserNames", Qt::QueuedConnection);
 
     // 8. アプリケーション終了時の安全なクリーンアップ（常駐スレッドの解放）
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {

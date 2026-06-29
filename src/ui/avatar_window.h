@@ -7,6 +7,7 @@
 #include <QVector>
 #include <QTimer>
 #include <QQueue>
+#include <QJsonObject>
 #include "../app_event.h"
 
 struct ImageSetting {
@@ -57,6 +58,7 @@ struct PatternSchedulerEntry {
 class QLineEdit;
 class QPushButton;
 class QTextBrowser;
+class QTableWidget;
 class QTabWidget;
 class QComboBox;
 class QWebSocketServer;
@@ -78,6 +80,10 @@ private:
     QTabWidget *m_tabWidget = nullptr;
     QWidget *m_chatTab = nullptr;
     QWidget *m_settingsTab = nullptr;
+    QWidget *m_nicknameTab = nullptr;
+    QTableWidget *m_usersTable = nullptr;
+    QTableWidget *m_requestsTable = nullptr;
+    QJsonObject m_cachedUserNamesData;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
@@ -99,10 +105,10 @@ private:
     int m_bubbleDisplayLongSec = 10;
     QString m_avatarName = "AIアシスタント";
     bool m_nameReactionEnabled = true;
-    QQueue<QString> m_aiRequestQueue;
+    QQueue<QPair<QString, QString>> m_aiRequestQueue;
     bool m_isProcessingAI = false;
 
-    void enqueueRequest(const QString &text);
+    void enqueueRequest(const QString &text, const QString &user = "");
     void processNextRequest();
 
     QString m_twitchOAuthToken;
@@ -169,6 +175,8 @@ private:
     void showContextMenu(const QPoint &globalPos);
 
     void initSettingsTab(QWidget *parent);
+    void initNicknameTab(QWidget *parent);
+    void updateNicknameTables();
     void loadSettingsToUI();
     void saveSettingsFromUI();
     void startWebSocketServer();
@@ -187,6 +195,11 @@ private slots:
     void onWSClientDisconnected();
     void onWebHookReplyFinished(QNetworkReply *reply);
     void onCopyObsPathClicked();
+    void onApproveRequestClicked();
+    void onRejectRequestClicked();
+    void onDeleteUserClicked();
+    void onAddUserClicked();
+    void onUserTableCellChanged(int row, int column);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -202,14 +215,21 @@ signals:
     // コアスレッドへの要求シグナル
     void startSTTRequested();
     void directInputSubmitted(const QString &text);
-    void requestAIExecution(const QString &text);
+    void requestAIExecution(const QString &text, const QString &user);
     void resetSessionRequested(); // 会話履歴リセット要求シグナル
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
     void settingsUpdated();
     void twitchReauthRequested();
 
+    // ニックネーム管理用要求シグナル
+    void approveNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
+    void rejectNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
+    void deleteNicknameRequested(const QString &user);
+    void updateNicknamePreferredRequested(const QString &user, const QString &preferred);
+
 public slots:
     // コアから通知を受け取るスロット
     void on_notify_events(const AppEvent &event);
+    void onNicknameDataUpdated(const QJsonObject &data);
 };

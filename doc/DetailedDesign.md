@@ -86,6 +86,7 @@ AiAssistantAvatar/
 
 enum class EventType {
     TwitchCommentReceived,  // 対象のコメント受信
+    DiscordMessageReceived, // Discordメッセージ受信
     VoiceInputStarted,       // 音声認識開始
     VoiceInputCompleted,     // 音声認識完了 (テキスト有り)
     DirectInputSubmitted,    // キーボード直接入力
@@ -123,12 +124,13 @@ signals:
     void requestTwitchStart();
     void requestSTTStart();
     void requestSTTStop();
-    void requestAI(const QString &prompt);
+    void requestAI(const QString &prompt, const QString &user = "");
     void requestSessionReset(bool isManual);
     void requestSessionImport(const QString &filePath);
     void requestSessionExport(const QString &encPath, const QString &txtPath);
     void settingsUpdated();
     void requestTwitchReauth();
+    void requestDiscordSend(const QString &channelId, const QString &text);
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -221,6 +223,15 @@ private:
     QPoint m_lastWindowPos;                      // ドラッグ後の最後のウィンドウ位置を保存
     bool m_userDraggedWindow = false;            // ユーザーがドラッグで移動したかどうかのフラグ
     
+    // ニックネーム管理用UI
+    QTableWidget *m_nicknameTable = nullptr;
+    QTableWidget *m_pendingTable = nullptr;
+    QPushButton *m_approveButton = nullptr;
+    QPushButton *m_rejectButton = nullptr;
+    QPushButton *m_deleteUserButton = nullptr;
+    QPushButton *m_addUserButton = nullptr;
+    QJsonObject m_cachedUserNamesData;
+    
     void loadSettings();
     void processAndCacheImages();
     QPixmap applyTransparency(const QString &filePath, int tx, int ty);
@@ -229,6 +240,8 @@ private:
     void showContextMenu(const QPoint &globalPos);
     
     void initSettingsTab(QWidget *parent);
+    void initNicknameTab(QWidget *parent);
+    void updateNicknameTables();
     void loadSettingsToUI();
     void saveSettingsFromUI();
     void startWebSocketServer();
@@ -245,6 +258,11 @@ private slots:
     void onNewWSConnection();
     void onWSClientDisconnected();
     void onWebHookReplyFinished(QNetworkReply *reply);
+    void onApproveRequestClicked();
+    void onRejectRequestClicked();
+    void onDeleteUserClicked();
+    void onAddUserClicked();
+    void onNicknameTableDoubleClicked(int row, int column);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -265,10 +283,17 @@ signals:
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
     void settingsUpdated();
     void twitchReauthRequested();
+    
+    // ニックネーム操作要求
+    void approveNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
+    void rejectNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
+    void deleteNicknameRequested(const QString &user);
+    void updateNicknamePreferredRequested(const QString &user, const QString &preferred);
 
 public slots:
     // コアから通知を受け取るスロット
     void on_notify_events(const AppEvent &event);
+    void onNicknameDataUpdated(const QJsonObject &data);
 };
 ```
 
@@ -344,6 +369,56 @@ private slots:
     void onWebSocketConnected();
     void onWebSocketDisconnected();
     void onTextMessageReceived(const QString &message);
+};
+```
+
+#### B. `DiscordReader` クラス
+指定されたDiscordの特定チャンネルを常駐監視し、受信したメッセージをコアへ通知するとともに、AIからの応答を非同期でDiscordのチャンネルへ送信する。
+```cpp
+#pragma once
+#include <QObject>
+#include <QWebSocket>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QTimer>
+#include "../app_event.h"
+
+class DiscordReader : public QObject {
+    Q_OBJECT
+private:
+    bool m_isRunning = false;
+    bool m_enabled = false;
+    QString m_botToken;
+    QString m_channelId;
+    QWebSocket *m_webSocket = nullptr;
+    QNetworkAccessManager *m_networkManager = nullptr;
+    QTimer *m_heartbeatTimer = nullptr;
+    int m_lastSequence = 0;
+    bool m_hasAck = true;
+
+    void loadSettings();
+    void connectToDiscord();
+    void sendHeartbeat();
+    void identify();
+
+public:
+    explicit DiscordReader(QObject *parent = nullptr);
+    ~DiscordReader();
+
+signals:
+    void notifyEvent(const AppEvent &event);
+
+public slots:
+    void on_startReading();
+    void on_stopReading();
+    void on_settingsUpdated();
+    void on_requestDiscordSend(const QString &channelId, const QString &text);
+
+private slots:
+    void onWebSocketConnected();
+    void onWebSocketDisconnected();
+    void onTextMessageReceived(const QString &message);
+    void onReplyFinished(QNetworkReply *reply);
 };
 ```
 
@@ -445,6 +520,16 @@ private:
     QStringList m_whitelist;
     bool m_isTranslationRequest = false;
 
+    // ニックネーム管理
+    QJsonObject m_userNamesObj;
+    QString m_streamerName;
+    QString m_currentRequester;
+
+    // 長期記憶想起用
+    QString m_recalledContext;
+    void scanMemorySummaries(const QString &prompt);
+    void loadMemoryDetail(const QString &sessionId);
+
     void loadCredentials();
     void loadSessionContext();
     void saveSessionContext(const QString &context);
@@ -452,6 +537,8 @@ private:
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
     void loadBlacklist();
     void loadWhitelist();
+    void loadUserNames();
+    void saveUserNames();
     QString applyMask(const QString &text) const;
     bool isLanguageIndicator(const QString &lang) const;
     QString mapLanguage(const QString &lang) const;
@@ -461,18 +548,27 @@ public:
     ~AIClientManager();
     void setAIProvider(const QString &provider); // "mistral" or "dummy"
     QList<QPair<QString, QString>> getChatHistory() const;
+    QJsonObject userNamesObj() const { return m_userNamesObj; }
 
 signals:
     void notifyEvent(const AppEvent &event);
     void chatHistoryUpdated(const QList<QPair<QString, QString>> &history);
+    void userNamesUpdated(const QJsonObject &data);
 
 public slots:
-    void on_requestAI(const QString &prompt);
+    void on_requestAI(const QString &prompt, const QString &user = "");
     void on_clientRequestFinished(const QString &responseText, bool success);
     void resetSession(bool isManual);
     bool importSessionBackup(const QString &filePath);
     void exportSessionBackup(const QString &encPath, const QString &txtPath);
     void on_requestChatHistory();
+
+    // ニックネーム管理スロット
+    QString handleNicknameUpdateRequest(const QString &target, const QString &nickname);
+    void approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
+    void rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
+    void deleteNickname(const QString &user);
+    void updateNicknamePreferred(const QString &user, const QString &preferred);
 };
 ```
 
@@ -917,3 +1013,83 @@ Twitchチャットなどのコメントから翻訳機能が要求された場�
      - フラグを `false` に戻す。
      - 得られた応答テキストを伏字マスク処理（`applyMask`）した上で、アバター発話イベント（UI用通知）を直接発行する。
      - 会話履歴バッファ（`m_chatHistory`）への追加、会話数カウント、難読化ログファイル（`chat_history.enc`）への保存をすべてスキップ（バイパス）する。これにより、翻訳処理によるメモリバッファの汚染を防止する。
+
+### 4.10 ニックネーム自動登録と保留選別アルゴリズム
+
+Twitchコメントや自己紹介を検知してAIが呼び出したツールコール（`update_nickname`）について、`AIClientManager::handleNicknameUpdateRequest` は以下の処理フローを実行し、登録か保留かを判定する。
+
+1. **パラメータの正規化**:
+   - ターゲットユーザー名（`target`）、提案されたニックネーム（`nickname`）をトリム（`trimmed`）し、ユーザー名は小文字に統一（`toLower`）する。
+2. **申請者 (`m_currentRequester`）の特定**:
+   - 直前に処理されたTwitchコメントイベントから抽出されたアカウント名が `m_currentRequester` に設定されている。
+3. **配信主名 (`m_streamerName`）の特定**:
+   - `local_settings.json` の `twitch_channel` の値を事前にロードし、小文字にして保持している。
+4. **自動登録の判定**:
+   - `m_currentRequester == target`（本人からの指示・自己紹介）または `m_currentRequester == m_streamerName`（配信主からの指示）の場合：
+     - `user_names.json` 内の `users` セクションから該当ユーザーのエントリをロード（存在しなければ新規作成）する。
+     - `preferred` フィールドに提案されたニックネームを設定し、`nicknames` の配列にその愛称が含まれていなければ追加する。
+     - 変更後のJSONオブジェクトを `user_names.json` に同期保存（`saveUserNames`）し、`userNamesUpdated` シグナルを発火してUI表示を同期させる。
+     - AIに対して `"Success: Nickname for <target> updated to <nickname>."` という成功メッセージを同期的に返却し、AIに対話へ反映させる。
+5. **承認待ち保留の判定**:
+   - 上記条件を満たさない（第三者による他人のニックネーム変更要求）場合：
+     - `pending_requests` 配列の中に、同一の申請者・対象者・ニックネームのリクエストが既に存在しないか確認する。
+     - 重複がなければ、申請オブジェクト `{ "requester": m_currentRequester, "target": target, "nickname": nickname, "timestamp": 現在時刻 }` を生成して `pending_requests` に追加する。
+     - `user_names.json` を同期保存（`saveUserNames`）し、`userNamesUpdated` シグナルを発火してUI表示（保留中テーブル）を同期させる。
+     - AIに対して `"Notification: The nickname update request has been submitted to the streamer for approval."` という通知メッセージを同期的に返却し、AIに対話へ反映させる。
+
+### 4.11 優先呼び名/愛称インジェクション処理
+
+`AIClientManager::on_requestAI` にて、Twitchからのコメントリクエストを受けた際、`user_names.json` のデータに基づいてAIに対するプロンプトを構築・注入する。
+
+1. `user_names.json` から対象ユーザー（`user`）の設定を検索する。
+2. 設定が存在する場合：
+   - `preferred` が設定されていれば、`"必ず「〇〇さん、」または「〇〇、」と呼びかけてください。他の呼び方は使わず、この呼び方で統一してください。"` という指示文を構築する。
+   - `preferred` が空で `nicknames` 配列が存在する場合、配列内の要素をランダムに1つ選択し、`"愛称「〇〇」を使って『〇〇さん、』や『〇〇ちゃん、』などと呼びかけてください。"` という指示文を構築する。
+3. 自己紹介等の検知補強：
+   - いずれの指示文においても、末尾に `"もし今回のコメントで新たな呼び方の変更指示や、「〇〇です」などの自己紹介・名乗りがあれば、その指示に従い、今後の対話でそれを反映してください。"` を付与して、AIにツールコール（`update_nickname`）の自発的な実行を促す。
+4. この指示文（`systemInstructions`）をプロンプトの先頭に `[システム指示: ...]` として付与し、APIクライアントに要求を渡す。
+5. コアやUIへの完了通知イベント `AppEvent` 内の `text` からは、この注入された指示部分を正規表現 `\\[システム指示:.*?\\]\\n*` で綺麗に除去して元の発言テキストに戻したものを設定する。これにより、UIや配信ソースに指示プロンプトが露出しないようにする。
+
+### 4.12 Discordの独立入出力およびアバター非連動制御ロジック
+
+Discord 経由の会話が配信（OBS）側の演出に干渉しないようにするため、入出力経路ごとに以下のルーティングおよびバイパス処理を行う。
+
+1. **イベントの発生源判定 (`CoreModule::on_notify_events`)**:
+   - `DiscordReader` がゲートウェイ経由でメッセージを受信すると、`AppEvent`（`type = EventType::DiscordMessageReceived`、`text = メッセージ本文`、`extraData["channel_id"] = チャンネルID`、`extraData["user_id"] = 送信者ID`）をコアに通知する。
+   - コアはこれを受信した際、配信側（Twitch/STT）のフローと異なり、**`notifyEventToUI` による UI への中継（Thinking状態への変更指示など）を意図的にスキップ**し、直接 `AIClientManager` に要求（`requestAI`）を委譲する。
+2. **履歴の送信元識別付き結合 (`AIClientManager::on_requestAI`)**:
+   - 共通の会話履歴 `m_chatHistory` にユーザーのメッセージを追加する際、送信元を識別可能にするため、プレフィックスとして `[Discord] <ユーザー名>: <本文>` もしくは `[Twitch] <ユーザー名>: <本文>` のようにタグを付与して格納する。
+   - AI（Mistral）はこのプレフィックス情報を解釈することで、現在どちらのインターフェースで会話が行われているかを判別して適切な文脈で返答を構築できる。
+3. **返信先の判定と非連動送信 (`CoreModule::on_notify_events` - AIResponseReceived 時)**:
+   - AIから回答（`AIResponseReceived`）が戻ってきた際、コアはイベントの付随メタデータから送信元を判定する。
+   - 送信元が Discord（`channel_id` が設定されている）の場合：
+     - **UIやOBSへの表示通知、およびTTS（音声読み上げ）処理をすべてバイパス**する。
+     - 代わりに、`DiscordReader::on_requestDiscordSend(channelId, replyText)` スロットを直接呼び出して、REST API を経由して Discord の対象チャンネルへテキストメッセージとして返信する。
+     - これにより、Discord側からは完全にテキストベースでボットが独立して返信しているように動作する。
+
+### 4.13 長期記憶サマリ・詳細の分離保存と想起（RAG）アルゴリズム
+
+セッションリセット時の対話記録のアーカイブ化、および現在の対話文脈に応じた過去ログの動的想起（ロード）を制御する。
+
+1. **記憶のアーカイブ生成 (`AIClientManager::resetSession`)**:
+   - セッションリセットがトリガーされると、現在の `m_chatHistory` を詳細ログオブジェクトとして JSON 構造化し、`log/archive/detail_session_<timestamp>.json` に保存する。
+   - 同時に、AIに「これまでの対話の要約（サマリ）と、主要なトピックキーワード（3〜5個）を抽出してください」と指示する特別なAPIリクエストを投げる。
+   - AIから要約テキストとキーワードが得られたら、メタデータ（`session_id`、会話開始〜終了日時範囲）を付与してサマリ JSON を構築し、`log/archive/summary_session_<timestamp>.json` に保存する。
+   - 保存完了後、メモリ上の `m_chatHistory` をクリアする。
+   - **階層マージ（メタサマリ生成）判定**:
+     - 保存済みの未マージの個別サマリファイル（`summary_*.json`）が 10 件に達した場合、自動的に AI に対し「これらの10件の会話サマリを要約し、この期間全体の話題を網羅するメタサマリを1件作成してください」と依頼する。
+     - 生成されたメタサマリを `meta_summary_<id>.json` に保存し、マージされた10件の個別サマリIDを `child_sessions` 配列に記録する。マージされた個別サマリファイルは `log/archive/archived_summaries/` フォルダへ移動し、通常のスキャンのロード対象外とする。
+2. **想起トリガーの判定と階層スキャン (`AIClientManager::scanMemorySummaries`)**:
+   - 新しい対話要求（`on_requestAI`）が来た際、ユーザーの発言テキストを解析する。
+   - 「過去」「以前」「前に言った」などの想起関連キーワードが検出された場合、あるいは現在の発言内容と直近のやり取りから主要な名詞を抽出した際、ディスクスキャンを行う。
+   - **第一段階スキャン (メタサマリ＆最新サマリ)**:
+     - `log/archive/` ディレクトリ内のすべての `meta_summary_*.json` および未マージの `summary_*.json` のメタデータをロードする。
+     - ユーザー発言キーワードと要約内容の関連度を判定する。
+   - **第二段階スキャン (アーカイブサマリ)**:
+     - 第一段階で `meta_summary_*.json` がヒットした場合、その `child_sessions` リストに記録されている個別サマリ（`log/archive/archived_summaries/summary_*.json`）のみを二次ロードして詳細スキャンし、最終的な合致セッションIDを特定する。
+     - 第一段階で `summary_*.json` がヒットした場合は、そのままそのセッションIDを特定する。
+3. **詳細ログの動的インジェクション (`AIClientManager::loadMemoryDetail`)**:
+   - 関連する過去セッションIDが特定された場合、対応する `detail_*.json` をロードし、詳細対話履歴（過去ログ）を復元する。
+   - ロードした過去ログから、関連する対話のターン（Q&Aペア）を最大3つ抽出し、想起コンテキスト（`m_recalledContext`）としてフォーマットする。
+   - APIクライアント（Mistral）へのリクエスト時、システム指示プロンプトの直後に `[過去の関連会話の記憶: ...]` というタグでこの想起コンテキストを注入し、AIへ渡す。
+   - 生成された応答の中で過去の会話を踏まえた返答が得られたら、この `m_recalledContext` は次のターンではクリアされ、メモリ肥大化を防止する。

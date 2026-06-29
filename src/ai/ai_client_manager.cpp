@@ -21,6 +21,7 @@ AIClientManager::AIClientManager(QObject *parent)
     loadCredentials();
     loadBlacklist();
     loadWhitelist();
+    loadUserNames();
     loadSessionContext();
     setAIProvider(m_provider); // ロードされたプロバイダを設定
 }
@@ -91,7 +92,8 @@ void AIClientManager::loadCredentials() {
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
             m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
             m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
-            qDebug() << "AIClientManager: Loaded settings from" << configPath << "Blacklist enabled:" << m_blacklistEnabled;
+            m_streamerName = obj["twitch_channel"].toString().trimmed().toLower();
+            qDebug() << "AIClientManager: Loaded settings from" << configPath << "Blacklist enabled:" << m_blacklistEnabled << "Streamer name:" << m_streamerName;
         }
     }
 }
@@ -195,6 +197,45 @@ void AIClientManager::loadWhitelist() {
         qDebug() << "AIClientManager: Loaded" << m_whitelist.size() << "whitelist words from" << whitelistPath;
     } else {
         qWarning() << "AIClientManager: Failed to open whitelist file:" << whitelistPath;
+    }
+}
+
+void AIClientManager::loadUserNames() {
+    m_userNamesObj = QJsonObject();
+    QString path = "user_names.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(path)) {
+        path = QString(PROJECT_SOURCE_DIR) + "/user_names.json";
+    }
+#endif
+    if (!QFile::exists(path)) {
+        path = QCoreApplication::applicationDirPath() + "/user_names.json";
+    }
+    if (!QFile::exists(path)) {
+        path = QCoreApplication::applicationDirPath() + "/../user_names.json";
+    }
+    if (!QFile::exists(path)) {
+        path = QCoreApplication::applicationDirPath() + "/../../user_names.json";
+    }
+
+    if (!QFile::exists(path)) {
+        qDebug() << "AIClientManager: user_names.json does not exist. Using empty nickname data.";
+        return;
+    }
+
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray data = file.readAll();
+        file.close();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isNull() && doc.isObject()) {
+            m_userNamesObj = doc.object();
+            qDebug() << "AIClientManager: Loaded user names and nicknames data from" << path;
+        } else {
+            qWarning() << "AIClientManager: user_names.json has invalid JSON format.";
+        }
+    } else {
+        qWarning() << "AIClientManager: Failed to open user_names.json.";
     }
 }
 
@@ -308,8 +349,13 @@ void AIClientManager::setAIProvider(const QString &provider) {
             this, &AIClientManager::on_clientRequestFinished);
 }
 
-void AIClientManager::on_requestAI(const QString &prompt) {
-    qDebug() << "AIClientManager: Received request for prompt:" << prompt;
+void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
+    qDebug() << "AIClientManager: Received request for prompt:" << prompt << "from user:" << user;
+
+    m_currentRequester = user.trimmed().toLower();
+
+    // ニックネームファイルを再ロード
+    loadUserNames();
 
     QString filteredPrompt = applyMask(prompt);
     QString trimmedPrompt = filteredPrompt.trimmed();
@@ -355,6 +401,52 @@ void AIClientManager::on_requestAI(const QString &prompt) {
 
     // 通常のチャット要求
     m_isTranslationRequest = false;
+
+    // ユーザー名に対応した呼びかけ指示プロンプトの構築
+    QString finalPrompt = filteredPrompt;
+    if (!user.isEmpty()) {
+        QString systemInstructions;
+        QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+        if (usersMap.contains(user)) {
+            QJsonObject userData = usersMap.value(user).toObject();
+            QString preferred = userData.value("preferred").toString().trimmed();
+            QJsonArray nicknamesArray = userData.value("nicknames").toArray();
+            QStringList nicknames;
+            for (const QJsonValue &val : nicknamesArray) {
+                if (!val.toString().trimmed().isEmpty()) {
+                    nicknames.append(val.toString().trimmed());
+                }
+            }
+
+            if (!preferred.isEmpty()) {
+                // 優先される呼び名が指定されている場合
+                systemInstructions = QString(
+                    "[システム指示: このコメントの投稿者は「%1」さんです。回答の冒頭で、必ず「%1さん、」または「%1、」と呼びかけてください。他の呼び方は使わず、この呼び方で統一してください。また、もし今回のコメントで新たな呼び方の変更指示（例：「〇〇です」などの自己紹介や「〇〇と呼んで」などの指示）があれば、その指示に従い、今後の対話でそれを反映させてください。]"
+                ).arg(preferred);
+            } else if (!nicknames.isEmpty()) {
+                // 愛称リストがある場合
+                QString nicknamesStr = nicknames.join("、");
+                systemInstructions = QString(
+                    "[システム指示: このコメントの投稿者のTwitchアカウント名は「%1」です。愛称（呼び名）の候補は「%2」です。回答の冒頭で、これらの愛称候補からいずれか1つをランダムに選んで『〇〇さん、』や『〇〇ちゃん、』などと呼びかけて回答してください。また、もし今回のコメント内で「〇〇と呼んで」のような呼び方の指定・変更指示、あるいは「〇〇です」といった自己紹介があった場合は、その指示した呼び方を最優先で使用し、今後の回答でもその呼び方を使用してください。]"
+                ).arg(user).arg(nicknamesStr);
+            } else {
+                // 登録はあるが愛称リストも優先呼び名も空の場合
+                systemInstructions = QString(
+                    "[システム指示: このコメントの投稿者のTwitchアカウント名は「%1」です。冒頭で『%1さん、』と呼びかけて回答してください。もし今回のコメントで別の呼び方の指示や「〇〇です」などの自己紹介があれば、その指示した呼び方を使用してください。]"
+                ).arg(user);
+            }
+        } else {
+            // 新規ユーザー（JSONに未登録）の場合
+            systemInstructions = QString(
+                "[システム指示: このコメントの投稿者のTwitchアカウント名は「%1」です。アカウント名（英語等）から、自然な日本語の読み方（カタカナなど）や愛称をあなたが推測し、冒頭で『〇〇さん、』などと呼びかけて回答してください。もし今回のコメント内で「〇〇と呼んで」などの呼び方の指定・変更指示、または「〇〇です」といった自己紹介があった場合は、その指示した呼び方を使用してください。]"
+            ).arg(user);
+        }
+
+        if (!systemInstructions.isEmpty()) {
+            finalPrompt = systemInstructions + "\n\n" + filteredPrompt;
+        }
+    }
+
     m_lastPrompt = filteredPrompt;
 
     // コアへ送信開始イベントを通知
@@ -365,7 +457,7 @@ void AIClientManager::on_requestAI(const QString &prompt) {
     emit notifyEvent(event);
 
     if (m_currentClient) {
-        m_currentClient->sendRequest(filteredPrompt, m_chatHistory, m_sessionContext);
+        m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext);
     }
 }
 
@@ -646,4 +738,219 @@ void AIClientManager::on_settingsUpdated() {
         m_currentClient->setApiKey(m_apiKey);
         m_currentClient->setTavilyApiKey(m_tavilyApiKey);
     }
+}
+
+void AIClientManager::saveUserNames() {
+    QString path = "user_names.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(path)) {
+        path = QString(PROJECT_SOURCE_DIR) + "/user_names.json";
+    }
+#endif
+    if (!QFile::exists(path)) {
+        path = QCoreApplication::applicationDirPath() + "/user_names.json";
+    }
+    if (!QFile::exists(path)) {
+        path = QCoreApplication::applicationDirPath() + "/../user_names.json";
+    }
+    if (!QFile::exists(path)) {
+        path = QCoreApplication::applicationDirPath() + "/../../user_names.json";
+    }
+
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument doc(m_userNamesObj);
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+        qDebug() << "AIClientManager: Saved user names data to" << path;
+        emit userNamesUpdated(m_userNamesObj); // UIに更新を通知
+    } else {
+        qWarning() << "AIClientManager: Failed to write user names data to" << path;
+    }
+}
+
+QString AIClientManager::handleNicknameUpdateRequest(const QString &target, const QString &nickname) {
+    QString targetLower = target.trimmed().toLower();
+    QString nickTrimmed = nickname.trimmed();
+    QString requester = m_currentRequester;
+
+    qDebug() << "AIClientManager: Processing handleNicknameUpdateRequest. Requester:" << requester 
+             << "Target:" << targetLower << "Proposed Nickname:" << nickTrimmed;
+
+    if (targetLower.isEmpty() || nickTrimmed.isEmpty()) {
+        return "Error: Invalid target user or nickname.";
+    }
+
+    // 1. 自動登録ケース (申請者 == 対象者 または 申請者 == 配信主)
+    if (requester == targetLower || (!m_streamerName.isEmpty() && requester == m_streamerName)) {
+        QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+        QJsonObject userData = usersMap.value(targetLower).toObject();
+        
+        // preferred を更新
+        userData["preferred"] = nickTrimmed;
+        
+        // nicknames 配列にも追加しておく
+        QJsonArray nicknamesArray = userData.value("nicknames").toArray();
+        bool found = false;
+        for (const QJsonValue &val : nicknamesArray) {
+            if (val.toString().trimmed().toLower() == nickTrimmed.toLower()) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            nicknamesArray.append(nickTrimmed);
+        }
+        userData["nicknames"] = nicknamesArray;
+        
+        usersMap[targetLower] = userData;
+        m_userNamesObj["users"] = usersMap;
+        
+        saveUserNames();
+        
+        return QString("Success: Automatically registered '%1' as preferred nickname for '%2'.")
+            .arg(nickTrimmed).arg(targetLower);
+    }
+    
+    // 2. 承認待ちケース (本人以外からの他者への指示)
+    QJsonArray pendingList = m_userNamesObj.value("pending_requests").toArray();
+    
+    // 既存の重複する申請がないかチェック (もしあったら更新)
+    bool isDuplicate = false;
+    for (int i = 0; i < pendingList.size(); ++i) {
+        QJsonObject req = pendingList.at(i).toObject();
+        if (req.value("requester").toString().toLower() == requester &&
+            req.value("target").toString().toLower() == targetLower) {
+            req["nickname"] = nickTrimmed;
+            req["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+            pendingList[i] = req;
+            isDuplicate = true;
+            break;
+        }
+    }
+    
+    if (!isDuplicate) {
+        QJsonObject reqObj;
+        reqObj["requester"] = requester;
+        reqObj["target"] = targetLower;
+        reqObj["nickname"] = nickTrimmed;
+        reqObj["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+        pendingList.append(reqObj);
+    }
+    
+    m_userNamesObj["pending_requests"] = pendingList;
+    saveUserNames();
+    
+    return QString("Notification: Nickname registration request submitted. The streamer must approve this request to change '%1's nickname to '%2'.")
+        .arg(targetLower).arg(nickTrimmed);
+}
+
+void AIClientManager::approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname) {
+    QString targetLower = target.trimmed().toLower();
+    QString nickTrimmed = nickname.trimmed();
+
+    qDebug() << "AIClientManager: Streamer approved nickname request. Requester:" << requester 
+             << "Target:" << targetLower << "Nickname:" << nickTrimmed;
+
+    // 1. users マップに適用
+    QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+    QJsonObject userData = usersMap.value(targetLower).toObject();
+    
+    userData["preferred"] = nickTrimmed;
+    QJsonArray nicknamesArray = userData.value("nicknames").toArray();
+    bool found = false;
+    for (const QJsonValue &val : nicknamesArray) {
+        if (val.toString().trimmed().toLower() == nickTrimmed.toLower()) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        nicknamesArray.append(nickTrimmed);
+    }
+    userData["nicknames"] = nicknamesArray;
+    
+    usersMap[targetLower] = userData;
+    m_userNamesObj["users"] = usersMap;
+
+    // 2. pending_requests から該当を削除
+    QJsonArray pendingList = m_userNamesObj.value("pending_requests").toArray();
+    QJsonArray newPendingList;
+    for (const QJsonValue &val : pendingList) {
+        QJsonObject req = val.toObject();
+        if (req.value("requester").toString().toLower() == requester.toLower() &&
+            req.value("target").toString().toLower() == targetLower) {
+            continue;
+        }
+        newPendingList.append(req);
+    }
+    m_userNamesObj["pending_requests"] = newPendingList;
+
+    saveUserNames();
+}
+
+void AIClientManager::rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname) {
+    QString targetLower = target.trimmed().toLower();
+
+    qDebug() << "AIClientManager: Streamer rejected nickname request. Requester:" << requester 
+             << "Target:" << targetLower << "Nickname:" << nickname;
+
+    // pending_requests から該当を削除
+    QJsonArray pendingList = m_userNamesObj.value("pending_requests").toArray();
+    QJsonArray newPendingList;
+    for (const QJsonValue &val : pendingList) {
+        QJsonObject req = val.toObject();
+        if (req.value("requester").toString().toLower() == requester.toLower() &&
+            req.value("target").toString().toLower() == targetLower) {
+            continue;
+        }
+        newPendingList.append(req);
+    }
+    m_userNamesObj["pending_requests"] = newPendingList;
+
+    saveUserNames();
+}
+
+void AIClientManager::deleteNickname(const QString &user) {
+    QString userLower = user.trimmed().toLower();
+    qDebug() << "AIClientManager: Deleting nickname data for user:" << userLower;
+
+    QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+    if (usersMap.contains(userLower)) {
+        usersMap.remove(userLower);
+        m_userNamesObj["users"] = usersMap;
+        saveUserNames();
+    }
+}
+
+void AIClientManager::updateNicknamePreferred(const QString &user, const QString &preferred) {
+    QString userLower = user.trimmed().toLower();
+    QString prefTrimmed = preferred.trimmed();
+    qDebug() << "AIClientManager: Updating preferred name for user:" << userLower << "to:" << prefTrimmed;
+
+    QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+    QJsonObject userData = usersMap.value(userLower).toObject();
+    
+    userData["preferred"] = prefTrimmed;
+    
+    // nicknames 配列にも追加しておく
+    if (!prefTrimmed.isEmpty()) {
+        QJsonArray nicknamesArray = userData.value("nicknames").toArray();
+        bool found = false;
+        for (const QJsonValue &val : nicknamesArray) {
+            if (val.toString().trimmed().toLower() == prefTrimmed.toLower()) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            nicknamesArray.append(prefTrimmed);
+        }
+        userData["nicknames"] = nicknamesArray;
+    }
+    
+    usersMap[userLower] = userData;
+    m_userNamesObj["users"] = usersMap;
+    
+    saveUserNames();
 }

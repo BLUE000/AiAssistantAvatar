@@ -3,6 +3,7 @@
 #include <QList>
 #include <QPair>
 #include <QString>
+#include <QJsonObject>
 #include "iai_client.h"
 #include "../app_event.h"
 
@@ -23,6 +24,8 @@ private:
     QStringList m_blacklist;
     QStringList m_whitelist;
     bool m_isTranslationRequest = false;
+    QString m_streamerName;
+    QString m_currentRequester;
 
     void loadCredentials();
     void loadSessionContext();
@@ -30,7 +33,10 @@ private:
     void saveObfuscatedLog(const QString &logText); // TransCipherを用いたログ難読化保存
     void loadBlacklist();
     void loadWhitelist();
+    void loadUserNames();
     QString applyMask(const QString &text) const;
+
+    QJsonObject m_userNamesObj;
     bool isLanguageIndicator(const QString &lang) const;
     QString mapLanguage(const QString &lang) const;
 
@@ -52,12 +58,23 @@ public:
 signals:
     void notifyEvent(const AppEvent &event);
     void chatHistoryUpdated(const QList<QPair<QString, QString>> &history); // 履歴更新シグナル
+    void userNamesUpdated(const QJsonObject &data);
 
 public slots:
-    void on_requestAI(const QString &prompt);
+    void on_requestAI(const QString &prompt, const QString &user = "");
     void on_clientRequestFinished(const QString &responseText, bool success);
     void resetSession(bool isManual); // セッションリセット機能
     bool importSessionBackup(const QString &filePath);
     void exportSessionBackup(const QString &encPath, const QString &txtPath);
     void on_settingsUpdated();
+
+    // ニックネーム管理用
+    QString handleNicknameUpdateRequest(const QString &target, const QString &nickname);
+    void saveUserNames();
+    void approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
+    void rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
+    void deleteNickname(const QString &user);
+    void updateNicknamePreferred(const QString &user, const QString &preferred);
+
+    QJsonObject userNamesObj() const { return m_userNamesObj; }
 };

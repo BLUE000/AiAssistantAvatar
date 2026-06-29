@@ -1,4 +1,5 @@
 #include "mistral_ai_client.h"
+#include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -54,6 +55,7 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     systemMessage["role"] = "system";
 
     QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。"
+                           "ユーザーが「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合は、必ず『update_nickname』ツールを呼び出して、そのユーザーのニックネームに「〇〇」を設定してください。"
                            "また、あなたには翻訳機能があります。ユーザーが翻訳をしたい場合、チャット欄で「[ウェイクワード] trans [言語] [翻訳したいテキスト]」と入力すれば翻訳を実行できます（例：「!ai trans en こんにちは」）。[言語]を省略した場合はデフォルトで日本語に翻訳されます。ユーザーから翻訳の使い方を聞かれた場合は、この「[ウェイクワード] trans [言語] [テキスト]」というコマンドの使い方を親切に教えてあげてください。";
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
@@ -110,6 +112,40 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 
     m_toolsArray = QJsonArray();
     m_toolsArray.append(tool);
+
+    // ツール 2: update_nickname の追加
+    QJsonObject nickTool;
+    nickTool["type"] = "function";
+    QJsonObject nickFuncObj;
+    nickFuncObj["name"] = "update_nickname";
+    nickFuncObj["description"] = "Register or update a nickname or preferred name for a Twitch user. Call this when the user specifies how they want to be called, including self-introductions like 'Call me X', 'I am X', or 'Xです'.";
+    
+    QJsonObject nickParams;
+    nickParams["type"] = "object";
+    QJsonObject nickProps;
+    
+    QJsonObject targetProp;
+    targetProp["type"] = "string";
+    targetProp["description"] = "The Twitch username (ID) of the user whose nickname is to be updated. If the user refers to themselves, use their own Twitch ID.";
+    nickProps["target_user"] = targetProp;
+    
+    QJsonObject nicknameProp;
+    nicknameProp["type"] = "string";
+    nicknameProp["description"] = "The new nickname or preferred name (e.g. 'Alice-chan').";
+    nickProps["nickname"] = nicknameProp;
+    
+    nickParams["properties"] = nickProps;
+    
+    QJsonArray nickRequired;
+    nickRequired.append("target_user");
+    nickRequired.append("nickname");
+    nickParams["required"] = nickRequired;
+    
+    nickFuncObj["parameters"] = nickParams;
+    nickTool["function"] = nickFuncObj;
+
+    m_toolsArray.append(nickTool);
+
     requestBody["tools"] = m_toolsArray;
     requestBody["tool_choice"] = "auto";
 
@@ -170,6 +206,57 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
                             m_isToolCalling = true;
                             m_searchManager->executeSearch(query);
+                            return;
+                        } else if (funcName == "update_nickname") {
+                            QString toolCallId = toolCall["id"].toString();
+                            QString argsStr = toolCall["function"].toObject()["arguments"].toString();
+                            
+                            // 引数のパース
+                            QJsonDocument argsDoc = QJsonDocument::fromJson(argsStr.toUtf8());
+                            QString targetUser = argsDoc.object()["target_user"].toString().trimmed();
+                            QString nickname = argsDoc.object()["nickname"].toString().trimmed();
+
+                            qDebug() << "MistralAIClient: update_nickname call detected. id:" << toolCallId << "target_user:" << targetUser << "nickname:" << nickname;
+
+                            // tool_calls を含む assistant メッセージを履歴に追加する (必須)
+                            m_pendingMessages.append(messageObj);
+
+                            // 親の AIClientManager から呼びかけ処理を実行して、AIへ返す結果を取得
+                            QString resultText = "Error: Internal manager not found.";
+                            AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+                            if (manager) {
+                                resultText = manager->handleNicknameUpdateRequest(targetUser, nickname);
+                            }
+
+                            // ツール応答 (toolロール) をメッセージ履歴に追加
+                            QJsonObject toolResponse;
+                            toolResponse["role"] = "tool";
+                            toolResponse["name"] = "update_nickname";
+                            toolResponse["tool_call_id"] = toolCallId;
+                            
+                            QJsonObject contentObj;
+                            contentObj["result"] = resultText;
+                            toolResponse["content"] = QString::fromUtf8(QJsonDocument(contentObj).toJson(QJsonDocument::Compact));
+                            
+                            m_pendingMessages.append(toolResponse);
+
+                            // 再度 Mistral に最終回答リクエストを送信
+                            QUrl url("https://api.mistral.ai/v1/chat/completions");
+                            QNetworkRequest request(url);
+                            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+                            request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+
+                            QJsonObject requestBody;
+                            requestBody["model"] = "mistral-small-latest";
+                            requestBody["messages"] = m_pendingMessages;
+                            requestBody["tools"] = m_toolsArray;
+                            requestBody["tool_choice"] = "auto";
+
+                            QJsonDocument doc(requestBody);
+                            QByteArray postData = doc.toJson();
+
+                            qDebug() << "MistralAIClient: Sending request back to Mistral after update_nickname execution...";
+                            m_networkManager->post(request, postData);
                             return;
                         }
                     }

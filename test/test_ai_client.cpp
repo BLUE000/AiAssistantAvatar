@@ -514,3 +514,107 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     EXPECT_EQ(manager.chatHistory().size(), 0);
     EXPECT_EQ(historySpy.count(), 0);
 }
+
+TEST_F(AIClientTest, NicknameManagementTest) {
+    // 既存の設定ファイルがあれば一時退避
+    bool hasBackupSettings = QFile::exists("local_settings.json");
+    if (hasBackupSettings) {
+        QFile::rename("local_settings.json", "local_settings.json.bak");
+    }
+    bool hasBackupUserNames = QFile::exists("user_names.json");
+    if (hasBackupUserNames) {
+        QFile::rename("user_names.json", "user_names.json.bak");
+    }
+
+    // テスト用の設定ファイルを作成して配信主を設定
+    QJsonObject localSettings;
+    localSettings["twitch_channel"] = "test_streamer";
+    localSettings["ai_provider"] = "dummy";
+    
+    QFile settingsFile("local_settings.json");
+    ASSERT_TRUE(settingsFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    settingsFile.write(QJsonDocument(localSettings).toJson());
+    settingsFile.close();
+
+    // テスト用の空の user_names.json を作成
+    QJsonObject initialUserNames;
+    initialUserNames["users"] = QJsonObject();
+    initialUserNames["pending_requests"] = QJsonArray();
+    
+    QFile userNamesFile("user_names.json");
+    ASSERT_TRUE(userNamesFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    userNamesFile.write(QJsonDocument(initialUserNames).toJson());
+    userNamesFile.close();
+
+    AIClientManager manager;
+    manager.on_settingsUpdated(); // 設定の読み込みを実行
+
+    // 1. 本人による登録 (自動登録)
+    manager.on_requestAI("私のことは『ありりん』と呼んでね", "alice");
+    QString result1 = manager.handleNicknameUpdateRequest("alice", "ありりん");
+    EXPECT_TRUE(result1.startsWith("Success:"));
+
+    QJsonObject data1 = manager.userNamesObj();
+    QJsonObject users1 = data1.value("users").toObject();
+    EXPECT_TRUE(users1.contains("alice"));
+    EXPECT_EQ(users1.value("alice").toObject().value("preferred").toString(), "ありりん");
+
+    // 2. 他人による他人のニックネーム登録 (承認待ち)
+    manager.on_requestAI("アリスを『ありちゃん』と呼んで", "bob");
+    QString result2 = manager.handleNicknameUpdateRequest("alice", "ありちゃん");
+    EXPECT_TRUE(result2.startsWith("Notification:"));
+
+    QJsonObject data2 = manager.userNamesObj();
+    QJsonArray pending2 = data2.value("pending_requests").toArray();
+    EXPECT_EQ(pending2.size(), 1);
+    QJsonObject req2 = pending2.at(0).toObject();
+    EXPECT_EQ(req2.value("requester").toString(), "bob");
+    EXPECT_EQ(req2.value("target").toString(), "alice");
+    EXPECT_EQ(req2.value("nickname").toString(), "ありちゃん");
+
+    // 3. 配信主による他人へのニックネーム登録 (自動登録)
+    manager.on_requestAI("アリスを『アリスっち』と呼ぶことにする", "test_streamer");
+    QString result3 = manager.handleNicknameUpdateRequest("alice", "アリスっち");
+    EXPECT_TRUE(result3.startsWith("Success:"));
+
+    QJsonObject data3 = manager.userNamesObj();
+    QJsonObject users3 = data3.value("users").toObject();
+    EXPECT_EQ(users3.value("alice").toObject().value("preferred").toString(), "アリスっち");
+
+    // 4. 配信主による他人の申請の承認
+    // 再度 bob から申請を出す
+    manager.on_requestAI("アリスを『ありちゃん』にして", "bob");
+    manager.handleNicknameUpdateRequest("alice", "ありちゃん");
+    
+    // 承認
+    manager.approveNicknameRequest("bob", "alice", "ありちゃん");
+    QJsonObject data4 = manager.userNamesObj();
+    QJsonObject users4 = data4.value("users").toObject();
+    EXPECT_EQ(users4.value("alice").toObject().value("preferred").toString(), "ありちゃん");
+    QJsonArray pending4 = data4.value("pending_requests").toArray();
+    EXPECT_TRUE(pending4.isEmpty());
+
+    // 5. 配信主による申請の却下
+    manager.on_requestAI("アリスを『ありんこ』と呼んで", "bob");
+    manager.handleNicknameUpdateRequest("alice", "ありんこ");
+    
+    // 却下
+    manager.rejectNicknameRequest("bob", "alice", "ありんこ");
+    QJsonObject data5 = manager.userNamesObj();
+    QJsonObject users5 = data5.value("users").toObject();
+    EXPECT_EQ(users5.value("alice").toObject().value("preferred").toString(), "ありちゃん"); // 却下されたため変わらない
+    QJsonArray pending5 = data5.value("pending_requests").toArray();
+    EXPECT_TRUE(pending5.isEmpty());
+
+    // クリーンアップ
+    QFile::remove("local_settings.json");
+    QFile::remove("user_names.json");
+
+    // バックアップから復元
+    if (hasBackupSettings) {
+        QFile::rename("local_settings.json.bak", "local_settings.json");
+    }
+    if (hasBackupUserNames) {
+        QFile::rename("user_names.json.bak", "user_names.json");
+    }
+}

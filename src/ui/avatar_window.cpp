@@ -28,6 +28,9 @@
 #include <QTabWidget>
 #include <QComboBox>
 #include <QFormLayout>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QMessageBox>
 #include <QWebSocketServer>
 #include <QWebSocket>
 #include <QDesktopServices>
@@ -143,6 +146,10 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     // ----------------------------------------------------
     initSettingsTab(m_settingsTab);
     m_tabWidget->addTab(m_settingsTab, "設定");
+
+    m_nicknameTab = new QWidget(m_tabWidget);
+    initNicknameTab(m_nicknameTab);
+    m_tabWidget->addTab(m_nicknameTab, "ニックネーム");
 
     mainLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
@@ -842,7 +849,10 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
 
         case EventType::TwitchCommentReceived:
             statusBar()->showMessage("Twitchコメント受信: キューに追加されました");
-            enqueueRequest(event.text);
+            {
+                QString user = event.extraData.value("user").toString();
+                enqueueRequest(event.text, user);
+            }
             break;
 
         case EventType::AIRequestSent:
@@ -1485,9 +1495,9 @@ void AvatarWindow::onWebHookReplyFinished(QNetworkReply *reply) {
     }
 }
 
-void AvatarWindow::enqueueRequest(const QString &text) {
+void AvatarWindow::enqueueRequest(const QString &text, const QString &user) {
     if (text.trimmed().isEmpty()) return;
-    m_aiRequestQueue.enqueue(text.trimmed());
+    m_aiRequestQueue.enqueue(qMakePair(text.trimmed(), user));
     qDebug() << "AvatarWindow: Enqueued AI request. Current queue size:" << m_aiRequestQueue.size();
     processNextRequest();
 }
@@ -1503,8 +1513,10 @@ void AvatarWindow::processNextRequest() {
     }
 
     m_isProcessingAI = true;
-    QString nextPrompt = m_aiRequestQueue.dequeue();
-    qDebug() << "AvatarWindow: Processing next request:" << nextPrompt;
+    QPair<QString, QString> nextRequest = m_aiRequestQueue.dequeue();
+    QString nextPrompt = nextRequest.first;
+    QString user = nextRequest.second;
+    qDebug() << "AvatarWindow: Processing next request:" << nextPrompt << "from user:" << user;
 
     pauseScheduler();
     updateAvatarDisplay("thinking");
@@ -1514,7 +1526,7 @@ void AvatarWindow::processNextRequest() {
     }
 
     // AIクライアントへリクエストを要求するシグナルを発火
-    emit requestAIExecution(nextPrompt);
+    emit requestAIExecution(nextPrompt, user);
 }
 
 void AvatarWindow::onCopyObsPathClicked() {
@@ -1523,4 +1535,220 @@ void AvatarWindow::onCopyObsPathClicked() {
         QGuiApplication::clipboard()->setText(path);
         statusBar()->showMessage("OBS用ファイルパスをクリップボードにコピーしました。");
     }
+}
+
+void AvatarWindow::initNicknameTab(QWidget *parent) {
+    QVBoxLayout *mainLayout = new QVBoxLayout(parent);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(10);
+
+    // 1. 登録済みユーザーニックネーム設定
+    QGroupBox *usersGroup = new QGroupBox("登録済みユーザーの呼び名設定（ダブルクリックで優先呼び名を編集可能）", parent);
+    QVBoxLayout *usersLayout = new QVBoxLayout(usersGroup);
+    usersLayout->setContentsMargins(8, 8, 8, 8);
+    usersLayout->setSpacing(6);
+
+    m_usersTable = new QTableWidget(usersGroup);
+    m_usersTable->setColumnCount(4);
+    m_usersTable->setHorizontalHeaderLabels({"ユーザーID", "優先呼び名", "愛称リスト", "操作"});
+    m_usersTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_usersTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
+    m_usersTable->setColumnWidth(3, 80);
+    m_usersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    
+    // テーブルセル編集時の接続
+    connect(m_usersTable, &QTableWidget::cellChanged, this, &AvatarWindow::onUserTableCellChanged);
+
+    QHBoxLayout *usersBtnLayout = new QHBoxLayout();
+    QPushButton *btnAddUser = new QPushButton("新規ユーザー追加", usersGroup);
+    connect(btnAddUser, &QPushButton::clicked, this, &AvatarWindow::onAddUserClicked);
+    usersBtnLayout->addWidget(btnAddUser);
+    usersBtnLayout->addStretch();
+
+    usersLayout->addWidget(m_usersTable);
+    usersLayout->addLayout(usersBtnLayout);
+    mainLayout->addWidget(usersGroup, 3);
+
+    // 2. 承認待ちニックネーム登録リクエスト
+    QGroupBox *requestsGroup = new QGroupBox("他者からの呼び名変更リクエスト（配信主による承認が必要）", parent);
+    QVBoxLayout *requestsLayout = new QVBoxLayout(requestsGroup);
+    requestsLayout->setContentsMargins(8, 8, 8, 8);
+    requestsLayout->setSpacing(6);
+
+    m_requestsTable = new QTableWidget(requestsGroup);
+    m_requestsTable->setColumnCount(5);
+    m_requestsTable->setHorizontalHeaderLabels({"申請者", "対象ユーザー", "提案された愛称", "申請日時", "操作"});
+    m_requestsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_requestsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
+    m_requestsTable->setColumnWidth(4, 160);
+    m_requestsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_requestsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+    requestsLayout->addWidget(m_requestsTable);
+    mainLayout->addWidget(requestsGroup, 2);
+}
+
+void AvatarWindow::onNicknameDataUpdated(const QJsonObject &data) {
+    m_cachedUserNamesData = data;
+    updateNicknameTables();
+}
+
+void AvatarWindow::updateNicknameTables() {
+    if (!m_usersTable || !m_requestsTable) return;
+
+    // cellChanged シグナルを一時切断して、テーブル更新時の無限ループを防ぐ
+    disconnect(m_usersTable, &QTableWidget::cellChanged, this, &AvatarWindow::onUserTableCellChanged);
+
+    // 1. 登録済みユーザーテーブルの更新
+    m_usersTable->setRowCount(0);
+    QJsonObject usersMap = m_cachedUserNamesData.value("users").toObject();
+    
+    // キー（ユーザーID）をソート
+    QStringList sortedUsers = usersMap.keys();
+    sortedUsers.sort();
+
+    m_usersTable->setRowCount(sortedUsers.size());
+    for (int i = 0; i < sortedUsers.size(); ++i) {
+        QString user = sortedUsers[i];
+        QJsonObject userData = usersMap.value(user).toObject();
+        QString preferred = userData.value("preferred").toString();
+        QJsonArray nicknamesArray = userData.value("nicknames").toArray();
+        QStringList nicknames;
+        for (const QJsonValue &val : nicknamesArray) {
+            nicknames.append(val.toString());
+        }
+
+        // ユーザーID (編集不可)
+        QTableWidgetItem *itemUser = new QTableWidgetItem(user);
+        itemUser->setFlags(itemUser->flags() & ~Qt::ItemIsEditable);
+        m_usersTable->setItem(i, 0, itemUser);
+
+        // 優先呼び名 (編集可能)
+        QTableWidgetItem *itemPref = new QTableWidgetItem(preferred);
+        m_usersTable->setItem(i, 1, itemPref);
+
+        // 愛称リスト (編集不可)
+        QTableWidgetItem *itemNicks = new QTableWidgetItem(nicknames.join(", "));
+        itemNicks->setFlags(itemNicks->flags() & ~Qt::ItemIsEditable);
+        m_usersTable->setItem(i, 2, itemNicks);
+
+        // 削除ボタン
+        QPushButton *btnDelete = new QPushButton("削除");
+        btnDelete->setProperty("username", user);
+        connect(btnDelete, &QPushButton::clicked, this, &AvatarWindow::onDeleteUserClicked);
+        m_usersTable->setCellWidget(i, 3, btnDelete);
+    }
+
+    // cellChanged を再接続
+    connect(m_usersTable, &QTableWidget::cellChanged, this, &AvatarWindow::onUserTableCellChanged);
+
+    // 2. 承認待ちテーブルの更新
+    m_requestsTable->setRowCount(0);
+    QJsonArray pendingList = m_cachedUserNamesData.value("pending_requests").toArray();
+    m_requestsTable->setRowCount(pendingList.size());
+    
+    for (int i = 0; i < pendingList.size(); ++i) {
+        QJsonObject req = pendingList.at(i).toObject();
+        QString requester = req.value("requester").toString();
+        QString target = req.value("target").toString();
+        QString nickname = req.value("nickname").toString();
+        QString timestamp = req.value("timestamp").toString();
+
+        m_requestsTable->setItem(i, 0, new QTableWidgetItem(requester));
+        m_requestsTable->setItem(i, 1, new QTableWidgetItem(target));
+        m_requestsTable->setItem(i, 2, new QTableWidgetItem(nickname));
+        
+        QDateTime dt = QDateTime::fromString(timestamp, Qt::ISODate);
+        QString displayTime = dt.isValid() ? dt.toString("yyyy/MM/dd hh:mm") : timestamp;
+        m_requestsTable->setItem(i, 3, new QTableWidgetItem(displayTime));
+
+        // 操作ボタン
+        QWidget *actionWidget = new QWidget(m_requestsTable);
+        QHBoxLayout *actionLayout = new QHBoxLayout(actionWidget);
+        actionLayout->setContentsMargins(2, 2, 2, 2);
+        actionLayout->setSpacing(4);
+
+        QPushButton *btnApprove = new QPushButton("許可", actionWidget);
+        btnApprove->setProperty("requester", requester);
+        btnApprove->setProperty("target", target);
+        btnApprove->setProperty("nickname", nickname);
+        connect(btnApprove, &QPushButton::clicked, this, &AvatarWindow::onApproveRequestClicked);
+
+        QPushButton *btnReject = new QPushButton("却下", actionWidget);
+        btnReject->setProperty("requester", requester);
+        btnReject->setProperty("target", target);
+        btnReject->setProperty("nickname", nickname);
+        connect(btnReject, &QPushButton::clicked, this, &AvatarWindow::onRejectRequestClicked);
+
+        actionLayout->addWidget(btnApprove);
+        actionLayout->addWidget(btnReject);
+        m_requestsTable->setCellWidget(i, 4, actionWidget);
+    }
+}
+
+void AvatarWindow::onApproveRequestClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+    
+    QString requester = btn->property("requester").toString();
+    QString target = btn->property("target").toString();
+    QString nickname = btn->property("nickname").toString();
+
+    emit approveNicknameRequested(requester, target, nickname);
+    statusBar()->showMessage(QString("リクエストを許可しました: %1 -> %2").arg(target).arg(nickname));
+}
+
+void AvatarWindow::onRejectRequestClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    QString requester = btn->property("requester").toString();
+    QString target = btn->property("target").toString();
+    QString nickname = btn->property("nickname").toString();
+
+    emit rejectNicknameRequested(requester, target, nickname);
+    statusBar()->showMessage(QString("リクエストを却下しました: %1 -> %2").arg(target).arg(nickname));
+}
+
+void AvatarWindow::onDeleteUserClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    QString username = btn->property("username").toString();
+    
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "確認", QString("%1 さんのニックネーム設定を削除しますか？").arg(username),
+        QMessageBox::Yes | QMessageBox::No
+    );
+    if (reply == QMessageBox::Yes) {
+        emit deleteNicknameRequested(username);
+        statusBar()->showMessage(QString("%1 さんのデータを削除しました。").arg(username));
+    }
+}
+
+void AvatarWindow::onAddUserClicked() {
+    bool ok;
+    QString username = QInputDialog::getText(
+        this, "ユーザー追加", "追加するユーザーのTwitch IDを入力してください:",
+        QLineEdit::Normal, "", &ok
+    );
+    if (ok && !username.trimmed().isEmpty()) {
+        QString userLower = username.trimmed().toLower();
+        emit updateNicknamePreferredRequested(userLower, "");
+        statusBar()->showMessage(QString("ユーザー「%1」を追加しました。ダブルクリックで優先呼び名を設定してください。").arg(userLower));
+    }
+}
+
+void AvatarWindow::onUserTableCellChanged(int row, int column) {
+    if (column != 1 || !m_usersTable) return;
+
+    QTableWidgetItem *itemUser = m_usersTable->item(row, 0);
+    QTableWidgetItem *itemPref = m_usersTable->item(row, 1);
+    if (!itemUser || !itemPref) return;
+
+    QString user = itemUser->text();
+    QString preferred = itemPref->text().trimmed();
+
+    emit updateNicknamePreferredRequested(user, preferred);
+    statusBar()->showMessage(QString("%1 さんの優先呼び名を「%2」に更新しました。").arg(user).arg(preferred));
 }
