@@ -170,6 +170,11 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
             m_hasAck = true;
             break;
         }
+        case 9: { // Invalid Session
+            qWarning() << "DiscordReader: Invalid Session (op: 9) received! d =" << obj.value("d").toBool();
+            m_webSocket->close();
+            break;
+        }
         case 0: { // Dispatch (READY, MESSAGE_CREATE, etc.)
             QString t = obj.value("t").toString();
             QJsonObject dObj = obj.value("d").toObject();
