@@ -218,10 +218,10 @@ int main(int argc, char *argv[]) {
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {
         qDebug() << "Application quitting. Cleaning up threads...";
 
-        // Twitchの停止
-        twitch->on_stopReading();
-        discord->on_stopReading();
-        stt->on_stopListening();
+        // 各スレッドのスロットを適切なスレッドコンテキストで実行させるため、invokeMethodを使用する
+        QMetaObject::invokeMethod(twitch, "on_stopReading", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(discord, "on_stopReading", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(stt, "on_stopListening", Qt::QueuedConnection);
 
         // 各スレッドに終了をシグナル
         coreThread.quit();

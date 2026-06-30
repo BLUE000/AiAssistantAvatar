@@ -118,7 +118,8 @@ void DiscordReader::onWebSocketConnected() {
 }
 
 void DiscordReader::onWebSocketDisconnected() {
-    qDebug() << "DiscordReader: WebSocket disconnected.";
+    qWarning() << "DiscordReader: WebSocket disconnected. Close Code:" << m_webSocket->closeCode()
+               << "Reason:" << m_webSocket->closeReason();
     m_heartbeatTimer->stop();
     
     if (!m_isRunning) return;
