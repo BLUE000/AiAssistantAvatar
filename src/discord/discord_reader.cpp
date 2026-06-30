@@ -140,6 +140,7 @@ void DiscordReader::onTextMessageReceived(const QString &message) {
 }
 
 void DiscordReader::parseGatewayMessage(const QString &message) {
+    qDebug() << "DiscordReader: Gateway message received:" << message;
     QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
     if (doc.isNull() || !doc.isObject()) return;
 
