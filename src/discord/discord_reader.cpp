@@ -305,6 +305,7 @@ void DiscordReader::on_requestDiscordSend(const QString &channelId, const QStrin
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bot %1").arg(m_botToken).toUtf8());
+    request.setRawHeader("User-Agent", "DiscordBot (https://github.com/BLUE000/AiAssistantAvatar, 1.0)");
 
     QJsonObject payload;
     payload["content"] = text;
