@@ -317,11 +317,25 @@ void DiscordReader::on_requestDiscordSend(const QString &channelId, const QStrin
 }
 
 void DiscordReader::onReplyFinished(QNetworkReply *reply) {
+    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QByteArray body = reply->readAll();
+
     if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "DiscordReader: REST API error:" << reply->errorString() 
-                   << "HTTP Code:" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qWarning() << "DiscordReader: REST API error";
+        qWarning() << "HTTP:" << status;
+        qWarning() << "Qt Error:" << reply->error();
+        qWarning() << "Error:" << reply->errorString();
+        qWarning() << "Response:" << body;
+
+        const auto headers = reply->rawHeaderPairs();
+        for (const auto &h : headers) {
+            qWarning() << h.first << ":" << h.second;
+        }
     } else {
         qDebug() << "DiscordReader: Message sent successfully.";
+        if (!body.isEmpty()) {
+            qDebug() << "Response:" << body;
+        }
     }
     reply->deleteLater();
 }
