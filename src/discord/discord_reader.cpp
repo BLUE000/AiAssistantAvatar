@@ -73,9 +73,17 @@ void DiscordReader::on_startReading() {
 void DiscordReader::on_stopReading() {
     m_isRunning = false;
     m_heartbeatTimer->stop();
-    if (m_webSocket->state() == QAbstractSocket::ConnectedState) {
+
+    // 不要な非同期切断イベントによる再接続ループの誤動作を防ぐため、一時的にシグナルを切断
+    disconnect(m_webSocket, &QWebSocket::disconnected, this, &DiscordReader::onWebSocketDisconnected);
+
+    if (m_webSocket->state() != QAbstractSocket::UnconnectedState) {
         m_webSocket->close();
     }
+
+    // 次回開始時のために再度シグナルを接続
+    connect(m_webSocket, &QWebSocket::disconnected, this, &DiscordReader::onWebSocketDisconnected);
+
     qDebug() << "DiscordReader: Stopped.";
 }
 
@@ -91,6 +99,13 @@ void DiscordReader::on_settingsUpdated() {
 
 void DiscordReader::connectToDiscord() {
     if (!m_isRunning) return;
+
+    // ガード：すでに接続処理中または接続完了している場合は何もしない
+    if (m_webSocket->state() != QAbstractSocket::UnconnectedState) {
+        qDebug() << "DiscordReader: Already connecting or connected. State:" << m_webSocket->state();
+        return;
+    }
+
     // Discord Gateway URL (v10)
     QUrl url("wss://gateway.discord.gg/?v=10&encoding=json");
     qDebug() << "DiscordReader: Connecting to Gateway:" << url.toString();
@@ -106,10 +121,17 @@ void DiscordReader::onWebSocketDisconnected() {
     qDebug() << "DiscordReader: WebSocket disconnected.";
     m_heartbeatTimer->stop();
     
+    if (!m_isRunning) return;
+
     // 自動再接続 (5秒後)
-    if (m_isRunning) {
+    // 重複したタイマー予約を防ぐため、UnconnectedStateの場合のみ予約を実行
+    if (m_webSocket->state() == QAbstractSocket::UnconnectedState) {
         qDebug() << "DiscordReader: Reconnecting in 5 seconds...";
-        QTimer::singleShot(5000, this, &DiscordReader::connectToDiscord);
+        QTimer::singleShot(5000, this, [this]() {
+            if (m_isRunning) {
+                connectToDiscord();
+            }
+        });
     }
 }
 
