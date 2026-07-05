@@ -50,6 +50,9 @@ public slots:
     // テスト用の擬似コメント注入用スロット
     void injectTestComment(const QString &user, const QString &message);
 
+    // Twitchチャットへのメッセージ送信スロット
+    void on_requestTwitchSend(const QString &channel, const QString &text);
+
 private slots:
     // QTcpServer用の接続ハンドラ
     void handleNewConnection();

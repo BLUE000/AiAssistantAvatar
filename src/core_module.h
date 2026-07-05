@@ -23,6 +23,7 @@ signals:
     void settingsUpdated(); // 設定更新通知シグナル
     void requestTwitchReauth(); // Twitch再認可要求シグナル
     void requestDiscordSend(const QString &channelId, const QString &text); // Discordメッセージ送信要求
+    void requestTwitchSend(const QString &channel, const QString &text);   // Twitchメッセージ送信要求
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット

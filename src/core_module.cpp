@@ -13,6 +13,20 @@ void CoreModule::on_notify_events(const AppEvent &event) {
     qDebug() << "CoreModule received event from" << event.source << "Type:" << static_cast<int>(event.type);
     
     switch (event.type) {
+        case EventType::TwitchCommentReceived: {
+            // TwitchからのメッセージはUIに中継しつつ、AIにもリクエストする
+            QString username = event.extraData.value("user").toString();
+            QString twitchChannel = event.extraData.value("twitch_channel").toString();
+            // userパラメータに [Twitch:channel] username 形式で埋め込む
+            QString encodedUser = twitchChannel.isEmpty()
+                ? QString("[Twitch] %1").arg(username)
+                : QString("[Twitch:%1] %2").arg(twitchChannel, username);
+
+            qDebug() << "CoreModule: Routing Twitch message to AI. User:" << encodedUser;
+            emit notifyEventToUI(event); // UIにも表示
+            emit requestAI(event.text, encodedUser);
+            break;
+        }
         case EventType::DiscordMessageReceived: {
             // DiscordからのメッセージはUIに中継せず、直接AIにリクエストする (アバター非連動)
             QString channelId = event.extraData.value("channel_id").toString();
@@ -25,15 +39,18 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             break;
         }
         case EventType::AIResponseReceived: {
-            // AI応答受信時、Discord宛てであればUIへ送らずDiscordReaderへ送信要求
+            // AI応答受信時、送信元プラットフォームへ返信しつつUIにも表示
             if (event.extraData.contains("channel_id")) {
                 QString channelId = event.extraData.value("channel_id").toString();
                 qDebug() << "CoreModule: Routing AI response back to Discord. Channel:" << channelId;
                 emit requestDiscordSend(channelId, event.text);
-            } else {
-                // 通常（Twitchや音声・直接入力）はUIに中継
-                emit notifyEventToUI(event);
+            } else if (event.extraData.contains("twitch_channel")) {
+                QString twitchChannel = event.extraData.value("twitch_channel").toString();
+                qDebug() << "CoreModule: Routing AI response back to Twitch. Channel:" << twitchChannel;
+                emit requestTwitchSend(twitchChannel, event.text);
             }
+            // Discord/Twitch/直接入力いずれの場合もUIに中継
+            emit notifyEventToUI(event);
             break;
         }
         default:

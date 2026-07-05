@@ -41,8 +41,9 @@ private:
     void loadUserNames();
     QString applyMask(const QString &text) const;
 
-    // Discord / 長期記憶用メンバ
+    // Discord / Twitch / 長期記憶用メンバ
     QString m_currentDiscordChannelId;
+    QString m_currentTwitchChannel; // Twitch入力時の返信先チャンネル名
     QString m_recalledContext;
     void scanMemorySummaries(const QString &prompt);
     void loadMemoryDetail(const QString &sessionId);

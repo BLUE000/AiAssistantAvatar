@@ -248,7 +248,11 @@ void TwitchReader::onWebSocketConnected() {
     qDebug() << "TwitchReader: WebSocket connected. Authenticating...";
 
     m_webSocket->sendTextMessage("PASS oauth:" + m_oauthToken);
-    m_webSocket->sendTextMessage("NICK justinfan12345"); // 読み取り専用としてのニックネーム
+    // 認証済みトークンがある場合はBotアカウント名（m_channel）で接続、なければ匿名
+    QString nick = (!m_oauthToken.isEmpty() && !m_channel.isEmpty())
+        ? m_channel.toLower()
+        : QStringLiteral("justinfan12345");
+    m_webSocket->sendTextMessage("NICK " + nick);
     
     QString channelLower = m_channel.toLower();
     if (!channelLower.startsWith("#")) {
@@ -373,6 +377,7 @@ void TwitchReader::injectTestComment(const QString &user, const QString &message
         QVariantMap meta;
         meta["user"] = user;
         meta["raw_message"] = message;
+        meta["twitch_channel"] = m_channel; // 返信先チャンネルをセット
         event.extraData = meta;
 
         emit notifyEvent(event);
@@ -477,5 +482,15 @@ void TwitchReader::on_twitchReauthRequested() {
         return;
     }
     startOAuthServer();
+}
+
+void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &text) {
+    if (!m_webSocket || m_webSocket->state() != QAbstractSocket::ConnectedState) {
+        qWarning() << "TwitchReader: Cannot send message, not connected.";
+        return;
+    }
+    QString ch = channel.startsWith("#") ? channel : "#" + channel;
+    m_webSocket->sendTextMessage(QString("PRIVMSG %1 :%2").arg(ch, text));
+    qDebug() << "TwitchReader: Sent PRIVMSG to" << ch << ":" << text;
 }
 

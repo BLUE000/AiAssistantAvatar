@@ -353,8 +353,9 @@ void AIClientManager::setAIProvider(const QString &provider) {
 void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     qDebug() << "AIClientManager: Received request for prompt:" << prompt << "from user:" << user;
 
-    // Discordユーザー情報のパース
+    // Discord / Twitchユーザー情報のパース
     QString channelId;
+    QString twitchChannel;
     QString cleanUser = user;
     if (user.startsWith("[Discord:")) {
         int closeBracketIdx = user.indexOf(']');
@@ -362,8 +363,15 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             channelId = user.mid(9, closeBracketIdx - 9);
             cleanUser = user.mid(closeBracketIdx + 1).trimmed();
         }
+    } else if (user.startsWith("[Twitch:")) {
+        int closeBracketIdx = user.indexOf(']');
+        if (closeBracketIdx != -1) {
+            twitchChannel = user.mid(8, closeBracketIdx - 8);
+            cleanUser = user.mid(closeBracketIdx + 1).trimmed();
+        }
     }
     m_currentDiscordChannelId = channelId;
+    m_currentTwitchChannel = twitchChannel;
     m_currentRequester = cleanUser.trimmed().toLower();
 
     // ニックネームファイルを再ロード
@@ -578,6 +586,12 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         if (success) {
             event.type = EventType::AIResponseReceived;
             event.text = applyMask(responseText);
+            // Discord/Twitch宛てであれば返信先情報を設定（通常応答と同じ扱い）
+            if (!m_currentDiscordChannelId.isEmpty()) {
+                event.extraData["channel_id"] = m_currentDiscordChannelId;
+            } else if (!m_currentTwitchChannel.isEmpty()) {
+                event.extraData["twitch_channel"] = m_currentTwitchChannel;
+            }
         } else {
             event.type = EventType::ErrorOccurred;
             event.text = responseText;
@@ -708,9 +722,11 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         QString filteredResponse = applyMask(responseText);
         event.text = filteredResponse;
 
-        // Discord宛てであれば返信先チャンネルIDを設定
+        // Discord / Twitch宛てであれば返信先情報を設定
         if (!m_currentDiscordChannelId.isEmpty()) {
             event.extraData["channel_id"] = m_currentDiscordChannelId;
+        } else if (!m_currentTwitchChannel.isEmpty()) {
+            event.extraData["twitch_channel"] = m_currentTwitchChannel;
         }
 
         // 履歴にペアを追加し、シグナルで通知
