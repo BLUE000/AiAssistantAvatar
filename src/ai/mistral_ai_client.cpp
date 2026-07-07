@@ -33,7 +33,7 @@ void MistralAIClient::setTavilyApiKey(const QString &tavilyKey) {
     }
 }
 
-void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext) {
+void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     if (m_apiKey.isEmpty()) {
         emit requestFinished("Mistral APIキーが設定されていません。local_settings.json を確認してください。", false);
         return;
@@ -64,6 +64,11 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
                             .arg(avatarName)
                            + "ユーザーが「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合は、必ず『update_nickname』ツールを呼び出して、そのユーザーのニックネームに「〇〇」を設定してください。"
                              "また、あなたには翻訳機能があります。ユーザーが翻訳をしたい場合、チャット欄で「[ウェイクワード] trans [言語] [翻訳したいテキスト]」と入力すれば翻訳を実行できます（例：「!ai trans en こんにちは」）。[言語]を省略した場合はデフォルトで日本語に翻訳されます。ユーザーから翻訳の使い方を聞かれた場合は、この「[ウェイクワード] trans [言語] [テキスト]」というコマンドの使い方を親切に教えてあげてください。";
+    
+    if (!systemInstruction.isEmpty()) {
+        systemPrompt += "\n\n" + systemInstruction;
+    }
+    
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
     }
@@ -95,63 +100,7 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     requestBody["messages"] = messages;
 
     // tools (Function Calling) の追加
-    QJsonObject tool;
-    tool["type"] = "function";
-    QJsonObject functionObj;
-    functionObj["name"] = "web_search";
-    functionObj["description"] = "Perform a web search to fetch latest information or query search engines for current events.";
-    
-    QJsonObject parameters;
-    parameters["type"] = "object";
-    QJsonObject properties;
-    QJsonObject queryProp;
-    queryProp["type"] = "string";
-    queryProp["description"] = "The search query to retrieve information for.";
-    properties["query"] = queryProp;
-    parameters["properties"] = properties;
-    
-    QJsonArray requiredArray;
-    requiredArray.append("query");
-    parameters["required"] = requiredArray;
-    
-    functionObj["parameters"] = parameters;
-    tool["function"] = functionObj;
-
     m_toolsArray = QJsonArray();
-    m_toolsArray.append(tool);
-
-    // ツール 2: update_nickname の追加
-    QJsonObject nickTool;
-    nickTool["type"] = "function";
-    QJsonObject nickFuncObj;
-    nickFuncObj["name"] = "update_nickname";
-    nickFuncObj["description"] = "Register or update a nickname or preferred name for a Twitch user. Call this when the user specifies how they want to be called, including self-introductions like 'Call me X', 'I am X', or 'Xです'.";
-    
-    QJsonObject nickParams;
-    nickParams["type"] = "object";
-    QJsonObject nickProps;
-    
-    QJsonObject targetProp;
-    targetProp["type"] = "string";
-    targetProp["description"] = "The Twitch username (ID) of the user whose nickname is to be updated. If the user refers to themselves, use their own Twitch ID.";
-    nickProps["target_user"] = targetProp;
-    
-    QJsonObject nicknameProp;
-    nicknameProp["type"] = "string";
-    nicknameProp["description"] = "The new nickname or preferred name (e.g. 'Alice-chan').";
-    nickProps["nickname"] = nicknameProp;
-    
-    nickParams["properties"] = nickProps;
-    
-    QJsonArray nickRequired;
-    nickRequired.append("target_user");
-    nickRequired.append("nickname");
-    nickParams["required"] = nickRequired;
-    
-    nickFuncObj["parameters"] = nickParams;
-    nickTool["function"] = nickFuncObj;
-
-    m_toolsArray.append(nickTool);
 
     if (manager && manager->importState() == KnowledgeImportState::QandAMode) {
         QJsonObject importTool;
@@ -194,6 +143,62 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
         importTool["function"] = importFuncObj;
 
         m_toolsArray.append(importTool);
+    } else {
+        QJsonObject tool;
+        tool["type"] = "function";
+        QJsonObject functionObj;
+        functionObj["name"] = "web_search";
+        functionObj["description"] = "天気、最新ニュース、リアルタイム情報（例：気温、降水確率、台風、地震、株価、スポーツ結果など）を取得するために使用します。ユーザーがこれらの情報を要求した場合は、必ずこのツールを呼び出して最新の情報を取得してください。";
+        
+        QJsonObject parameters;
+        parameters["type"] = "object";
+        QJsonObject properties;
+        QJsonObject queryProp;
+        queryProp["type"] = "string";
+        queryProp["description"] = "The search query to retrieve information for.";
+        properties["query"] = queryProp;
+        parameters["properties"] = properties;
+        
+        QJsonArray requiredArray;
+        requiredArray.append("query");
+        parameters["required"] = requiredArray;
+        
+        functionObj["parameters"] = parameters;
+        tool["function"] = functionObj;
+
+        m_toolsArray.append(tool);
+
+        QJsonObject nickTool;
+        nickTool["type"] = "function";
+        QJsonObject nickFuncObj;
+        nickFuncObj["name"] = "update_nickname";
+        nickFuncObj["description"] = "Register or update a nickname or preferred name for a Twitch user. Call this when the user specifies how they want to be called, including self-introductions like 'Call me X', 'I am X', or 'Xです'.";
+        
+        QJsonObject nickParams;
+        nickParams["type"] = "object";
+        QJsonObject nickProps;
+        
+        QJsonObject targetProp;
+        targetProp["type"] = "string";
+        targetProp["description"] = "The Twitch username (ID) of the user whose nickname is to be updated. If the user refers to themselves, use their own Twitch ID.";
+        nickProps["target_user"] = targetProp;
+        
+        QJsonObject nicknameProp;
+        nicknameProp["type"] = "string";
+        nicknameProp["description"] = "The new nickname or preferred name (e.g. 'Alice-chan').";
+        nickProps["nickname"] = nicknameProp;
+        
+        nickParams["properties"] = nickProps;
+        
+        QJsonArray nickRequired;
+        nickRequired.append("target_user");
+        nickRequired.append("nickname");
+        nickParams["required"] = nickRequired;
+        
+        nickFuncObj["parameters"] = nickParams;
+        nickTool["function"] = nickFuncObj;
+
+        m_toolsArray.append(nickTool);
     }
 
     requestBody["tools"] = m_toolsArray;

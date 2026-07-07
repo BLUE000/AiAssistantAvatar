@@ -9,7 +9,7 @@ class IAIClient : public QObject {
 public:
     explicit IAIClient(QObject *parent = nullptr);
     virtual ~IAIClient();
-    virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString()) = 0;
+    virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) = 0;
     virtual void setApiKey(const QString &apiKey) = 0;
     virtual void setTavilyApiKey(const QString &tavilyKey) { Q_UNUSED(tavilyKey); }
 

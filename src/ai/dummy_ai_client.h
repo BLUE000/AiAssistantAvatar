@@ -11,6 +11,6 @@ private:
 public:
     explicit DummyAIClient(QObject *parent = nullptr);
     ~DummyAIClient() override;
-    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString()) override;
+    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) override;
     void setApiKey(const QString &apiKey) override;
 };

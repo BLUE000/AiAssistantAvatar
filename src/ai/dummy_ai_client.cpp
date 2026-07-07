@@ -21,9 +21,10 @@ void DummyAIClient::setApiKey(const QString &apiKey) {
     Q_UNUSED(apiKey);
 }
 
-void DummyAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext) {
+void DummyAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     Q_UNUSED(history);
     Q_UNUSED(sessionContext);
+    Q_UNUSED(systemInstruction);
     
     // [システム指示: ...] や [RAG: ...] 等のブラケット指示部分をオウム返しから除去する
     QString cleanPrompt = prompt;

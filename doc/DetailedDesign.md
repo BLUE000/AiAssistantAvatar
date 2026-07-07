@@ -502,7 +502,7 @@ class IAIClient : public QObject {
     Q_OBJECT
 public:
     virtual ~IAIClient() = default;
-    virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext = QString()) = 0;
+    virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) = 0;
     virtual void setApiKey(const QString &apiKey) = 0;
 
 signals:
@@ -633,7 +633,7 @@ private:
 public:
     explicit MistralAIClient(QObject *parent = nullptr);
     ~MistralAIClient() override;
-    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString()) override;
+    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) override;
     void setApiKey(const QString &apiKey) override;
     void setTavilyApiKey(const QString &tavilyKey);
 

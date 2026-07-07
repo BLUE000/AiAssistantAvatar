@@ -530,6 +530,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
     // ユーザー名に対応した呼びかけ指示プロンプトの構築
     QString finalPrompt = filteredPrompt;
+    QString additionalSystemPrompt;
     if (!cleanUser.isEmpty()) {
         QString systemInstructions;
         QString platformName = m_currentDiscordChannelId.isEmpty() ? "Twitch" : "Discord";
@@ -570,7 +571,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
 
         if (!systemInstructions.isEmpty()) {
-            finalPrompt = systemInstructions + "\n\n" + filteredPrompt;
+            additionalSystemPrompt = systemInstructions;
         }
     }
 
@@ -578,11 +579,19 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
     // 4. ナレッジ登録対話中のプロンプトインジェクション
     if (isDirectInput && m_importState == KnowledgeImportState::QandAMode) {
-        QString importContext = QString("[現在、ナレッジファイル「%1」の登録対話モードです。以下は配置されたファイルの内容です。]\n"
-                                        "--- ファイル内容 ---\n%2\n"
-                                        "[システム指示: ユーザーから与えられたファイル内容と説明文を読み込み、ナレッジとして登録するために不足している情報や曖昧な点があれば質問してください。登録用キーワード（3〜5個）やデータ名（タイトル）についてもユーザーと合意してください。登録完了の合意が得られたら、速やかに `finalize_knowledge_import` ツールを呼び出して本登録を実行してください。]")
-                                        .arg(m_importingFileName, m_importingFileContent);
-        finalPrompt = importContext + "\n\n" + finalPrompt;
+        // ユーザー向けファイル内容の提示（userロール）
+        QString importUserContext = QString("[現在、ナレッジファイル「%1」の登録対話モードです。以下は配置されたファイルの内容です。]\n"
+                                            "--- ファイル内容 ---\n%2")
+                                            .arg(m_importingFileName, m_importingFileContent);
+        finalPrompt = importUserContext + "\n\n" + finalPrompt;
+
+        // システム指示の分離（systemロール）
+        QString importSysInstruction = "[システム指示: ユーザーから与えられたファイル内容と説明文を読み込み、ナレッジとして登録するために不足している情報や曖昧な点があれば質問してください。登録用キーワード（3〜5個）やデータ名（タイトル）についてもユーザーと合意してください。登録完了の合意が得られたら、速やかに `finalize_knowledge_import` ツールを呼び出して本登録を実行してください。]";
+        if (!additionalSystemPrompt.isEmpty()) {
+            additionalSystemPrompt += "\n\n" + importSysInstruction;
+        } else {
+            additionalSystemPrompt = importSysInstruction;
+        }
     }
 
     // 5. 静的ナレッジ想起（RAG）の実行
@@ -611,7 +620,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     m_lastFinalPrompt = finalPrompt;
 
     if (m_currentClient) {
-        m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext);
+        m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext, additionalSystemPrompt);
     }
 }
 
