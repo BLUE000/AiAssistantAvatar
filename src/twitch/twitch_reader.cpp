@@ -66,6 +66,7 @@ void TwitchReader::loadSettings() {
         m_clientId = obj.value("twitch_client_id").toString().trimmed();
         m_oauthToken = obj.value("twitch_oauth_token").toString().trimmed();
         m_channel = obj.value("twitch_channel").toString().trimmed();
+        m_botName = obj.value("twitch_username").toString().trimmed();
         m_authPort = obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT);
         if (obj.contains("twitch_wakeword")) {
             m_wakeWord = obj.value("twitch_wakeword").toString().trimmed();
@@ -248,9 +249,9 @@ void TwitchReader::onWebSocketConnected() {
     qDebug() << "TwitchReader: WebSocket connected. Authenticating...";
 
     m_webSocket->sendTextMessage("PASS oauth:" + m_oauthToken);
-    // 認証済みトークンがある場合はBotアカウント名（m_channel）で接続、なければ匿名
-    QString nick = (!m_oauthToken.isEmpty() && !m_channel.isEmpty())
-        ? m_channel.toLower()
+    // 認証済みトークンがある場合はBotアカウント名（m_botName）で接続、なければ匿名
+    QString nick = (!m_oauthToken.isEmpty())
+        ? (!m_botName.isEmpty() ? m_botName.toLower() : m_channel.toLower())
         : QStringLiteral("justinfan12345");
     m_webSocket->sendTextMessage("NICK " + nick);
     
@@ -417,7 +418,7 @@ void TwitchReader::fetchChannelName(const QString &token) {
 
         m_oauthToken = token;
         if (!channelName.isEmpty()) {
-            m_channel = channelName;
+            m_botName = channelName;
         }
 
         // トークンとチャンネルが揃ったので接続開始
@@ -432,7 +433,7 @@ void TwitchReader::fetchChannelName(const QString &token) {
         QVariantMap meta;
         meta["twitch_oauth_token"] = token;
         if (!channelName.isEmpty()) {
-            meta["twitch_channel"] = channelName;
+            meta["twitch_username"] = channelName;
         }
         event.extraData = meta;
         

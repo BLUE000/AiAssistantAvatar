@@ -13,6 +13,7 @@ private:
     QString m_channel;
     QString m_oauthToken;
     QString m_clientId;
+    QString m_botName;
     QString m_wakeWord; // UIで設定変更可能
     QString m_wakeWordMode; // "contains" または "prefix" / "command"
     QString m_avatarName;

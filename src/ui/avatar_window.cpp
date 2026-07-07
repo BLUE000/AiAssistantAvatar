@@ -922,11 +922,8 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             if (event.extraData.contains("twitch_oauth_token")) {
                 m_twitchOAuthToken = event.extraData.value("twitch_oauth_token").toString();
             }
-            if (event.extraData.contains("twitch_channel")) {
-                QString channel = event.extraData.value("twitch_channel").toString();
-                if (!channel.isEmpty()) {
-                    m_twitchChannelEdit->setText(channel);
-                }
+            if (event.extraData.contains("twitch_username")) {
+                m_twitchUsername = event.extraData.value("twitch_username").toString();
             }
             saveSettingsFromUI();
             loadSettingsToUI();
@@ -1183,6 +1180,7 @@ void AvatarWindow::loadSettingsToUI() {
             m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
             m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
+            m_twitchUsername = obj.value("twitch_username").toString();
             
             m_webhookUrlEdit->setText(obj.value("webhook_url").toString());
             m_webhookUrl = obj.value("webhook_url").toString();
@@ -1252,6 +1250,7 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
     obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
     obj["twitch_oauth_token"] = m_twitchOAuthToken;
+    obj["twitch_username"] = m_twitchUsername;
     obj["webhook_url"] = m_webhookUrl;
     obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");

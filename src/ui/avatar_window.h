@@ -123,6 +123,7 @@ private:
     void processNextRequest();
 
     QString m_twitchOAuthToken;
+    QString m_twitchUsername;
     QString m_webhookUrl;
     bool m_webhookEnabled = false;
 
