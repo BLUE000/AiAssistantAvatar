@@ -14,17 +14,8 @@ void CoreModule::on_notify_events(const AppEvent &event) {
     
     switch (event.type) {
         case EventType::TwitchCommentReceived: {
-            // TwitchからのメッセージはUIに中継しつつ、AIにもリクエストする
-            QString username = event.extraData.value("user").toString();
-            QString twitchChannel = event.extraData.value("twitch_channel").toString();
-            // userパラメータに [Twitch:channel] username 形式で埋め込む
-            QString encodedUser = twitchChannel.isEmpty()
-                ? QString("[Twitch] %1").arg(username)
-                : QString("[Twitch:%1] %2").arg(twitchChannel, username);
-
-            qDebug() << "CoreModule: Routing Twitch message to AI. User:" << encodedUser;
-            emit notifyEventToUI(event); // UIにも表示
-            emit requestAI(event.text, encodedUser);
+            // TwitchからのメッセージはUIに中継（UIのキューで順次処理）
+            emit notifyEventToUI(event);
             break;
         }
         case EventType::DiscordMessageReceived: {

@@ -832,8 +832,12 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
         case EventType::TwitchCommentReceived:
             statusBar()->showMessage("Twitchコメント受信: キューに追加されました");
             {
-                QString user = event.extraData.value("user").toString();
-                enqueueRequest(event.text, user);
+                QString username = event.extraData.value("user").toString();
+                QString twitchChannel = event.extraData.value("twitch_channel").toString();
+                QString encodedUser = twitchChannel.isEmpty()
+                    ? QString("[Twitch] %1").arg(username)
+                    : QString("[Twitch:%1] %2").arg(twitchChannel, username);
+                enqueueRequest(event.text, encodedUser);
             }
             break;
 
