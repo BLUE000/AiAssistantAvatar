@@ -382,6 +382,16 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     m_currentTwitchChannel = twitchChannel;
     m_currentRequester = cleanUser.trimmed().toLower();
 
+    // リクエスト元が切り替わった場合、直近の会話履歴をクリア
+    // （長期記憶のsessionContextは保持するため、過去のやり取りの参照は可能）
+    if (m_currentRequester != m_previousRequester) {
+        qDebug() << "AIClientManager: Requester changed from [" << m_previousRequester
+                 << "] to [" << m_currentRequester << "]. Clearing chat history to prevent cross-conversation contamination.";
+        m_chatHistory.clear();
+        emit chatHistoryUpdated(m_chatHistory);
+    }
+    m_previousRequester = m_currentRequester;
+
     // ニックネームファイルを再ロード
     loadUserNames();
 

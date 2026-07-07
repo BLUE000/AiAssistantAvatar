@@ -41,6 +41,7 @@ private:
     QString m_streamerName;
     QString m_avatarName;
     QString m_currentRequester;
+    QString m_previousRequester; // 前回のリクエスター（切り替わり検知用）
 
     void loadCredentials();
     void loadSessionContext();
