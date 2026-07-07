@@ -746,38 +746,7 @@ void AvatarWindow::updateWindowPosition() {
 
 }
 
-void AvatarWindow::mousePressEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
-        m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        m_userDraggedWindow = true;  // ドラッグ開始フラグを立てる
-        event->accept();
-    }
-}
 
-void AvatarWindow::mouseMoveEvent(QMouseEvent *event) {
-    if (event->buttons() & Qt::LeftButton) {
-        QPoint newPos = event->globalPosition().toPoint() - m_dragPosition;
-        
-        // ドラッグ時はアンカー位置から目標位置を逆算して保存
-        ImageSetting setting = m_imageSettings[m_currentState];
-        m_desktopTargetPos = QPoint(newPos.x() + setting.anchorX, newPos.y() + setting.anchorY);
-        
-        move(newPos);
-        
-        // ドラッグ中は常に現在位置を保存（状態切り替え時に位置復元用）
-        m_lastWindowPos = pos();
-        
-        event->accept();
-    }
-}
-
-void AvatarWindow::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton && m_userDraggedWindow) {
-        // ドラッグ完了時の最後のウィンドウ位置を保存
-        m_lastWindowPos = pos();
-        event->accept();
-    }
-}
 
 void AvatarWindow::moveEvent(QMoveEvent *event) {
     QMainWindow::moveEvent(event);

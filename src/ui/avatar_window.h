@@ -141,9 +141,7 @@ private:
     QMap<QString, QPixmap> m_pixmapCache;             // 透過処理済みのキャッシュ
     QString m_currentState;                           // "idle", "thinking" 等
     QPoint m_desktopTargetPos;                        // アバター表示の基準目標座標
-    QPoint m_dragPosition;                            // ドラッグ用一時座標
     QPoint m_lastWindowPos;                           // ドラッグ後の最後のウィンドウ位置を保存
-    bool m_userDraggedWindow = false;                 // ユーザーがドラッグで移動したかどうかのフラグ
     bool m_isInitialized = false;                     // 初期配置済みかどうかのフラグ
     
 
@@ -217,9 +215,6 @@ private slots:
     void onDeleteKnowledgeClicked();
 
 protected:
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
     void moveEvent(QMoveEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
 
