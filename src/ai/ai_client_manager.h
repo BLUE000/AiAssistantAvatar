@@ -43,6 +43,13 @@ private:
     QString m_currentRequester;
     QString m_previousRequester; // 前回のリクエスター（切り替わり検知用）
 
+    struct PendingRequest {
+        QString prompt;
+        QString user;
+    };
+    QList<PendingRequest> m_pendingRequests;
+    void processPendingRequests();
+
     void loadCredentials();
     void loadSessionContext();
     void saveSessionContext(const QString &context);

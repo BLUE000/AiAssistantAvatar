@@ -361,6 +361,18 @@ void AIClientManager::setAIProvider(const QString &provider) {
 void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     qDebug() << "AIClientManager: Received request for prompt:" << prompt << "from user:" << user;
 
+    // すでにリセット要約中、マージ処理中の場合はキューに入れる
+    if (m_isResetting || m_isMergingSummaries) {
+        qDebug() << "AIClientManager: Manager is busy (resetting:" << m_isResetting
+                 << ", merging:" << m_isMergingSummaries
+                 << "). Queueing request.";
+        PendingRequest req;
+        req.prompt = prompt;
+        req.user = user;
+        m_pendingRequests.append(req);
+        return;
+    }
+
     // Discord / Twitchユーザー情報のパース
     QString channelId;
     QString twitchChannel;
@@ -373,7 +385,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     } else if (user.startsWith("[Twitch:")) {
         int closeBracketIdx = user.indexOf(']');
-        if (closeBracketIdx != -1) {
+            if (closeBracketIdx != -1) {
             twitchChannel = user.mid(8, closeBracketIdx - 8);
             cleanUser = user.mid(closeBracketIdx + 1).trimmed();
         }
@@ -382,22 +394,29 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     m_currentTwitchChannel = twitchChannel;
     m_currentRequester = cleanUser.trimmed().toLower();
 
-    // リクエスト元が切り替わった場合、直近の会話履歴をクリア
-    // （長期記憶のsessionContextは保持するため、過去のやり取りの参照は可能）
-    if (m_currentRequester != m_previousRequester) {
-        qDebug() << "AIClientManager: Requester changed from [" << m_previousRequester
-                 << "] to [" << m_currentRequester << "]. Clearing chat history to prevent cross-conversation contamination.";
-        m_chatHistory.clear();
-        emit chatHistoryUpdated(m_chatHistory);
+    // リクエスト元が切り替わった場合、直近の会話履歴を要約保存してクリア（サイレントリセット）
+    if (!m_previousRequester.isEmpty() && m_currentRequester != m_previousRequester) {
+        if (!m_chatHistory.isEmpty()) {
+            qDebug() << "AIClientManager: Requester changed from [" << m_previousRequester
+                     << "] to [" << m_currentRequester << "]. Triggering silent resetSession to archive previous conversation.";
+            
+            // 今回のリクエストを一旦キューに保留
+            PendingRequest req;
+            req.prompt = prompt;
+            req.user = user;
+            m_pendingRequests.append(req);
+
+            // セッションリセット（非同期でAI要約）を走らせる
+            resetSession(false);
+            return;
+        }
     }
     m_previousRequester = m_currentRequester;
 
     // ニックネームファイルを再ロード
     loadUserNames();
 
-    QString filteredPrompt = applyMask(prompt);
-    QString trimmedPrompt = filteredPrompt.trimmed();
-
+    QString trimmedPrompt = prompt.trimmed();
     bool isDirectInput = user.isEmpty();
 
     // 1. スラッシュコマンド（半角）のネイティブ前処理
@@ -486,6 +505,11 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             }
         }
     }
+
+
+    // 通常の対話に進むことが確定したため、ここでブラックリストのマスク処理を適用する
+    QString filteredPrompt = applyMask(prompt);
+    trimmedPrompt = filteredPrompt.trimmed();
 
     // 送信元タグ付きプロンプトの作成（履歴保存用）
     if (!m_currentDiscordChannelId.isEmpty()) {
@@ -714,6 +738,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             qWarning() << "AIClientManager: Meta-summary merge request failed:" << responseText;
         }
         m_mergingSessionIds.clear();
+        processPendingRequests();
         return;
     }
 
@@ -733,6 +758,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             event.text = responseText;
         }
         emit notifyEvent(event);
+        processPendingRequests();
         return;
     }
 
@@ -847,6 +873,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             event.text = success ? "会話履歴をクリアし、長期記憶サマリを生成しました。" : "会話履歴をクリアしましたが、サマリの保存に失敗しました。";
             emit notifyEvent(event);
         }
+        processPendingRequests();
         return;
     }
 
@@ -890,6 +917,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         event.text = responseText; // エラーメッセージが格納されている
         emit notifyEvent(event);
     }
+    processPendingRequests();
 }
 
 void AIClientManager::resetSession(bool isManual) {
@@ -902,6 +930,7 @@ void AIClientManager::resetSession(bool isManual) {
             event.text = "会話履歴はすでにクリアされています。";
             emit notifyEvent(event);
         }
+        processPendingRequests();
         return;
     }
 
@@ -1741,4 +1770,17 @@ void AIClientManager::openKnowledgeInputFolder() {
     qDebug() << "AIClientManager: Opening knowledge input folder:" << absPath;
     QDesktopServices::openUrl(QUrl::fromLocalFile(absPath));
 }
+
+void AIClientManager::processPendingRequests() {
+    if (m_isResetting || m_isMergingSummaries) {
+        return;
+    }
+
+    if (!m_pendingRequests.isEmpty()) {
+        PendingRequest req = m_pendingRequests.takeFirst();
+        qDebug() << "AIClientManager: Processing queued pending request for user:" << req.user;
+        on_requestAI(req.prompt, req.user);
+    }
+}
+
 
