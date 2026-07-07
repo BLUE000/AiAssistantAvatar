@@ -144,6 +144,7 @@ private:
     QPoint m_dragPosition;                            // ドラッグ用一時座標
     QPoint m_lastWindowPos;                           // ドラッグ後の最後のウィンドウ位置を保存
     bool m_userDraggedWindow = false;                 // ユーザーがドラッグで移動したかどうかのフラグ
+    bool m_isInitialized = false;                     // 初期配置済みかどうかのフラグ
     
 
     // バリアントグループ（front_variants / back_variants 等）の汎用管理
@@ -219,6 +220,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 public:

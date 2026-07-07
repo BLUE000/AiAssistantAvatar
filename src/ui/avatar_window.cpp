@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QRegularExpression>
 #include <QMouseEvent>
+#include <QMoveEvent>
 #include <QMenu>
 #include <QInputDialog>
 #include <QGuiApplication>
@@ -732,7 +733,7 @@ void AvatarWindow::updateWindowPosition() {
     // adjustSize() は呼ばない（ウィンドウサイズを固定に保つ）
 
     // ユーザーがドラッグで移動した、または初期配置済みの場合はその位置を保持
-    if (!m_lastWindowPos.isNull()) {
+    if (m_isInitialized && !m_lastWindowPos.isNull()) {
         this->move(m_lastWindowPos);
     } else {
         // ドラッグされておらず、まだ初期配置されていない場合のみ計算位置に配置
@@ -740,6 +741,7 @@ void AvatarWindow::updateWindowPosition() {
         int newY = m_desktopTargetPos.y() - setting.anchorY;
         this->move(newX, newY);
         m_lastWindowPos = QPoint(newX, newY);
+        m_isInitialized = true;
     }
 
 }
@@ -774,6 +776,13 @@ void AvatarWindow::mouseReleaseEvent(QMouseEvent *event) {
         // ドラッグ完了時の最後のウィンドウ位置を保存
         m_lastWindowPos = pos();
         event->accept();
+    }
+}
+
+void AvatarWindow::moveEvent(QMoveEvent *event) {
+    QMainWindow::moveEvent(event);
+    if (m_isInitialized) {
+        m_lastWindowPos = pos();
     }
 }
 
