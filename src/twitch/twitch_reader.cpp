@@ -278,6 +278,7 @@ void TwitchReader::onTextMessageReceived(const QString &message) {
     QStringList lines = message.split("\r\n");
     for (const QString &line : lines) {
         if (line.isEmpty()) continue;
+        qDebug() << "TwitchReader received:" << line;
 
         if (line.startsWith("PING")) {
             m_webSocket->sendTextMessage("PONG :tmi.twitch.tv");
