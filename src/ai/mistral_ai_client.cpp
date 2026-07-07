@@ -146,6 +146,50 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 
     m_toolsArray.append(nickTool);
 
+    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+    if (manager && manager->importState() == KnowledgeImportState::QandAMode) {
+        QJsonObject importTool;
+        importTool["type"] = "function";
+        QJsonObject importFuncObj;
+        importFuncObj["name"] = "finalize_knowledge_import";
+        importFuncObj["description"] = "Finalize the registration of the current Markdown knowledge file. Call this when the user agrees to finalize the import and all metadata (title, description, keywords) are determined.";
+        
+        QJsonObject importParams;
+        importParams["type"] = "object";
+        QJsonObject importProps;
+        
+        QJsonObject titleProp;
+        titleProp["type"] = "string";
+        titleProp["description"] = "The title / name of the knowledge being registered (e.g. 'Plugin API Guide').";
+        importProps["title"] = titleProp;
+        
+        QJsonObject descProp;
+        descProp["type"] = "string";
+        descProp["description"] = "A short summary / description of what the file content contains.";
+        importProps["description"] = descProp;
+        
+        QJsonObject kwProp;
+        kwProp["type"] = "array";
+        QJsonObject kwItems;
+        kwItems["type"] = "string";
+        kwProp["items"] = kwItems;
+        kwProp["description"] = "A list of 3 to 5 key trigger words to match user prompts to this knowledge file in future conversations (e.g. ['plugin', 'API', 'specs']).";
+        importProps["keywords"] = kwProp;
+        
+        importParams["properties"] = importProps;
+        
+        QJsonArray importRequired;
+        importRequired.append("title");
+        importRequired.append("description");
+        importRequired.append("keywords");
+        importParams["required"] = importRequired;
+        
+        importFuncObj["parameters"] = importParams;
+        importTool["function"] = importFuncObj;
+
+        m_toolsArray.append(importTool);
+    }
+
     requestBody["tools"] = m_toolsArray;
     requestBody["tool_choice"] = "auto";
 
@@ -256,6 +300,59 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             QByteArray postData = doc.toJson();
 
                             qDebug() << "MistralAIClient: Sending request back to Mistral after update_nickname execution...";
+                            m_networkManager->post(request, postData);
+                            return;
+                        } else if (funcName == "finalize_knowledge_import") {
+                            QString toolCallId = toolCall["id"].toString();
+                            QString argsStr = toolCall["function"].toObject()["arguments"].toString();
+                            
+                            // 引数のパース
+                            QJsonDocument argsDoc = QJsonDocument::fromJson(argsStr.toUtf8());
+                            QString title = argsDoc.object()["title"].toString().trimmed();
+                            QString description = argsDoc.object()["description"].toString().trimmed();
+                            QJsonArray kwJsonArr = argsDoc.object()["keywords"].toArray();
+                            QStringList keywords;
+                            for (const QJsonValue &v : kwJsonArr) {
+                                QString kw = v.toString().trimmed();
+                                if (!kw.isEmpty()) keywords.append(kw);
+                            }
+
+                            qDebug() << "MistralAIClient: finalize_knowledge_import call detected. id:" << toolCallId << "title:" << title << "description:" << description << "keywords:" << keywords;
+
+                            m_pendingMessages.append(messageObj);
+
+                            QString resultText = "Error: Internal manager not found.";
+                            AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+                            if (manager) {
+                                resultText = manager->finalizeKnowledgeImport(title, description, keywords);
+                            }
+
+                            QJsonObject toolResponse;
+                            toolResponse["role"] = "tool";
+                            toolResponse["name"] = "finalize_knowledge_import";
+                            toolResponse["tool_call_id"] = toolCallId;
+                            
+                            QJsonObject contentObj;
+                            contentObj["result"] = resultText;
+                            toolResponse["content"] = QString::fromUtf8(QJsonDocument(contentObj).toJson(QJsonDocument::Compact));
+                            
+                            m_pendingMessages.append(toolResponse);
+
+                            QUrl url("https://api.mistral.ai/v1/chat/completions");
+                            QNetworkRequest request(url);
+                            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+                            request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+
+                            QJsonObject requestBody;
+                            requestBody["model"] = "mistral-small-latest";
+                            requestBody["messages"] = m_pendingMessages;
+                            requestBody["tools"] = m_toolsArray;
+                            requestBody["tool_choice"] = "auto";
+
+                            QJsonDocument doc(requestBody);
+                            QByteArray postData = doc.toJson();
+
+                            qDebug() << "MistralAIClient: Sending request back to Mistral after finalize_knowledge_import execution...";
                             m_networkManager->post(request, postData);
                             return;
                         }

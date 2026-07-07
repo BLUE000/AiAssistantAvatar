@@ -4,8 +4,16 @@
 #include <QPair>
 #include <QString>
 #include <QJsonObject>
+#include <QTimer>
 #include "iai_client.h"
 #include "../app_event.h"
+
+enum class KnowledgeImportState {
+    Idle,
+    AwaitingFileAndExplanation,
+    CancelConfirmation,
+    QandAMode
+};
 
 class AIClientManager : public QObject {
     Q_OBJECT
@@ -21,6 +29,7 @@ private:
     bool m_isManualReset = false; // 手動リセット中かどうかのフラグ
     QString m_lastPrompt; // 応答待ち中の最新プロンプト
     QString m_lastPromptWithTag; // 送信元タグ付きの最新プロンプト
+    QString m_lastFinalPrompt; // 最終的に送信されたシステム指示/RAG入りプロンプト
     QString m_currentResetSessionId;
     QString m_currentResetStartTime;
     bool m_isMergingSummaries = false;
@@ -53,6 +62,17 @@ private:
     bool isLanguageIndicator(const QString &lang) const;
     QString mapLanguage(const QString &lang) const;
 
+    // ナレッジ管理・対話登録メンバ
+    KnowledgeImportState m_importState = KnowledgeImportState::Idle;
+    QTimer *m_importTimeoutTimer = nullptr;
+    QString m_importingFileName;
+    QString m_importingFileContent;
+    QJsonObject m_knowledgeMetadata;
+
+    void loadKnowledgeMetadata();
+    void saveKnowledgeMetadata();
+    void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
+
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
@@ -65,6 +85,10 @@ public:
         emit chatHistoryUpdated(m_chatHistory);
     }
 
+    KnowledgeImportState importState() const { return m_importState; }
+    QJsonObject knowledgeMetadata() const { return m_knowledgeMetadata; }
+    QString lastFinalPrompt() const { return m_lastFinalPrompt; }
+
     // 暗号化バックアップの復号・読み出し用I/F
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
 
@@ -72,6 +96,7 @@ signals:
     void notifyEvent(const AppEvent &event);
     void chatHistoryUpdated(const QList<QPair<QString, QString>> &history); // 履歴更新シグナル
     void userNamesUpdated(const QJsonObject &data);
+    void knowledgeMetadataUpdated(const QJsonObject &data);
 
 public slots:
     void on_requestAI(const QString &prompt, const QString &user = "");
@@ -88,6 +113,13 @@ public slots:
     void rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
     void deleteNickname(const QString &user);
     void updateNicknamePreferred(const QString &user, const QString &preferred);
+
+    // ナレッジ管理スロット
+    void deleteKnowledge(const QString &id);
+    void on_requestKnowledgeMetadata();
+    void onImportTimeout();
+    QString finalizeKnowledgeImport(const QString &title, const QString &description, const QStringList &keywords);
+    void openKnowledgeInputFolder();
 
     QJsonObject userNamesObj() const { return m_userNamesObj; }
 };

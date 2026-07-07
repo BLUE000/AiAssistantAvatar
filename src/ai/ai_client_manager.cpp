@@ -13,17 +13,24 @@
 #include <QTextStream>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QDesktopServices>
+#include <QUrl>
 #include <algorithm>
 
 AIClientManager::AIClientManager(QObject *parent)
     : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
     m_currentResetStartTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    m_importTimeoutTimer = new QTimer(this);
+    m_importTimeoutTimer->setSingleShot(true);
+    connect(m_importTimeoutTimer, &QTimer::timeout, this, &AIClientManager::onImportTimeout);
+
     loadCredentials();
     loadBlacklist();
     loadWhitelist();
     loadUserNames();
     loadSessionContext();
+    loadKnowledgeMetadata();
     setAIProvider(m_provider); // ロードされたプロバイダを設定
 }
 
@@ -380,6 +387,95 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     QString filteredPrompt = applyMask(prompt);
     QString trimmedPrompt = filteredPrompt.trimmed();
 
+    bool isDirectInput = user.isEmpty();
+
+    // 1. スラッシュコマンド（半角）のネイティブ前処理
+    if (isDirectInput && trimmedPrompt.startsWith("/")) {
+        AppEvent responseEvent;
+        responseEvent.source = "AIClientManager";
+        responseEvent.type = EventType::AIResponseReceived;
+
+        if (trimmedPrompt == "/open_folder") {
+            openKnowledgeInputFolder();
+            m_importTimeoutTimer->start(600000); // 10分
+            m_importState = KnowledgeImportState::AwaitingFileAndExplanation;
+            responseEvent.text = "ナレッジ入力フォルダを開きました。ファイルを配置し、チャットで「ファイル名」と「その説明」を入力してください。(10分以内に登録を開始しない場合、キャンセル確認を行います)";
+        } else if (trimmedPrompt == "/cancel") {
+            m_importTimeoutTimer->stop();
+            m_importState = KnowledgeImportState::Idle;
+            m_importingFileName.clear();
+            m_importingFileContent.clear();
+            responseEvent.text = "ナレッジの登録作業をキャンセルしました。";
+        } else {
+            responseEvent.text = "無効なコマンドです。";
+        }
+        emit notifyEvent(responseEvent);
+        return;
+    }
+
+    // 2. タイムアウト時のキャンセル確認状態の処理
+    if (isDirectInput && m_importState == KnowledgeImportState::CancelConfirmation) {
+        QString lowerPrompt = trimmedPrompt.toLower();
+        if (lowerPrompt == "yes" || lowerPrompt == "はい" || lowerPrompt == "キャンセル" || lowerPrompt == "キャンセルする") {
+            m_importState = KnowledgeImportState::Idle;
+            m_importingFileName.clear();
+            m_importingFileContent.clear();
+            AppEvent event;
+            event.source = "AIClientManager";
+            event.type = EventType::AIResponseReceived;
+            event.text = "ナレッジ登録作業をキャンセルしました。";
+            emit notifyEvent(event);
+            return;
+        } else if (lowerPrompt == "no" || lowerPrompt == "いいえ" || lowerPrompt == "キャンセルしない" || lowerPrompt == "続ける") {
+            m_importState = KnowledgeImportState::AwaitingFileAndExplanation;
+            m_importTimeoutTimer->start(600000);
+            AppEvent event;
+            event.source = "AIClientManager";
+            event.type = EventType::AIResponseReceived;
+            event.text = "登録作業を継続します。ファイルを配置し、ファイル名と説明を入力してください。(制限時間は10分間です)";
+            emit notifyEvent(event);
+            return;
+        }
+    }
+
+    // 3. ファイル配置・説明待ち状態におけるファイル検知処理
+    if (isDirectInput && m_importState == KnowledgeImportState::AwaitingFileAndExplanation) {
+        // 正規表現で.mdファイルを検出
+        QRegularExpression mdRegex("([a-zA-Z0-9_\\-\\.\\x{4e00}-\\x{9fa5}]+?\\.md)", QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatch match = mdRegex.match(trimmedPrompt);
+        if (match.hasMatch()) {
+            QString fileName = match.captured(1);
+            QString srcPath = "log/knowledge_input/" + fileName;
+            if (QFile::exists(srcPath)) {
+                QFile file(srcPath);
+                if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    m_importTimeoutTimer->stop();
+                    m_importingFileName = fileName;
+                    m_importingFileContent = QString::fromUtf8(file.readAll());
+                    file.close();
+                    m_importState = KnowledgeImportState::QandAMode;
+                    qDebug() << "AIClientManager: Found and read temporary markdown file:" << fileName;
+                } else {
+                    AppEvent errorEvent;
+                    errorEvent.source = "AIClientManager";
+                    errorEvent.type = EventType::ErrorOccurred;
+                    errorEvent.text = QString("ファイル「%1」の読み込みに失敗しました。アクセス権限などを確認してください。").arg(fileName);
+                    emit notifyEvent(errorEvent);
+                    m_importTimeoutTimer->start(600000); // タイマー再スタート
+                    return;
+                }
+            } else {
+                AppEvent errorEvent;
+                errorEvent.source = "AIClientManager";
+                errorEvent.type = EventType::ErrorOccurred;
+                errorEvent.text = QString("指定されたファイル「%1」が log/knowledge_input/ フォルダに見つかりません。ファイルを正しく配置したか確認してください。").arg(fileName);
+                emit notifyEvent(errorEvent);
+                m_importTimeoutTimer->start(600000); // タイマー再スタート
+                return;
+            }
+        }
+    }
+
     // 送信元タグ付きプロンプトの作成（履歴保存用）
     if (!m_currentDiscordChannelId.isEmpty()) {
         m_lastPromptWithTag = QString("[Discord] %1: %2").arg(cleanUser, filteredPrompt);
@@ -479,6 +575,24 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
     m_lastPrompt = filteredPrompt;
 
+    // 4. ナレッジ登録対話中のプロンプトインジェクション
+    if (isDirectInput && m_importState == KnowledgeImportState::QandAMode) {
+        QString importContext = QString("[現在、ナレッジファイル「%1」の登録対話モードです。以下は配置されたファイルの内容です。]\n"
+                                        "--- ファイル内容 ---\n%2\n"
+                                        "[システム指示: ユーザーから与えられたファイル内容と説明文を読み込み、ナレッジとして登録するために不足している情報や曖昧な点があれば質問してください。登録用キーワード（3〜5個）やデータ名（タイトル）についてもユーザーと合意してください。登録完了の合意が得られたら、速やかに `finalize_knowledge_import` ツールを呼び出して本登録を実行してください。]")
+                                        .arg(m_importingFileName, m_importingFileContent);
+        finalPrompt = importContext + "\n\n" + finalPrompt;
+    }
+
+    // 5. 静的ナレッジ想起（RAG）の実行
+    if (m_importState == KnowledgeImportState::Idle) {
+        QString recalledStatic;
+        scanStaticKnowledge(filteredPrompt, recalledStatic);
+        if (!recalledStatic.isEmpty()) {
+            finalPrompt = recalledStatic + "\n\n" + finalPrompt;
+        }
+    }
+
     // 長期記憶想起（RAG）処理の実行
     m_recalledContext.clear();
     scanMemorySummaries(filteredPrompt);
@@ -492,6 +606,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     event.source = "AIClientManager";
     event.text = filteredPrompt;
     emit notifyEvent(event);
+
+    m_lastFinalPrompt = finalPrompt;
 
     if (m_currentClient) {
         m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext);
@@ -1430,3 +1546,179 @@ void AIClientManager::loadMemoryDetail(const QString &sessionId) {
     m_recalledContext = recalledText;
     qDebug() << "AIClientManager: Injected memory context size:" << m_recalledContext.length() << "chars.";
 }
+
+void AIClientManager::loadKnowledgeMetadata() {
+    QDir().mkpath("log/knowledge");
+    QString path = "log/knowledge/knowledge_metadata.json";
+    QFile file(path);
+    if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray data = file.readAll();
+        file.close();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isNull() && doc.isObject()) {
+            m_knowledgeMetadata = doc.object();
+            qDebug() << "AIClientManager: Loaded knowledge metadata from" << path;
+        } else {
+            m_knowledgeMetadata = QJsonObject();
+            qWarning() << "AIClientManager: Invalid format in knowledge_metadata.json. Starting fresh.";
+        }
+    } else {
+        m_knowledgeMetadata = QJsonObject();
+    }
+    emit knowledgeMetadataUpdated(m_knowledgeMetadata);
+}
+
+void AIClientManager::saveKnowledgeMetadata() {
+    QDir().mkpath("log/knowledge");
+    QString path = "log/knowledge/knowledge_metadata.json";
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument doc(m_knowledgeMetadata);
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+        qDebug() << "AIClientManager: Saved knowledge metadata to" << path;
+        emit knowledgeMetadataUpdated(m_knowledgeMetadata);
+    } else {
+        qWarning() << "AIClientManager: Failed to write knowledge metadata to" << path;
+    }
+}
+
+void AIClientManager::scanStaticKnowledge(const QString &prompt, QString &recalledPrompt) {
+    QJsonArray knowledges = m_knowledgeMetadata.value("knowledges").toArray();
+    QString injectedKnowledge;
+    for (const QJsonValue &val : knowledges) {
+        QJsonObject obj = val.toObject();
+        QJsonArray kwArr = obj.value("keywords").toArray();
+        bool hit = false;
+        for (const QJsonValue &kwVal : kwArr) {
+            // 完全一致または単語境界チェック等の簡易判定（promptに含まれるか）
+            QString kw = kwVal.toString().trimmed();
+            if (!kw.isEmpty() && prompt.contains(kw, Qt::CaseInsensitive)) {
+                hit = true;
+                break;
+            }
+        }
+        if (hit) {
+            QString fileName = obj.value("file_name").toString();
+            QFile file("log/knowledge/" + fileName);
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QString content = QString::fromUtf8(file.readAll());
+                file.close();
+                injectedKnowledge += QString("[関連知識: %1]\n%2\n\n")
+                                        .arg(obj.value("title").toString(), content);
+                qDebug() << "AIClientManager: Recalled static knowledge:" << obj.value("title").toString();
+            }
+        }
+    }
+    if (!injectedKnowledge.isEmpty()) {
+        recalledPrompt = injectedKnowledge + recalledPrompt;
+    }
+}
+
+void AIClientManager::deleteKnowledge(const QString &id) {
+    qDebug() << "AIClientManager: deleteKnowledge called for id:" << id;
+    QJsonArray knowledges = m_knowledgeMetadata.value("knowledges").toArray();
+    QJsonArray newKnowledges;
+    bool found = false;
+
+    for (int i = 0; i < knowledges.size(); ++i) {
+        QJsonObject entry = knowledges.at(i).toObject();
+        if (entry.value("id").toString() == id) {
+            QString fileName = entry.value("file_name").toString();
+            QFile::remove("log/knowledge/" + fileName);
+            found = true;
+            qDebug() << "AIClientManager: Deleted knowledge file:" << fileName;
+            continue;
+        }
+        newKnowledges.append(entry);
+    }
+
+    if (found) {
+        m_knowledgeMetadata["knowledges"] = newKnowledges;
+        saveKnowledgeMetadata();
+    } else {
+        qWarning() << "AIClientManager: Knowledge id not found for deletion:" << id;
+    }
+}
+
+void AIClientManager::on_requestKnowledgeMetadata() {
+    loadKnowledgeMetadata();
+}
+
+void AIClientManager::onImportTimeout() {
+    qDebug() << "AIClientManager: Import timeout fired.";
+    if (m_importState == KnowledgeImportState::AwaitingFileAndExplanation) {
+        m_importState = KnowledgeImportState::CancelConfirmation;
+        AppEvent event;
+        event.source = "AIClientManager";
+        event.type = EventType::AIResponseReceived;
+        event.text = "ナレッジフォルダを開いてから10分が経過しましたが、登録の動きがありません。このまま登録作業をキャンセルしますか？（キャンセルする場合は「はい」または `/cancel` と入力してください）";
+        emit notifyEvent(event);
+    }
+}
+
+QString AIClientManager::finalizeKnowledgeImport(const QString &title, const QString &description, const QStringList &keywords) {
+    qDebug() << "AIClientManager: finalizeKnowledgeImport called with title:" << title
+             << "description:" << description << "keywords:" << keywords;
+
+    if (m_importingFileName.isEmpty() || m_importState != KnowledgeImportState::QandAMode) {
+        return "Error: No active knowledge import session to finalize.";
+    }
+
+    QDir().mkpath("log/knowledge");
+
+    // ユニークIDの生成
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
+    QString knowledgeId = QString("knowledge_%1").arg(timestamp);
+    QString newFileName = QString("%1.md").arg(knowledgeId);
+
+    // 一時フォルダからコピー
+    QString srcPath = "log/knowledge_input/" + m_importingFileName;
+    QString dstPath = "log/knowledge/" + newFileName;
+
+    if (!QFile::copy(srcPath, dstPath)) {
+        qWarning() << "AIClientManager: Failed to copy knowledge file from" << srcPath << "to" << dstPath;
+        return "Error: Failed to copy Markdown file to permanent storage.";
+    }
+
+    // 元の一時ファイルを削除（クリーンアップ）
+    QFile::remove(srcPath);
+
+    // メタデータの更新
+    QJsonArray knowledges = m_knowledgeMetadata.value("knowledges").toArray();
+    
+    QJsonObject newEntry;
+    newEntry["id"] = knowledgeId;
+    newEntry["title"] = title;
+    newEntry["description"] = description;
+    
+    QJsonArray kwArr;
+    for (const QString &kw : keywords) {
+        if (!kw.trimmed().isEmpty()) {
+            kwArr.append(kw.trimmed());
+        }
+    }
+    newEntry["keywords"] = kwArr;
+    newEntry["file_name"] = newFileName;
+    newEntry["registered_at"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
+    knowledges.append(newEntry);
+    m_knowledgeMetadata["knowledges"] = knowledges;
+
+    saveKnowledgeMetadata();
+
+    // 状態のリセット
+    m_importState = KnowledgeImportState::Idle;
+    m_importingFileName.clear();
+    m_importingFileContent.clear();
+
+    return "Success: Knowledge registered successfully.";
+}
+
+void AIClientManager::openKnowledgeInputFolder() {
+    QDir().mkpath("log/knowledge_input");
+    QString absPath = QDir("log/knowledge_input").absolutePath();
+    qDebug() << "AIClientManager: Opening knowledge input folder:" << absPath;
+    QDesktopServices::openUrl(QUrl::fromLocalFile(absPath));
+}
+

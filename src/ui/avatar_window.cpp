@@ -151,6 +151,10 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     initNicknameTab(m_nicknameTab);
     m_tabWidget->addTab(m_nicknameTab, "ニックネーム");
 
+    m_knowledgeTab = new QWidget(m_tabWidget);
+    initKnowledgeTab(m_knowledgeTab);
+    m_tabWidget->addTab(m_knowledgeTab, "ナレッジ");
+
     mainLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
 
@@ -1794,4 +1798,91 @@ void AvatarWindow::onUserTableCellChanged(int row, int column) {
 
     emit updateNicknamePreferredRequested(user, preferred);
     statusBar()->showMessage(QString("%1 さんの優先呼び名を「%2」に更新しました。").arg(user).arg(preferred));
+}
+
+void AvatarWindow::initKnowledgeTab(QWidget *parent) {
+    QVBoxLayout *layout = new QVBoxLayout(parent);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(10);
+
+    m_knowledgeTable = new QTableWidget(parent);
+    m_knowledgeTable->setColumnCount(5);
+    m_knowledgeTable->setHorizontalHeaderLabels({"タイトル", "概要説明", "キーワード", "登録日時", "ID"});
+    m_knowledgeTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_knowledgeTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_knowledgeTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_knowledgeTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_knowledgeTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    layout->addWidget(m_knowledgeTable);
+
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    m_deleteKnowledgeButton = new QPushButton("選択したナレッジを削除", parent);
+    connect(m_deleteKnowledgeButton, &QPushButton::clicked, this, &AvatarWindow::onDeleteKnowledgeClicked);
+    
+    btnLayout->addStretch();
+    btnLayout->addWidget(m_deleteKnowledgeButton);
+    layout->addLayout(btnLayout);
+}
+
+void AvatarWindow::updateKnowledgeTable() {
+    if (!m_knowledgeTable) return;
+    
+    m_knowledgeTable->setRowCount(0);
+    QJsonArray knowledges = m_cachedKnowledgeData.value("knowledges").toArray();
+    
+    for (int i = 0; i < knowledges.size(); ++i) {
+        QJsonObject entry = knowledges.at(i).toObject();
+        QString id = entry.value("id").toString();
+        QString title = entry.value("title").toString();
+        QString description = entry.value("description").toString();
+        
+        QJsonArray kwArr = entry.value("keywords").toArray();
+        QStringList kwList;
+        for (const QJsonValue &v : kwArr) {
+            kwList.append(v.toString());
+        }
+        QString keywords = kwList.join(", ");
+        
+        QString registeredAt = entry.value("registered_at").toString();
+
+        m_knowledgeTable->insertRow(i);
+        m_knowledgeTable->setItem(i, 0, new QTableWidgetItem(title));
+        m_knowledgeTable->setItem(i, 1, new QTableWidgetItem(description));
+        m_knowledgeTable->setItem(i, 2, new QTableWidgetItem(keywords));
+        m_knowledgeTable->setItem(i, 3, new QTableWidgetItem(registeredAt));
+        m_knowledgeTable->setItem(i, 4, new QTableWidgetItem(id));
+    }
+}
+
+void AvatarWindow::onDeleteKnowledgeClicked() {
+    if (!m_knowledgeTable) return;
+    
+    int row = m_knowledgeTable->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, "警告", "削除するナレッジを選択してください。");
+        return;
+    }
+    
+    QTableWidgetItem *itemId = m_knowledgeTable->item(row, 4);
+    QTableWidgetItem *itemTitle = m_knowledgeTable->item(row, 0);
+    if (!itemId || !itemTitle) return;
+    
+    QString id = itemId->text();
+    QString title = itemTitle->text();
+    
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "削除確認",
+        QString("ナレッジ「%1」を本当に削除しますか？\n(実体ファイルも削除されます)").arg(title),
+        QMessageBox::Yes | QMessageBox::No
+    );
+    
+    if (reply == QMessageBox::Yes) {
+        emit deleteKnowledgeRequested(id);
+        statusBar()->showMessage(QString("ナレッジ「%1」の削除を要求しました。").arg(title));
+    }
+}
+
+void AvatarWindow::onKnowledgeDataUpdated(const QJsonObject &data) {
+    m_cachedKnowledgeData = data;
+    updateKnowledgeTable();
 }

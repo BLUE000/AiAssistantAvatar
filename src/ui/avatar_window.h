@@ -76,7 +76,7 @@ private:
     QPushButton *m_sttButton = nullptr;
     QPushButton *m_menuButton = nullptr;
     
-    // 設定タブ用UI
+    // ニックネーム管理用UI
     QTabWidget *m_tabWidget = nullptr;
     QWidget *m_chatTab = nullptr;
     QWidget *m_settingsTab = nullptr;
@@ -84,6 +84,12 @@ private:
     QTableWidget *m_usersTable = nullptr;
     QTableWidget *m_requestsTable = nullptr;
     QJsonObject m_cachedUserNamesData;
+
+    // ナレッジ管理用UI
+    QWidget *m_knowledgeTab = nullptr;
+    QTableWidget *m_knowledgeTable = nullptr;
+    QPushButton *m_deleteKnowledgeButton = nullptr;
+    QJsonObject m_cachedKnowledgeData;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
@@ -181,7 +187,9 @@ private:
 
     void initSettingsTab(QWidget *parent);
     void initNicknameTab(QWidget *parent);
+    void initKnowledgeTab(QWidget *parent);
     void updateNicknameTables();
+    void updateKnowledgeTable();
     void loadSettingsToUI();
     void saveSettingsFromUI();
     void startWebSocketServer();
@@ -205,6 +213,7 @@ private slots:
     void onDeleteUserClicked();
     void onAddUserClicked();
     void onUserTableCellChanged(int row, int column);
+    void onDeleteKnowledgeClicked();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -226,6 +235,8 @@ signals:
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
     void settingsUpdated();
     void twitchReauthRequested();
+    void deleteKnowledgeRequested(const QString &id);
+    void requestKnowledgeMetadataRequested();
 
     // ニックネーム管理用要求シグナル
     void approveNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
@@ -237,4 +248,5 @@ public slots:
     // コアから通知を受け取るスロット
     void on_notify_events(const AppEvent &event);
     void onNicknameDataUpdated(const QJsonObject &data);
+    void onKnowledgeDataUpdated(const QJsonObject &data);
 };

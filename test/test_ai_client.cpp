@@ -762,3 +762,242 @@ TEST_F(AIClientTest, MetaSummaryMergeTest) {
 
     QDir("log").removeRecursively();
 }
+
+TEST_F(AIClientTest, SlashCommandBypassTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // /open_folder command (Direct Input)
+    manager.on_requestAI("/open_folder");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::AwaitingFileAndExplanation);
+
+    bool foundOpenEvent = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
+        if (event.type == EventType::AIResponseReceived && event.text.contains("ナレッジ入力フォルダを開きました")) {
+            foundOpenEvent = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundOpenEvent);
+
+    // /cancel command (Direct Input)
+    eventSpy.clear();
+    manager.on_requestAI("/cancel");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::Idle);
+    
+    bool foundCancelEvent = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
+        if (event.type == EventType::AIResponseReceived && event.text.contains("ナレッジの登録作業をキャンセルしました")) {
+            foundCancelEvent = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundCancelEvent);
+
+    // /invalid command (Direct Input)
+    eventSpy.clear();
+    manager.on_requestAI("/invalid");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::Idle);
+
+    bool foundInvalidEvent = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
+        if (event.type == EventType::AIResponseReceived && event.text.contains("無効なコマンドです")) {
+            foundInvalidEvent = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundInvalidEvent);
+}
+
+TEST_F(AIClientTest, TimeoutTransitionTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // Start import
+    manager.on_requestAI("/open_folder");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::AwaitingFileAndExplanation);
+
+    // Trigger timeout
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+    manager.onImportTimeout();
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::CancelConfirmation);
+
+    bool foundConfirmEvent = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
+        if (event.type == EventType::AIResponseReceived && event.text.contains("キャンセルしますか")) {
+            foundConfirmEvent = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundConfirmEvent);
+
+    // Send "いいえ" to continue
+    eventSpy.clear();
+    manager.on_requestAI("いいえ");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::AwaitingFileAndExplanation);
+
+    // Trigger timeout again
+    manager.onImportTimeout();
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::CancelConfirmation);
+
+    // Send "はい" to cancel
+    eventSpy.clear();
+    manager.on_requestAI("はい");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::Idle);
+}
+
+TEST_F(AIClientTest, FileDetectionAndQAStateTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    manager.on_requestAI("/open_folder");
+    
+    // Setup temporary folder and file
+    QDir().mkpath("log/knowledge_input");
+    QFile file("log/knowledge_input/test_file.md");
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write("Content of test_file.md");
+    file.close();
+
+    // Mention filename and explanation
+    manager.on_requestAI("test_file.md を登録したい。これはテストファイルです。");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::QandAMode);
+
+    // Check if context is injected into lastFinalPrompt
+    QString finalPrompt = manager.lastFinalPrompt();
+    EXPECT_TRUE(finalPrompt.contains("Content of test_file.md"));
+    EXPECT_TRUE(finalPrompt.contains("登録対話モードです"));
+
+    // Cleanup
+    QDir("log").removeRecursively();
+}
+
+TEST_F(AIClientTest, FinalizeKnowledgeImportTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    manager.on_requestAI("/open_folder");
+
+    QDir().mkpath("log/knowledge_input");
+    QFile file("log/knowledge_input/test_file.md");
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write("Content of test_file.md");
+    file.close();
+
+    manager.on_requestAI("test_file.md を登録したい。これはテストファイルです。");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::QandAMode);
+
+    // Finalize
+    QSignalSpy metadataSpy(&manager, &AIClientManager::knowledgeMetadataUpdated);
+    QString result = manager.finalizeKnowledgeImport("Test File Title", "Test File Description", QStringList() << "test" << "file" << "mock");
+    EXPECT_TRUE(result.startsWith("Success"));
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::Idle);
+
+    // Verify file moved to log/knowledge/
+    QDir knowledgeDir("log/knowledge");
+    QStringList files = knowledgeDir.entryList(QStringList() << "knowledge_*.md", QDir::Files);
+    EXPECT_EQ(files.size(), 1);
+    
+    QFile copiedFile("log/knowledge/" + files.first());
+    ASSERT_TRUE(copiedFile.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content = QString::fromUtf8(copiedFile.readAll());
+    copiedFile.close();
+    EXPECT_EQ(content, "Content of test_file.md");
+
+    // Verify temporary file removed
+    EXPECT_FALSE(QFile::exists("log/knowledge_input/test_file.md"));
+
+    // Verify metadata saved
+    EXPECT_EQ(metadataSpy.count(), 1);
+    QJsonObject meta = manager.knowledgeMetadata();
+    QJsonArray knowledges = meta.value("knowledges").toArray();
+    EXPECT_EQ(knowledges.size(), 1);
+    
+    QJsonObject entry = knowledges.first().toObject();
+    EXPECT_EQ(entry.value("title").toString(), "Test File Title");
+    EXPECT_EQ(entry.value("description").toString(), "Test File Description");
+    EXPECT_EQ(entry.value("keywords").toArray().size(), 3);
+    EXPECT_EQ(entry.value("file_name").toString(), files.first());
+
+    // Cleanup
+    QDir("log").removeRecursively();
+}
+
+TEST_F(AIClientTest, SecurityRestrictionTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // Twitch user tries to trigger /open_folder
+    manager.on_requestAI("/open_folder", "[Twitch:channel] user");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::Idle);
+
+    // Discord user tries to trigger /open_folder
+    manager.on_requestAI("/open_folder", "[Discord:1234] user");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::Idle);
+
+    // Setup temporary folder and file
+    manager.on_requestAI("/open_folder"); // Admin opens it
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::AwaitingFileAndExplanation);
+
+    QDir().mkpath("log/knowledge_input");
+    QFile file("log/knowledge_input/test_file.md");
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write("Content of test_file.md");
+    file.close();
+
+    // Twitch user tries to submit explanation with file
+    manager.on_requestAI("test_file.md を登録したい。", "[Twitch:channel] user");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::AwaitingFileAndExplanation); // Remains Awaiting
+
+    // Admin submits it
+    manager.on_requestAI("test_file.md を登録したい。");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::QandAMode);
+
+    // Twitch user tries to call finalize (should fail/ignore or not affect since finalize is tool-based)
+    manager.on_requestAI("Hello", "[Twitch:channel] user");
+    EXPECT_EQ(manager.importState(), KnowledgeImportState::QandAMode); // State remains QandAMode
+
+    // Cleanup
+    QDir("log").removeRecursively();
+}
+
+TEST_F(AIClientTest, RAGRecallTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // Prepare metadata
+    manager.on_requestAI("/open_folder");
+    QDir().mkpath("log/knowledge_input");
+    QFile file("log/knowledge_input/test_file.md");
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write("This is critical system knowledge about setup.");
+    file.close();
+    manager.on_requestAI("test_file.md is the file.");
+    manager.finalizeKnowledgeImport("System Setup Guide", "Guide to setup the system", QStringList() << "setup" << "critical");
+
+    // Now request with query containing keyword "setup"
+    manager.on_requestAI("Please show the setup steps.");
+
+    QString finalPrompt = manager.lastFinalPrompt();
+    EXPECT_TRUE(finalPrompt.contains("[関連知識: System Setup Guide]"));
+    EXPECT_TRUE(finalPrompt.contains("This is critical system knowledge about setup."));
+
+    // Now request with query containing keyword "critical"
+    manager.on_requestAI("This is a critical alert.");
+    finalPrompt = manager.lastFinalPrompt();
+    EXPECT_TRUE(finalPrompt.contains("[関連知識: System Setup Guide]"));
+
+    // Request with query containing no keyword
+    manager.on_requestAI("Hello how are you.");
+    finalPrompt = manager.lastFinalPrompt();
+    EXPECT_FALSE(finalPrompt.contains("[関連知識: System Setup Guide]"));
+
+    // Cleanup
+    QDir("log").removeRecursively();
+}

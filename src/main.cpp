@@ -202,6 +202,22 @@ int main(int argc, char *argv[]) {
     QObject::connect(&window, &AvatarWindow::updateNicknamePreferredRequested,
                      ai, &AIClientManager::updateNicknamePreferred, Qt::QueuedConnection);
 
+    // UI -> Core (ナレッジ管理要求)
+    QObject::connect(&window, &AvatarWindow::deleteKnowledgeRequested,
+                     core, &CoreModule::on_deleteKnowledgeRequested, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::requestKnowledgeMetadataRequested,
+                     core, &CoreModule::on_requestKnowledgeMetadata, Qt::QueuedConnection);
+
+    // Core -> AI (ナレッジ管理要求中継)
+    QObject::connect(core, &CoreModule::requestDeleteKnowledge,
+                     ai, &AIClientManager::deleteKnowledge, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestKnowledgeMetadata,
+                     ai, &AIClientManager::on_requestKnowledgeMetadata, Qt::QueuedConnection);
+
+    // AI -> UI (ナレッジデータ同期)
+    QObject::connect(ai, &AIClientManager::knowledgeMetadataUpdated,
+                     &window, &AvatarWindow::onKnowledgeDataUpdated, Qt::QueuedConnection);
+
     // 7. スレッドの開始
     coreThread.start();
     twitchThread.start();
@@ -213,8 +229,9 @@ int main(int argc, char *argv[]) {
     emit core->requestTwitchStart();
     QMetaObject::invokeMethod(discord, "on_startReading", Qt::QueuedConnection);
 
-    // 起動時の初期ニックネームデータ送信要求
+    // 起動時の初期データ送信要求
     QMetaObject::invokeMethod(ai, "saveUserNames", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(ai, "on_requestKnowledgeMetadata", Qt::QueuedConnection);
 
     // 8. アプリケーション終了時の安全なクリーンアップ（常駐スレッドの解放）
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {

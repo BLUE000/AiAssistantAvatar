@@ -24,6 +24,8 @@ signals:
     void requestTwitchReauth(); // Twitch再認可要求シグナル
     void requestDiscordSend(const QString &channelId, const QString &text); // Discordメッセージ送信要求
     void requestTwitchSend(const QString &channel, const QString &text);   // Twitchメッセージ送信要求
+    void requestDeleteKnowledge(const QString &id);
+    void requestKnowledgeMetadata();
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -37,4 +39,6 @@ public slots:
     void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
     void on_settingsUpdated(); // 設定更新を受け取るスロット
     void on_twitchReauthRequested(); // Twitch再認可要求を受け取るスロット
+    void on_deleteKnowledgeRequested(const QString &id);
+    void on_requestKnowledgeMetadata();
 };

@@ -77,6 +77,11 @@ classDiagram
 | **UT-AI-04** | `AIClientManager` (ニックネーム本人/配信主登録) | 申請者 alice、対象者 alice、ニックネーム「ありちゃん」で `handleNicknameUpdateRequest` を実行する。 | 1. 戻り値が成功（`Success:`）であること。<br>2. `user_names.json` の `users.alice.preferred` が「ありちゃん」に登録・保存されること。 |
 | **UT-AI-05** | `AIClientManager` (ニックネーム他者保留) | 申請者 bob、対象者 alice、ニックネーム「ありんこ」で `handleNicknameUpdateRequest` を実行する。 | 1. 戻り値が保留通知（`Notification:`）であること。<br>2. `user_names.json` の `pending_requests` に bob からの申請が追加保存されること。 |
 | **UT-AI-06** | `AIClientManager` (配信主承認/却下) | 配信主が `approveNicknameRequest` または `rejectNicknameRequest` を呼び出す。 | 1. 承認時は `users` セクションにニックネームが移動され、保留リストから消去されること。<br>2. 却下時は登録されず保留リストから消去されること。 |
+| **UT-AI-07** | `AIClientManager` (スラッシュコマンド判定) | Direct Input（`user` が空）で `/open_folder` または `/cancel` を実行する。 | 1. `MockAIClient::sendRequest` は呼び出されないこと（LLMバイパス）。<br>2. `/open_folder` の場合は 10分タイマーが開始し、状態が `AwaitingFileAndExplanation` になること。<br>3. `/cancel` の場合はタイマーが停止し、状態が `Idle` になること。<br>4. 不正なコマンド（`/invalid`）は即座にエラーイベントが通知されること。 |
+| **UT-AI-08** | `AIClientManager` (10分タイムアウト) | `AwaitingFileAndExplanation` 状態で、10分タイマーがタイムアウト（`onImportTimeout`）する。 | 1. 状態が `CancelConfirmation` に遷移すること。<br>2. ユーザーへキャンセル確認の通知イベントが発生すること。 |
+| **UT-AI-09** | `AIClientManager` (一時ファイル確認と読込) | `AwaitingFileAndExplanation` 状態で、一時フォルダに `test.md` を配置し、チャットで「test.mdの説明」を入力する。 | 1. 10分タイマーが停止すること。<br>2. `test.md` の内容が読み込まれ、メンバ変数 `m_importingFileContent` に保持されること。<br>3. 状態が `QandAMode` に遷移し、AI要求（ファイル内容＋説明）が送信されること。 |
+| **UT-AI-10** | `AIClientManager` (ナレッジ本登録とメタデータ) | `QandAMode` 状態で、本登録ツール `finalizeKnowledgeImport("タイトル", "説明", キーワードリスト)` を実行する。 | 1. 一時フォルダのファイルが `log/knowledge/` にコピー・リネームされること。<br>2. `knowledge_metadata.json` にメタデータ（タイトル、説明、キーワード、ファイル名）が正しく追加保存されること。<br>3. 状態が `Idle` に戻り、UI更新シグナル `knowledgeMetadataUpdated` が発火すること。 |
+| **UT-AI-11** | `AIClientManager` (セキュリティ制限) | Twitch/Discord（`user` が非空）から、`/open_folder` やナレッジ登録関連の入力を行う。 | 1. コマンド判定がバイパスされ、AIクライアントへのツール追加や実行が拒否・無視されること（Twitch/Discordからはナレッジ操作不可）。 |
 
 
 ---

@@ -110,4 +110,14 @@ void CoreModule::on_twitchReauthRequested() {
     emit requestTwitchReauth();
 }
 
+void CoreModule::on_deleteKnowledgeRequested(const QString &id) {
+    qDebug() << "CoreModule: Propagation of deleteKnowledge to AIClientManager for ID:" << id;
+    emit requestDeleteKnowledge(id);
+}
+
+void CoreModule::on_requestKnowledgeMetadata() {
+    qDebug() << "CoreModule: Propagation of requestKnowledgeMetadata to AIClientManager";
+    emit requestKnowledgeMetadata();
+}
+
 

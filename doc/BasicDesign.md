@@ -33,12 +33,12 @@ graph TD
 
 | モジュール名 | 主要クラス名 | 動作スレッド | 主な責務 |
 | :--- | :--- | :--- | :--- |
-| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認可、WebHook設定、Discord連携設定）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・アバター状態変化やAI応答テキストの外部WebHookへのPOST送信（非同期）<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
+| **UIモジュール** | `AvatarWindow` | メイン（GUI）スレッド | ・アバターウィンドウの描画（750x480の左右2ペイン構成）<br>・直接テキスト入力欄（チャットタブ）の提供<br>・設定タブ（設定保存・適用、Twitch OAuth認可、WebHook設定、Discord連携設定）の提供<br>・ナレッジ管理UI（登録済みナレッジ一覧、削除機能）の提供<br>・OBS配信連携用WebSocketサーバー（ブロードキャスト）の提供<br>・最新AI応答表示領域（吹き出し風装飾されたQTextBrowser）の提供<br>・アバター状態変化やAI応答テキストの外部WebHookへのPOST送信（非同期）<br>・ユーザー操作の受付とコアへの要求発行、イベント受信による表示更新 |
 | **Twitchモジュール**| `TwitchReader` | Twitchスレッド | ・認証トークンがない場合等にブラウザでOAuth画面（`force_verify=true`）を開き、一時HTTPサーバーを構築してリダイレクトを受け、JavaScript付きHTMLを返してURLハッシュ（フラグメント）からアクセストークンを受信・保存する<br>・取得したトークンを用いたTwitchチャット接続（WebSocket）<br>・コメント監視およびウェイクワード判定<br>・マッチしたコメントのイベント通知 |
 | **Discordモジュール**| `DiscordReader` | Discordスレッド | ・Discordボット接続（WebSocketゲートウェイ）の維持および定期ハートビート送信<br>・対象チャンネルでのメッセージ受信（`MESSAGE_CREATE`）監視とイベント通知<br>・AI応答を指定されたDiscordチャンネルへ非同期でPOST送信（REST API） |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
-| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御<br>・**2段目（Client）**: 各AI API固有のHTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
+| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御。さらに、UI直接入力（Direct Input）に限定した対話型Markdownナレッジ登録（10分タイマー監視、メタデータ管理、本登録）の制御<br>・**2段目（Client）**: 各AI API固有 of HTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御、およびナレッジ本登録ツール・フォルダオープンツール呼び出しの制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
 
 ---
 
@@ -885,15 +885,121 @@ sequenceDiagram
     "Qt6",
     "ニックネーム機能",
     "認証"
-  ],
-  "meta_summary": "この期間の主な話題は、アバター開発におけるQt6や認証、およびユーザー「alice」とりんごやゲーム設計について話したことである。",
-  "child_sessions": [
+    "child_sessions": [
     "session_20260629_233000",
     "session_20260629_120000"
   ]
 }
 ```
 
+### 5.17 対話型ナレッジ登録状態遷移と10分タイマー制御
+本登録フローでは、ユーザーによる誤操作や放置を検知するため、`AIClientManager` が登録状態を管理し、10分（600,000ミリ秒）のタイムアウト監視（`QTimer`）を実行する。
 
+*   **`Idle` (通常状態):** ユーザーとの通常の雑談、Twitch/Discordコメント受付。
+*   **`AwaitingFileAndExplanation` (一時フォルダ開放・ファイル配置・説明待ち状態):** 
+    *   `/open_folder` コマンドによって移行。
+    *   10分タイマーが作動開始。
+    *   この時間内に、ユーザーがファイルを配置し、チャットで「ファイル名」と「その説明」を入力するのを待機。
+    *   10分間何も入力がなければ `CancelConfirmation` 状態に遷移。
+*   **`CancelConfirmation` (キャンセル確認状態):**
+    *   タイムアウト時に移行。AIが「10分経過しましたが、キャンセルしますか？」と発話。
+    *   ユーザーが「キャンセルする（または無反応）」の場合は `Idle` に戻る。「キャンセルしない」の場合は `AwaitingFileAndExplanation` に戻り、タイマーが再始動する。
+*   **`QandAMode` (対話Q&Aモード):**
+    *   ファイル配置が確認され、かつ説明がチャットで入力されたら移行（10分タイマーは停止）。
+    *   AIがファイル内容とユーザーの説明を読み込み、曖昧な点を質問する対話を開始。
+    *   完了指示を受け、AIが `finalize_knowledge_import` ツールを呼ぶことで本登録を完了し、`Idle` に戻る。
+
+### 5.18 スラッシュコマンド（半角）のC++ネイティブ前処理
+UIの直接チャット入力（Direct Input）において、半角スラッシュ（`/`）で始まる文字列が送信された場合、**AIへのAPIリクエストを完全にバイパスしてC++側で即時判定を行う。**
+
+*   入力の先頭が `/` である場合、`AIClientManager::on_requestAI` にて文字列の完全一致比較を実施する。
+*   **`/open_folder`**: ナレッジ入力フォルダ（`log/knowledge_input/`）を作成・オープン（`QDesktopServices::openUrl`）。10分タイマーを開始し、状態を `AwaitingFileAndExplanation` に移行。AIの応答を待たずに「フォルダを開きました。ファイルを置いて、ファイル名と説明を教えてください。」と即座にUIへシステム応答を返す。
+*   **`/cancel`**: インポート状態をリセットし、タイマーを停止して通常会話状態に戻る。即座に「ナレッジ登録をキャンセルしました。」とシステム応答を返す。
+*   **その他の `/` で始まる不一致コマンド**: AIへのリクエストを送信せず、即座に「無効なコマンドです。」とシステム応答を返す。
+*   **Twitch/Discordからの `/` 入力**: セキュリティ確保のため、完全無視し、通常の文字列チャットとして扱うか、または一切の処理をバイパスする。
+
+### 5.19 スラッシュコマンド判定とフォルダオープン・インポートシーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー (Direct UI)
+    participant UI as UIモジュール (AvatarWindow)
+    participant Core as コア (CoreModule)
+    participant AI as AIモジュール (AIClientManager)
+    participant Timer as QTimer (10分タイムアウト)
+    participant Mistral as Mistral AI API
+
+    %% 1. フォルダオープンコマンド
+    User->>UI: コマンド入力「/open_folder」
+    UI->>Core: directInputSubmitted("/open_folder")
+    Core->>AI: requestAI("/open_folder", "")
+    Note over AI: 先頭の半角「/」を検知し、即座にネイティブ分岐 (AI送信をバイパス)
+    AI->>AI: log/knowledge_input/ フォルダを生成
+    AI->>UI: QDesktopServices::openUrl() でフォルダを開く
+    AI->>Timer: 10分タイマーをスタート (600000ms)
+    AI->>AI: 状態を AwaitingFileAndExplanation に変更
+    AI->>Core: notifyEvent (AIResponseReceived, "フォルダを開きました。ファイルを置いて...")
+    Core->>UI: notifyEventToUI (...)
+    UI-->>User: 吹き出し表示
+
+    %% 2. ユーザーによるファイル配置と説明チャット
+    Note over User: log/knowledge_input/ に my_tool.md を配置
+    User->>UI: チャット入力「my_tool.mdを置いたよ。これは〇〇の説明ファイル。」
+    UI->>Core: directInputSubmitted(...)
+    Core->>AI: requestAI(...)
+    AI->>Timer: タイマーを停止 (QTimer::stop)
+    AI->>AI: ファイル my_tool.md が存在するかチェック (QFile::exists)
+    alt ファイルあり
+        AI->>AI: ファイル内容を読み込み m_importingFileContent に保持
+        AI->>AI: 状態を QandAMode に変更
+        AI->>Mistral: ファイル内容 ＋ ユーザー説明 ＋ Q&A用システムプロンプトで対話要求
+        Mistral-->>AI: 質問応答レスポンス (例：「〇〇について理解しました。これの主なキーワードは何ですか？」)
+        AI->>Core: notifyEvent (AIResponseReceived, ai_response)
+        Core->>UI: notifyEventToUI (...)
+        UI-->>User: AIの発言を表示
+    else ファイルなし
+        AI->>Timer: タイマーを再スタート
+        AI->>Core: notifyEvent (ErrorOccurred, "ファイルが見つかりません。...")
+        Core->>UI: notifyEventToUI (...)
+    end
+
+    %% 3. Q&A対話と本登録 (完了)
+    User->>UI: チャット入力「キーワードは 〇〇, ✕✕。これで登録完了して！」
+    UI->>Core: directInputSubmitted(...)
+    Core->>AI: requestAI(...)
+    AI->>Mistral: ユーザー発言を送信
+    Note over Mistral: 登録完了指示を理解し、ツール呼び出しを決定
+    Mistral-->>AI: tool_calls (finalize_knowledge_import, args...)
+    AI->>AI: my_tool.md を log/knowledge/ へ移動<br/>metadata.json にタイトル、説明、キーワードを登録
+    AI->>AI: 状態を Idle にリセット
+    AI->>Mistral: ツール実行結果「Success」を返信
+    Mistral-->>AI: 最終応答「登録が完了しました！」
+    AI->>Core: notifyEvent (AIResponseReceived, "登録が完了しました！")
+    Core->>UI: notifyEventToUI (...)
+    UI-->>User: 吹き出し表示
 ```
 
+### 5.20 登録済みナレッジのメタデータデータ構造 (`knowledge_metadata.json`)
+登録されたナレッジは `log/knowledge/` にコピーされ、以下のスキーマの JSON メタデータファイルで一元管理される。
+
+```json
+{
+  "knowledges": [
+    {
+      "id": "knowledge_20260707_233906",
+      "title": "TwitchChannelManagementTool API仕様",
+      "description": "TwitchChannelManagementToolのプラグイン用インターフェースとAPIリファレンス。",
+      "keywords": [
+        "TwitchChannelManagementTool",
+        "プラグイン",
+        "API",
+        "仕様"
+      ],
+      "file_name": "knowledge_20260707_233906.md",
+      "registered_at": "2026-07-07T23:39:06Z"
+    }
+  ]
+}
+```
+*   `file_name`: 実際のMarkdownファイルは、名前の競合や安全性を考慮し、IDベースの名前（例: `knowledge_20260707_233906.md`）にリネームされて `log/knowledge/` ディレクトリ配下に格納される。

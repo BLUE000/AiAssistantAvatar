@@ -131,6 +131,8 @@ signals:
     void settingsUpdated();
     void requestTwitchReauth();
     void requestDiscordSend(const QString &channelId, const QString &text);
+    void requestDeleteKnowledge(const QString &id);
+    void requestKnowledgeMetadata();
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット
@@ -144,6 +146,8 @@ public slots:
     void on_exportSessionRequested(const QString &encPath, const QString &txtPath);
     void on_settingsUpdated();
     void on_twitchReauthRequested();
+    void on_deleteKnowledgeRequested(const QString &id);
+    void on_requestKnowledgeMetadata();
 };
 ```
 
@@ -231,6 +235,11 @@ private:
     QPushButton *m_deleteUserButton = nullptr;
     QPushButton *m_addUserButton = nullptr;
     QJsonObject m_cachedUserNamesData;
+
+    // ナレッジ管理用UI
+    QTableWidget *m_knowledgeTable = nullptr;
+    QPushButton *m_deleteKnowledgeButton = nullptr;
+    QJsonObject m_cachedKnowledgeData;
     
     void loadSettings();
     void processAndCacheImages();
@@ -241,7 +250,9 @@ private:
     
     void initSettingsTab(QWidget *parent);
     void initNicknameTab(QWidget *parent);
+    void initKnowledgeTab(QWidget *parent);
     void updateNicknameTables();
+    void updateKnowledgeTable();
     void loadSettingsToUI();
     void saveSettingsFromUI();
     void startWebSocketServer();
@@ -263,6 +274,7 @@ private slots:
     void onDeleteUserClicked();
     void onAddUserClicked();
     void onNicknameTableDoubleClicked(int row, int column);
+    void onDeleteKnowledgeClicked();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -283,6 +295,8 @@ signals:
     void exportSessionRequested(const QString &encPath, const QString &txtPath);
     void settingsUpdated();
     void twitchReauthRequested();
+    void deleteKnowledgeRequested(const QString &id);
+    void requestKnowledgeMetadataRequested();
     
     // ニックネーム操作要求
     void approveNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
@@ -294,6 +308,7 @@ public slots:
     // コアから通知を受け取るスロット
     void on_notify_events(const AppEvent &event);
     void onNicknameDataUpdated(const QJsonObject &data);
+    void onKnowledgeDataUpdated(const QJsonObject &data);
 };
 ```
 
@@ -495,13 +510,12 @@ signals:
 };
 ```
 
-#### B. `AIClientManager` クラス (1段目)
-コアモジュールからの通信および共通エラー/タイムアウト、イベント成型を担当する。
-```cpp
-#pragma once
-#include <QObject>
-#include "iai_client.h"
-#include "app_event.h"
+enum class KnowledgeImportState {
+    Idle,
+    AwaitingFileAndExplanation,
+    CancelConfirmation,
+    QandAMode
+};
 
 class AIClientManager : public QObject {
     Q_OBJECT
@@ -530,6 +544,13 @@ private:
     void scanMemorySummaries(const QString &prompt);
     void loadMemoryDetail(const QString &sessionId);
 
+    // ナレッジ管理・対話登録
+    KnowledgeImportState m_importState = KnowledgeImportState::Idle;
+    QTimer *m_importTimeoutTimer = nullptr;
+    QString m_importingFileName;
+    QString m_importingFileContent;
+    QJsonObject m_knowledgeMetadata;
+
     void loadCredentials();
     void loadSessionContext();
     void saveSessionContext(const QString &context);
@@ -543,17 +564,24 @@ private:
     bool isLanguageIndicator(const QString &lang) const;
     QString mapLanguage(const QString &lang) const;
 
+    // ナレッジ管理ヘルパー
+    void loadKnowledgeMetadata();
+    void saveKnowledgeMetadata();
+    void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
+
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
     void setAIProvider(const QString &provider); // "mistral" or "dummy"
     QList<QPair<QString, QString>> getChatHistory() const;
     QJsonObject userNamesObj() const { return m_userNamesObj; }
+    KnowledgeImportState importState() const { return m_importState; }
 
 signals:
     void notifyEvent(const AppEvent &event);
     void chatHistoryUpdated(const QList<QPair<QString, QString>> &history);
     void userNamesUpdated(const QJsonObject &data);
+    void knowledgeMetadataUpdated(const QJsonObject &data);
 
 public slots:
     void on_requestAI(const QString &prompt, const QString &user = "");
@@ -569,6 +597,13 @@ public slots:
     void rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
     void deleteNickname(const QString &user);
     void updateNicknamePreferred(const QString &user, const QString &preferred);
+
+    // ナレッジ管理・タイムアウトスロット
+    void deleteKnowledge(const QString &id);
+    void on_requestKnowledgeMetadata();
+    void onImportTimeout();
+    QString finalizeKnowledgeImport(const QString &title, const QString &description, const QStringList &keywords);
+    void openKnowledgeInputFolder();
 };
 ```
 
