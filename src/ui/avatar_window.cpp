@@ -877,21 +877,22 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             if (!m_resumeTimer) {
                 m_resumeTimer = new QTimer(this);
                 m_resumeTimer->setSingleShot(true);
-                connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
-                    m_isProcessingAI = false;
-                    resumeScheduler();
-                    statusBar()->showMessage("待機中...");
-
-                    // 吹き出しを消すための通知（空の文字列を送信）
-                    QJsonObject clearObj;
-                    clearObj["type"] = "AIResponseReceived";
-                    clearObj["responseText"] = "";
-                    broadcastToOBS(clearObj);
-
-                    // 次のキューがあれば処理を開始
-                    processNextRequest();
-                });
             }
+            m_resumeTimer->disconnect();
+            connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
+                m_isProcessingAI = false;
+                resumeScheduler();
+                statusBar()->showMessage("待機中...");
+
+                // 吹き出しを消すための通知（空の文字列を送信）
+                QJsonObject clearObj;
+                clearObj["type"] = "AIResponseReceived";
+                clearObj["responseText"] = "";
+                broadcastToOBS(clearObj);
+
+                // 次のキューがあれば処理を開始
+                processNextRequest();
+            });
             m_resumeTimer->start(displayMs);
             break;
         }
@@ -906,11 +907,14 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             if (!m_resumeTimer) {
                 m_resumeTimer = new QTimer(this);
                 m_resumeTimer->setSingleShot(true);
-                connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
-                    resumeScheduler();
-                    statusBar()->showMessage("待機中...");
-                });
             }
+            m_resumeTimer->disconnect();
+            connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
+                m_isProcessingAI = false;
+                resumeScheduler();
+                statusBar()->showMessage("待機中...");
+                processNextRequest();
+            });
             m_resumeTimer->start(5000);
             break;
 
