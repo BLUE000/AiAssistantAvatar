@@ -39,6 +39,7 @@ private:
     QStringList m_whitelist;
     bool m_isTranslationRequest = false;
     QString m_streamerName;
+    QString m_avatarName;
     QString m_currentRequester;
 
     void loadCredentials();
@@ -88,6 +89,7 @@ public:
     KnowledgeImportState importState() const { return m_importState; }
     QJsonObject knowledgeMetadata() const { return m_knowledgeMetadata; }
     QString lastFinalPrompt() const { return m_lastFinalPrompt; }
+    QString avatarName() const { return m_avatarName; }
 
     // 暗号化バックアップの復号・読み出し用I/F
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);

@@ -101,7 +101,8 @@ void AIClientManager::loadCredentials() {
             m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
             m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
             m_streamerName = obj["twitch_channel"].toString().trimmed().toLower();
-            qDebug() << "AIClientManager: Loaded settings from" << configPath << "Blacklist enabled:" << m_blacklistEnabled << "Streamer name:" << m_streamerName;
+            m_avatarName = obj["avatar_name"].toString("AIアシスタント").trimmed();
+            qDebug() << "AIClientManager: Loaded settings from" << configPath << "Blacklist enabled:" << m_blacklistEnabled << "Streamer name:" << m_streamerName << "Avatar name:" << m_avatarName;
         }
     }
 }

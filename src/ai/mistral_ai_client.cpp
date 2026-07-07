@@ -54,9 +54,16 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     QJsonObject systemMessage;
     systemMessage["role"] = "system";
 
-    QString systemPrompt = "あなたはデスクトップマスコットのAIアシスタントです。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。"
-                           "ユーザーが「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合は、必ず『update_nickname』ツールを呼び出して、そのユーザーのニックネームに「〇〇」を設定してください。"
-                           "また、あなたには翻訳機能があります。ユーザーが翻訳をしたい場合、チャット欄で「[ウェイクワード] trans [言語] [翻訳したいテキスト]」と入力すれば翻訳を実行できます（例：「!ai trans en こんにちは」）。[言語]を省略した場合はデフォルトで日本語に翻訳されます。ユーザーから翻訳の使い方を聞かれた場合は、この「[ウェイクワード] trans [言語] [テキスト]」というコマンドの使い方を親切に教えてあげてください。";
+    QString avatarName = "AIアシスタント";
+    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+    if (manager) {
+        avatarName = manager->avatarName();
+    }
+
+    QString systemPrompt = QString("あなたはデスクトップマスコットのAIアシスタントです。あなたの名前は「%1」です。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。")
+                            .arg(avatarName)
+                           + "ユーザーが「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合は、必ず『update_nickname』ツールを呼び出して、そのユーザーのニックネームに「〇〇」を設定してください。"
+                             "また、あなたには翻訳機能があります。ユーザーが翻訳をしたい場合、チャット欄で「[ウェイクワード] trans [言語] [翻訳したいテキスト]」と入力すれば翻訳を実行できます（例：「!ai trans en こんにちは」）。[言語]を省略した場合はデフォルトで日本語に翻訳されます。ユーザーから翻訳の使い方を聞かれた場合は、この「[ウェイクワード] trans [言語] [テキスト]」というコマンドの使い方を親切に教えてあげてください。";
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
     }
@@ -146,7 +153,6 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 
     m_toolsArray.append(nickTool);
 
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
     if (manager && manager->importState() == KnowledgeImportState::QandAMode) {
         QJsonObject importTool;
         importTool["type"] = "function";
