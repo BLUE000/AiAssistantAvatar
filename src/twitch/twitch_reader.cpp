@@ -336,6 +336,23 @@ void TwitchReader::on_stopReading() {
 }
 
 void TwitchReader::injectTestComment(const QString &user, const QString &message) {
+    // Bot自身や既知のBotアカウントからのメッセージは無視する
+    static const QStringList knownBots = {
+        "nightbot", "streamelements", "moobot", "streamlabs", "fossabot",
+        "wizebot", "phantombot", "coebot", "botisimo", "d0nk"
+    };
+    QString userLower = user.toLower();
+    // Bot自身のアカウント名を除外
+    if (!m_botName.isEmpty() && userLower == m_botName.toLower()) {
+        qDebug() << "TwitchReader: Ignored self-message from bot account:" << user;
+        return;
+    }
+    // 既知のBotアカウントを除外
+    if (knownBots.contains(userLower)) {
+        qDebug() << "TwitchReader: Ignored known bot:" << user;
+        return;
+    }
+
     qDebug() << "TwitchReader: Injected comment from" << user << ":" << message;
 
     if (m_wakeWord.isEmpty() && m_avatarName.isEmpty()) return;
