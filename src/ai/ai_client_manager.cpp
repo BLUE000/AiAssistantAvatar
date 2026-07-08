@@ -1,5 +1,6 @@
 #include "ai_client_manager.h"
 #include "mistral_ai_client.h"
+#include "cerebras_ai_client.h"
 #include "dummy_ai_client.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
@@ -96,6 +97,8 @@ void AIClientManager::loadCredentials() {
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
             m_apiKey = obj["mistral_api_key"].toString();
+            m_cerebrasApiKey = obj["cerebras_api_key"].toString();
+            m_cerebrasModel = obj["cerebras_model"].toString("llama-3.3-70b");
             m_tavilyApiKey = obj["tavily_api_key"].toString();
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
             m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
@@ -347,11 +350,17 @@ void AIClientManager::setAIProvider(const QString &provider) {
     m_provider = provider;
     if (provider == "mistral") {
         m_currentClient = new MistralAIClient(this);
+        m_currentClient->setApiKey(m_apiKey);
+    } else if (provider == "cerebras") {
+        CerebrasAIClient *cerClient = new CerebrasAIClient(this);
+        cerClient->setModel(m_cerebrasModel);
+        m_currentClient = cerClient;
+        m_currentClient->setApiKey(m_cerebrasApiKey);
     } else {
         m_currentClient = new DummyAIClient(this);
+        m_currentClient->setApiKey(m_apiKey);
     }
 
-    m_currentClient->setApiKey(m_apiKey);
     m_currentClient->setTavilyApiKey(m_tavilyApiKey);
 
     connect(m_currentClient, &IAIClient::requestFinished,

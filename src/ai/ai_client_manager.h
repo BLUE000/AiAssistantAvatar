@@ -21,7 +21,9 @@ private:
     IAIClient *m_currentClient = nullptr;
     QString m_apiKey;
     QString m_tavilyApiKey;
-    QString m_provider; // "mistral" or "dummy"
+    QString m_cerebrasApiKey;
+    QString m_cerebrasModel;
+    QString m_provider; // "mistral", "cerebras", or "dummy"
     QString m_transCipherKey; // 難読化用の秘密鍵
     QList<QPair<QString, QString>> m_chatHistory; // 会話履歴 (ユーザー入力, AI応答)
     QString m_sessionContext; // マークダウンのコンテキスト要約

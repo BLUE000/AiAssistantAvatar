@@ -148,6 +148,10 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     initSettingsTab(m_settingsTab);
     m_tabWidget->addTab(m_settingsTab, "設定");
 
+    m_aiSettingsTab = new QWidget(m_tabWidget);
+    initAiSettingsTab(m_aiSettingsTab);
+    m_tabWidget->addTab(m_aiSettingsTab, "AI設定");
+
     m_nicknameTab = new QWidget(m_tabWidget);
     initNicknameTab(m_nicknameTab);
     m_tabWidget->addTab(m_nicknameTab, "ニックネーム");
@@ -971,15 +975,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_avatarNameEdit = new QLineEdit(scrollContent);
     m_nameReactionCheckbox = new QCheckBox("名前（アバター名）呼ばれて反応する", scrollContent);
     
-    m_aiProviderCombo = new QComboBox(scrollContent);
-    m_aiProviderCombo->addItems({"mistral", "dummy"});
-    
-    m_aiApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
-
-    m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
-    m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
-
     m_webhookUrlEdit = new QLineEdit(scrollContent);
     m_webhookEnabledCheckbox = new QCheckBox("有効にする", scrollContent);
     m_bubbleShortEdit = new QLineEdit(scrollContent);
@@ -1072,16 +1067,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     twitchLayout->addRow("ウェイクワード:", wakeWordWidget);
     mainLayout->addWidget(twitchGroup);
 
-    // 3. AI 設定グループ
-    QGroupBox *aiGroup = new QGroupBox("AI 設定", scrollContent);
-    QFormLayout *aiLayout = new QFormLayout(aiGroup);
-    aiLayout->setContentsMargins(10, 10, 10, 10);
-    aiLayout->setSpacing(6);
-    aiLayout->addRow("プロバイダ:", m_aiProviderCombo);
-    aiLayout->addRow("API キー:", m_aiApiKeyEdit);
-    aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
-    mainLayout->addWidget(aiGroup);
-
     // 4. 外部通知設定グループ (WebHook)
     QGroupBox *notifyGroup = new QGroupBox("外部通知設定 (WebHook)", scrollContent);
     QHBoxLayout *notifyLayout = new QHBoxLayout(notifyGroup);
@@ -1137,6 +1122,73 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     loadSettingsToUI();
 }
 
+void AvatarWindow::initAiSettingsTab(QWidget *parent) {
+    // タブの最親レイアウト (スクロールエリアを中に収める)
+    QVBoxLayout *containerLayout = new QVBoxLayout(parent);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+
+    QScrollArea *scrollArea = new QScrollArea(parent);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+
+    QWidget *scrollContent = new QWidget(scrollArea);
+    // スクロールコンテンツ内の縦レイアウト
+    QVBoxLayout *mainLayout = new QVBoxLayout(scrollContent);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(8);
+
+    m_aiProviderMistralCheckbox = new QCheckBox("Mistral AI を使用する", scrollContent);
+    m_aiProviderCerebrasCheckbox = new QCheckBox("Cerebras AI を使用する", scrollContent);
+
+    // 排他制御
+    connect(m_aiProviderMistralCheckbox, &QCheckBox::toggled, this, [this](bool checked){
+        if (checked) m_aiProviderCerebrasCheckbox->setChecked(false);
+    });
+    connect(m_aiProviderCerebrasCheckbox, &QCheckBox::toggled, this, [this](bool checked){
+        if (checked) m_aiProviderMistralCheckbox->setChecked(false);
+    });
+
+    m_aiApiKeyEdit = new QLineEdit(scrollContent);
+    m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_aiApiKeyEdit->setPlaceholderText("Mistral API キーを入力...");
+
+    m_aiCerebrasApiKeyEdit = new QLineEdit(scrollContent);
+    m_aiCerebrasApiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_aiCerebrasApiKeyEdit->setPlaceholderText("Cerebras API キーを入力...");
+
+    m_aiCerebrasModelCombo = new QComboBox(scrollContent);
+    m_aiCerebrasModelCombo->addItems({"llama-3.3-70b", "llama3.1-70b", "llama3.1-8b"});
+
+    m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
+    m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
+
+    // AI 設定グループ
+    QGroupBox *aiGroup = new QGroupBox("AI 設定", scrollContent);
+    QFormLayout *aiLayout = new QFormLayout(aiGroup);
+    aiLayout->setContentsMargins(10, 10, 10, 10);
+    aiLayout->setSpacing(6);
+    aiLayout->addRow("Mistral AI 使用:", m_aiProviderMistralCheckbox);
+    aiLayout->addRow("Mistral API キー:", m_aiApiKeyEdit);
+    aiLayout->addRow("Cerebras AI 使用:", m_aiProviderCerebrasCheckbox);
+    aiLayout->addRow("Cerebras API キー:", m_aiCerebrasApiKeyEdit);
+    aiLayout->addRow("Cerebras モデル:", m_aiCerebrasModelCombo);
+    aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
+    mainLayout->addWidget(aiGroup);
+
+    // 保存・適用ボタン (AI設定を即座に適用できるように配置)
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    QPushButton *btnSave = new QPushButton("設定を保存して適用", scrollContent);
+    btnSave->setFixedHeight(32);
+    connect(btnSave, &QPushButton::clicked, this, &AvatarWindow::onSaveSettingsClicked);
+    btnLayout->addWidget(btnSave);
+    mainLayout->addLayout(btnLayout);
+
+    mainLayout->addStretch(); // 下部に余白を作る
+
+    scrollArea->setWidget(scrollContent);
+    containerLayout->addWidget(scrollArea);
+}
+
 void AvatarWindow::loadSettingsToUI() {
     QString configPath = "local_settings.json";
 #ifdef PROJECT_SOURCE_DIR
@@ -1178,10 +1230,16 @@ void AvatarWindow::loadSettingsToUI() {
             if (modeIdx >= 0) m_twitchWakeWordModeCombo->setCurrentIndex(modeIdx);
 
             QString provider = obj.value("ai_provider").toString(ConfigDefaults::AI_PROVIDER);
-            int provIdx = m_aiProviderCombo->findText(provider);
-            if (provIdx >= 0) m_aiProviderCombo->setCurrentIndex(provIdx);
+            m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
+            m_aiProviderCerebrasCheckbox->setChecked(provider == "cerebras");
 
             m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
+            m_aiCerebrasApiKeyEdit->setText(obj.value("cerebras_api_key").toString());
+
+            QString cerModel = obj.value("cerebras_model").toString("llama-3.3-70b");
+            int modelIdx = m_aiCerebrasModelCombo->findText(cerModel);
+            if (modelIdx >= 0) m_aiCerebrasModelCombo->setCurrentIndex(modelIdx);
+
             m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
             m_twitchUsername = obj.value("twitch_username").toString();
@@ -1250,8 +1308,14 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["twitch_port"] = m_twitchPortEdit->text().trimmed().toInt();
     obj["twitch_wakeword"] = m_twitchWakeWordEdit->text().trimmed();
     obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
-    obj["ai_provider"] = m_aiProviderCombo->currentText();
+    QString provider = "dummy";
+    if (m_aiProviderMistralCheckbox->isChecked()) provider = "mistral";
+    else if (m_aiProviderCerebrasCheckbox->isChecked()) provider = "cerebras";
+    obj["ai_provider"] = provider;
+
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
+    obj["cerebras_api_key"] = m_aiCerebrasApiKeyEdit->text().trimmed();
+    obj["cerebras_model"] = m_aiCerebrasModelCombo->currentText();
     obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
     obj["twitch_oauth_token"] = m_twitchOAuthToken;
     obj["twitch_username"] = m_twitchUsername;

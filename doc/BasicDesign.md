@@ -161,6 +161,13 @@ classDiagram
         -SearchManager* m_searchManager
         +sendRequest(QString prompt, const QList<QPair<QString, QString>>& history, const QString& sessionContext) void
     }
+    class CerebrasAIClient {
+        -QNetworkAccessManager* networkManager
+        -SearchManager* m_searchManager
+        -QString m_model
+        +sendRequest(QString prompt, const QList<QPair<QString, QString>>& history, const QString& sessionContext) void
+        +setModel(QString model) void
+    }
     class DummyAIClient {
         +sendRequest(QString prompt, const QList<QPair<QString, QString>>& history, const QString& sessionContext) void
     }
@@ -190,8 +197,10 @@ classDiagram
     CoreModule --> AIClientManager : 1.要求 (シグナル/スロット)
     AIClientManager --> IAIClient : 2.処理の委譲 (抽象インターフェース)
     IAIClient <|.. MistralAIClient : 3.具象実装
+    IAIClient <|.. CerebrasAIClient : 3.具象実装
     IAIClient <|.. DummyAIClient : 3.具象実装
     MistralAIClient --> SearchManager : 4.検索要求
+    CerebrasAIClient --> SearchManager : 4.検索要求
     SearchManager --> ISearchProvider : 5.委譲
     ISearchProvider <|.. TavilySearchProvider
     ISearchProvider <|.. DuckDuckGoSearchProvider

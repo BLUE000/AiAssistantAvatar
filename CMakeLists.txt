@@ -44,6 +44,7 @@ set(SOURCES
     src/ai/ai_client_manager.cpp
     src/ai/iai_client.cpp
     src/ai/mistral_ai_client.cpp
+    src/ai/cerebras_ai_client.cpp
     src/ai/dummy_ai_client.cpp
     src/search/isearch_provider.cpp
     src/search/search_manager.cpp

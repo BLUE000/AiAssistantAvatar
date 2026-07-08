@@ -60,6 +60,8 @@ AiAssistantAvatar/
         ├── iai_client.h
         ├── mistral_ai_client.h
         ├── mistral_ai_client.cpp
+        ├── cerebras_ai_client.h
+        ├── cerebras_ai_client.cpp
         ├── dummy_ai_client.h
         ├── dummy_ai_client.cpp
         ├── search_manager.h
@@ -195,15 +197,20 @@ private:
     QPushButton *m_sttButton = nullptr;
     QPushButton *m_menuButton = nullptr;
     
-    // 設定タブ用UI
+    // 設定タブ・AI設定タブ用UI
+    QWidget *m_aiSettingsTab = nullptr;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
     QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
-    QComboBox *m_aiProviderCombo = nullptr;
+    QCheckBox *m_aiProviderMistralCheckbox = nullptr;
+    QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
     QLineEdit *m_aiApiKeyEdit = nullptr;
+    QLineEdit *m_aiCerebrasApiKeyEdit = nullptr;
+    QComboBox *m_aiCerebrasModelCombo = nullptr;
+    QLineEdit *m_tavilyApiKeyEdit = nullptr;
     QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
     
@@ -249,6 +256,7 @@ private:
     void showContextMenu(const QPoint &globalPos);
     
     void initSettingsTab(QWidget *parent);
+    void initAiSettingsTab(QWidget *parent);
     void initNicknameTab(QWidget *parent);
     void initKnowledgeTab(QWidget *parent);
     void updateNicknameTables();
@@ -521,7 +529,9 @@ class AIClientManager : public QObject {
     Q_OBJECT
 private:
     IAIClient *m_currentClient = nullptr;
-    QString m_apiKey;
+    QString m_apiKey; // Mistral API Key
+    QString m_cerebrasApiKey; // Cerebras AI API Key
+    QString m_cerebrasModel; // Cerebras AI Model
     QString m_transCipherKey;
     QList<QPair<QString, QString>> m_chatHistory; // ユーザー、AIの対話ペア
     int m_maxHistoryCount = 10; // 自動リセット契機（10件＝5往復）
@@ -572,7 +582,7 @@ private:
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
-    void setAIProvider(const QString &provider); // "mistral" or "dummy"
+    void setAIProvider(const QString &provider); // "mistral", "cerebras", or "dummy"
     QList<QPair<QString, QString>> getChatHistory() const;
     QJsonObject userNamesObj() const { return m_userNamesObj; }
     KnowledgeImportState importState() const { return m_importState; }
@@ -641,6 +651,45 @@ private slots:
     void on_networkReplyFinished(QNetworkReply *reply);
     void on_searchFinished(const QString &resultText, bool success);
 };
+```
+
+#### D. `CerebrasAIClient` クラス
+```cpp
+#pragma once
+#include "iai_client.h"
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QJsonArray>
+
+class SearchManager;
+
+class CerebrasAIClient : public IAIClient {
+    Q_OBJECT
+private:
+    QNetworkAccessManager *m_networkManager;
+    QString m_apiKey;
+    QString m_model;
+    SearchManager *m_searchManager;
+
+    // Function Calling 状態管理用
+    QString m_pendingPrompt;
+    QJsonArray m_pendingMessages;
+    QString m_activeToolCallId;
+    bool m_isToolCalling;
+
+public:
+    explicit CerebrasAIClient(QObject *parent = nullptr);
+    ~CerebrasAIClient() override;
+    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) override;
+    void setApiKey(const QString &apiKey) override;
+    void setModel(const QString &model);
+    void setTavilyApiKey(const QString &tavilyKey);
+
+private slots:
+    void on_networkReplyFinished(QNetworkReply *reply);
+    void on_searchFinished(const QString &resultText, bool success);
+};
+```
 ```
 
 #### D. `SearchManager` クラスおよびプロバイダ群

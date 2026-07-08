@@ -80,6 +80,7 @@ private:
     QTabWidget *m_tabWidget = nullptr;
     QWidget *m_chatTab = nullptr;
     QWidget *m_settingsTab = nullptr;
+    QWidget *m_aiSettingsTab = nullptr;
     QWidget *m_nicknameTab = nullptr;
     QTableWidget *m_usersTable = nullptr;
     QTableWidget *m_requestsTable = nullptr;
@@ -96,8 +97,11 @@ private:
     QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
-    QComboBox *m_aiProviderCombo = nullptr;
+    QCheckBox *m_aiProviderMistralCheckbox = nullptr;
+    QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
     QLineEdit *m_aiApiKeyEdit = nullptr;
+    QLineEdit *m_aiCerebrasApiKeyEdit = nullptr;
+    QComboBox *m_aiCerebrasModelCombo = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
     QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
@@ -186,6 +190,7 @@ private:
     void showContextMenu(const QPoint &globalPos);
 
     void initSettingsTab(QWidget *parent);
+    void initAiSettingsTab(QWidget *parent);
     void initNicknameTab(QWidget *parent);
     void initKnowledgeTab(QWidget *parent);
     void updateNicknameTables();
