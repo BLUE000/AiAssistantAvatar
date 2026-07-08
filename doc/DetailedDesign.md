@@ -529,9 +529,7 @@ class AIClientManager : public QObject {
     Q_OBJECT
 private:
     IAIClient *m_currentClient = nullptr;
-    QString m_apiKey; // Mistral API Key
-    QString m_cerebrasApiKey; // Cerebras AI API Key
-    QString m_cerebrasModel; // Cerebras AI Model
+
     QString m_transCipherKey;
     QList<QPair<QString, QString>> m_chatHistory; // ユーザー、AIの対話ペア
     int m_maxHistoryCount = 10; // 自動リセット契機（10件＝5往復）
