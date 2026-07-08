@@ -178,6 +178,7 @@ AvatarWindow::AvatarWindow(QWidget *parent)
         dummyMenu.ensurePolished();
     }
 
+    loadSettingsToUI();
     loadSettings();
     processAndCacheImages();
     updateAvatarDisplay("idle");
@@ -1118,8 +1119,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     scrollArea->setWidget(scrollContent);
     containerLayout->addWidget(scrollArea);
-
-    loadSettingsToUI();
 }
 
 void AvatarWindow::initAiSettingsTab(QWidget *parent) {
@@ -1215,58 +1214,64 @@ void AvatarWindow::loadSettingsToUI() {
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
-            m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT)));
-            m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
-            m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
-            m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT)));
-            if (obj.contains("twitch_wakeword")) {
-                m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString());
-            } else {
-                m_twitchWakeWordEdit->setText(ConfigDefaults::WAKE_WORD);
+            if (m_wsPortEdit) m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT)));
+            if (m_twitchChannelEdit) m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
+            if (m_twitchClientIdEdit) m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
+            if (m_twitchPortEdit) m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT)));
+            if (m_twitchWakeWordEdit) {
+                if (obj.contains("twitch_wakeword")) {
+                    m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString());
+                } else {
+                    m_twitchWakeWordEdit->setText(ConfigDefaults::WAKE_WORD);
+                }
             }
             
-            QString mode = obj.value("twitch_wakeword_mode").toString(ConfigDefaults::WAKE_WORD_MODE);
-            int modeIdx = m_twitchWakeWordModeCombo->findText(mode);
-            if (modeIdx >= 0) m_twitchWakeWordModeCombo->setCurrentIndex(modeIdx);
+            if (m_twitchWakeWordModeCombo) {
+                QString mode = obj.value("twitch_wakeword_mode").toString(ConfigDefaults::WAKE_WORD_MODE);
+                int modeIdx = m_twitchWakeWordModeCombo->findText(mode);
+                if (modeIdx >= 0) m_twitchWakeWordModeCombo->setCurrentIndex(modeIdx);
+            }
 
             QString provider = obj.value("ai_provider").toString(ConfigDefaults::AI_PROVIDER);
-            m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
-            m_aiProviderCerebrasCheckbox->setChecked(provider == "cerebras");
+            if (m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
+            if (m_aiProviderCerebrasCheckbox) m_aiProviderCerebrasCheckbox->setChecked(provider == "cerebras");
 
-            m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
-            m_aiCerebrasApiKeyEdit->setText(obj.value("cerebras_api_key").toString());
+            if (m_aiApiKeyEdit) m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
+            if (m_aiCerebrasApiKeyEdit) m_aiCerebrasApiKeyEdit->setText(obj.value("cerebras_api_key").toString());
 
-            QString cerModel = obj.value("cerebras_model").toString("llama-3.3-70b");
-            int modelIdx = m_aiCerebrasModelCombo->findText(cerModel);
-            if (modelIdx >= 0) m_aiCerebrasModelCombo->setCurrentIndex(modelIdx);
+            if (m_aiCerebrasModelCombo) {
+                QString cerModel = obj.value("cerebras_model").toString("llama-3.3-70b");
+                int modelIdx = m_aiCerebrasModelCombo->findText(cerModel);
+                if (modelIdx >= 0) m_aiCerebrasModelCombo->setCurrentIndex(modelIdx);
+            }
 
-            m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
+            if (m_tavilyApiKeyEdit) m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
             m_twitchUsername = obj.value("twitch_username").toString();
             
-            m_webhookUrlEdit->setText(obj.value("webhook_url").toString());
+            if (m_webhookUrlEdit) m_webhookUrlEdit->setText(obj.value("webhook_url").toString());
             m_webhookUrl = obj.value("webhook_url").toString();
             
             bool whEnabled = obj.value("webhook_enabled").toBool(false);
-            m_webhookEnabledCheckbox->setChecked(whEnabled);
+            if (m_webhookEnabledCheckbox) m_webhookEnabledCheckbox->setChecked(whEnabled);
             m_webhookEnabled = whEnabled;
 
             m_bubbleDisplayShortSec = obj.value("bubble_display_short_sec").toInt(5);
             m_bubbleDisplayLongSec = obj.value("bubble_display_long_sec").toInt(10);
-            m_bubbleShortEdit->setText(QString::number(m_bubbleDisplayShortSec));
-            m_bubbleLongEdit->setText(QString::number(m_bubbleDisplayLongSec));
+            if (m_bubbleShortEdit) m_bubbleShortEdit->setText(QString::number(m_bubbleDisplayShortSec));
+            if (m_bubbleLongEdit) m_bubbleLongEdit->setText(QString::number(m_bubbleDisplayLongSec));
 
             m_avatarName = obj.value("avatar_name").toString("AIアシスタント").trimmed();
             m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
-            m_avatarNameEdit->setText(m_avatarName);
-            m_nameReactionCheckbox->setChecked(m_nameReactionEnabled);
+            if (m_avatarNameEdit) m_avatarNameEdit->setText(m_avatarName);
+            if (m_nameReactionCheckbox) m_nameReactionCheckbox->setChecked(m_nameReactionEnabled);
 
-            m_discordEnabledCheckbox->setChecked(obj.value("discord_enabled").toBool(false));
-            m_discordBotTokenEdit->setText(obj.value("discord_bot_token").toString());
-            m_discordChannelIdEdit->setText(obj.value("discord_channel_id").toString());
+            if (m_discordEnabledCheckbox) m_discordEnabledCheckbox->setChecked(obj.value("discord_enabled").toBool(false));
+            if (m_discordBotTokenEdit) m_discordBotTokenEdit->setText(obj.value("discord_bot_token").toString());
+            if (m_discordChannelIdEdit) m_discordChannelIdEdit->setText(obj.value("discord_channel_id").toString());
 
-            m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
-            m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
+            if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
+            if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
         }
     }
 }
