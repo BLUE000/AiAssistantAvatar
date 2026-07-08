@@ -332,8 +332,8 @@ QString AIClientManager::mapLanguage(const QString &lang) const {
     return lang.left(1).toUpper() + lang.mid(1);
 }
 
-void AIClientManager::setAIProvider(const QString &provider) {
-    if (m_currentClient && m_provider == provider) return;
+void AIClientManager::setAIProvider(const QString &provider, bool forceRefresh) {
+    if (!forceRefresh && m_currentClient && m_provider == provider) return;
 
     qDebug() << "AIClientManager: Changing AI Provider to" << provider;
 
@@ -1191,9 +1191,9 @@ void AIClientManager::on_settingsUpdated() {
     loadBlacklist();
     loadWhitelist();
     
-    // setAIProvider(m_provider) の内部で、最新の local_settings.json から
+    // setAIProvider(m_provider, true) の内部で、最新の local_settings.json から
     // 各 API キーやモデル名の適用が自動的に行われます。
-    setAIProvider(m_provider);
+    setAIProvider(m_provider, true);
 }
 
 void AIClientManager::saveUserNames() {

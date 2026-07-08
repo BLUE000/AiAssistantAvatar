@@ -580,7 +580,7 @@ private:
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
-    void setAIProvider(const QString &provider); // "mistral", "cerebras", or "dummy"
+    void setAIProvider(const QString &provider, bool forceRefresh = false); // "mistral", "cerebras", or "dummy"
     QList<QPair<QString, QString>> getChatHistory() const;
     QJsonObject userNamesObj() const { return m_userNamesObj; }
     KnowledgeImportState importState() const { return m_importState; }

@@ -134,7 +134,7 @@ classDiagram
         -QString m_streamerName
         -QString m_currentRequester
         +on_requestAI(const QString& text, const QString& user) void
-        +setAIProvider(QString provider) void
+        +setAIProvider(QString provider, bool forceRefresh) void
         +getChatHistory() QList<QPair<QString, QString>>
         +resetSession(bool isManual) void
         +importSessionBackup(QString filePath) bool

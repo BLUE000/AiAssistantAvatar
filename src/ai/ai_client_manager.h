@@ -83,7 +83,7 @@ private:
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
-    void setAIProvider(const QString &provider);
+    void setAIProvider(const QString &provider, bool forceRefresh = false);
 
     // 履歴データ取得/設定用のI/F
     QList<QPair<QString, QString>> chatHistory() const { return m_chatHistory; }
