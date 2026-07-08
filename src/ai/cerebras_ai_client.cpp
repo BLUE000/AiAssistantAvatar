@@ -9,7 +9,7 @@
 #include <QDebug>
 
 CerebrasAIClient::CerebrasAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false), m_model("llama-3.3-70b")
+    : IAIClient(parent), m_isToolCalling(false), m_model("gemma-4-31b")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,

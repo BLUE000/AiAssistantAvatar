@@ -67,15 +67,15 @@ void AIClientManager::saveSessionContext(const QString &context) {
 }
 
 void AIClientManager::loadCredentials() {
-    QString configPath = "local_settings.json";
+    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    if (!QFile::exists(configPath)) {
+        configPath = "local_settings.json";
+    }
 #ifdef PROJECT_SOURCE_DIR
     if (!QFile::exists(configPath)) {
         configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
     }
 #endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
     if (!QFile::exists(configPath)) {
         configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
     }
@@ -96,10 +96,6 @@ void AIClientManager::loadCredentials() {
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
-            m_apiKey = obj["mistral_api_key"].toString();
-            m_cerebrasApiKey = obj["cerebras_api_key"].toString();
-            m_cerebrasModel = obj["cerebras_model"].toString("llama-3.3-70b");
-            m_tavilyApiKey = obj["tavily_api_key"].toString();
             m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
             m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
             m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
@@ -348,20 +344,53 @@ void AIClientManager::setAIProvider(const QString &provider) {
     }
 
     m_provider = provider;
-    if (provider == "mistral") {
-        m_currentClient = new MistralAIClient(this);
-        m_currentClient->setApiKey(m_apiKey);
-    } else if (provider == "cerebras") {
-        CerebrasAIClient *cerClient = new CerebrasAIClient(this);
-        cerClient->setModel(m_cerebrasModel);
-        m_currentClient = cerClient;
-        m_currentClient->setApiKey(m_cerebrasApiKey);
-    } else {
-        m_currentClient = new DummyAIClient(this);
-        m_currentClient->setApiKey(m_apiKey);
+
+    // 設定ファイルから一時的にAPIキー等をロードする
+    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    if (!QFile::exists(configPath)) {
+        configPath = "local_settings.json";
+    }
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+    }
+#endif
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
     }
 
-    m_currentClient->setTavilyApiKey(m_tavilyApiKey);
+    QString mistralKey;
+    QString cerebrasKey;
+    QString cerebrasModel = "gemma-4-31b";
+    QString tavilyKey;
+
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        mistralKey = obj["mistral_api_key"].toString();
+        cerebrasKey = obj["cerebras_api_key"].toString();
+        cerebrasModel = obj["cerebras_model"].toString("gemma-4-31b");
+        tavilyKey = obj["tavily_api_key"].toString();
+    }
+
+    if (provider == "mistral") {
+        m_currentClient = new MistralAIClient(this);
+        m_currentClient->setApiKey(mistralKey);
+    } else if (provider == "cerebras") {
+        CerebrasAIClient *cerClient = new CerebrasAIClient(this);
+        cerClient->setModel(cerebrasModel);
+        m_currentClient = cerClient;
+        m_currentClient->setApiKey(cerebrasKey);
+    } else {
+        m_currentClient = new DummyAIClient(this);
+        m_currentClient->setApiKey(mistralKey);
+    }
+
+    m_currentClient->setTavilyApiKey(tavilyKey);
 
     connect(m_currentClient, &IAIClient::requestFinished,
             this, &AIClientManager::on_clientRequestFinished);
@@ -1161,11 +1190,10 @@ void AIClientManager::on_settingsUpdated() {
     loadCredentials();
     loadBlacklist();
     loadWhitelist();
+    
+    // setAIProvider(m_provider) の内部で、最新の local_settings.json から
+    // 各 API キーやモデル名の適用が自動的に行われます。
     setAIProvider(m_provider);
-    if (m_currentClient) {
-        m_currentClient->setApiKey(m_apiKey);
-        m_currentClient->setTavilyApiKey(m_tavilyApiKey);
-    }
 }
 
 void AIClientManager::saveUserNames() {

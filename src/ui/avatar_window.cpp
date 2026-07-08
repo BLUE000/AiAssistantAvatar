@@ -1156,7 +1156,7 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_aiCerebrasApiKeyEdit->setPlaceholderText("Cerebras API キーを入力...");
 
     m_aiCerebrasModelCombo = new QComboBox(scrollContent);
-    m_aiCerebrasModelCombo->addItems({"llama-3.3-70b", "llama3.1-70b", "llama3.1-8b"});
+    m_aiCerebrasModelCombo->addItems({"gemma-4-31b", "zai-glm-4.7", "gpt-oss-120b"});
 
     m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
@@ -1189,15 +1189,15 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
 }
 
 void AvatarWindow::loadSettingsToUI() {
-    QString configPath = "local_settings.json";
+    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    if (!QFile::exists(configPath)) {
+        configPath = "local_settings.json";
+    }
 #ifdef PROJECT_SOURCE_DIR
     if (!QFile::exists(configPath)) {
         configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
     }
 #endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
     if (!QFile::exists(configPath)) {
         configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
     }
@@ -1277,15 +1277,15 @@ void AvatarWindow::loadSettingsToUI() {
 }
 
 void AvatarWindow::saveSettingsFromUI() {
-    QString configPath = "local_settings.json";
+    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    if (!QFile::exists(configPath)) {
+        configPath = "local_settings.json";
+    }
 #ifdef PROJECT_SOURCE_DIR
     if (!QFile::exists(configPath)) {
         configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
     }
 #endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
     if (!QFile::exists(configPath)) {
         configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
     }
