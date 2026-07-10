@@ -4,6 +4,7 @@
 #include <QTcpServer>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QTimer>
 #include "../app_event.h"
 
 class TwitchReader : public QObject {
@@ -24,13 +25,15 @@ private:
     QTcpServer *m_authServer = nullptr;
     QNetworkAccessManager *m_networkManager = nullptr;
     QString m_configPath;
+    QTimer *m_reconnectTimer = nullptr; // connectToTwitch() の debounce 用
 
     void loadSettings();
     void saveTokenToSettings(const QString &accessToken);
     void saveOAuthDataToSettings(const QString &accessToken, const QString &channel);
     void fetchChannelName(const QString &token);
     void startOAuthServer();
-    void connectToTwitch();
+    void connectToTwitch();       // debounce エントリ（外部から呼ぶ）
+    void doConnectToTwitch();     // 実際の接続処理（タイマーから呼ばれる）
 
 public:
     explicit TwitchReader(QObject *parent = nullptr);

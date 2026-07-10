@@ -220,9 +220,23 @@ void TwitchReader::handleNewConnection() {
 }
 
 void TwitchReader::connectToTwitch() {
+    // 短時間に複数回呼ばれても最後の1回だけ実行する（debounce: 300ms）
+    if (!m_reconnectTimer) {
+        m_reconnectTimer = new QTimer(this);
+        m_reconnectTimer->setSingleShot(true);
+        connect(m_reconnectTimer, &QTimer::timeout, this, &TwitchReader::doConnectToTwitch);
+    }
+    // タイマーをリセットして再スタート（連続呼び出しを吸収）
+    m_reconnectTimer->start(300);
+}
+
+void TwitchReader::doConnectToTwitch() {
+    // 既存の接続を安全に破棄
     if (m_webSocket) {
+        // シグナルを切断してから close → deleteLater で安全に破棄
+        m_webSocket->disconnect(this);
         m_webSocket->close();
-        delete m_webSocket;
+        m_webSocket->deleteLater();
         m_webSocket = nullptr;
     }
 
@@ -323,12 +337,18 @@ void TwitchReader::on_stopReading() {
     m_isRunning = false;
     qDebug() << "TwitchReader: Stopping module...";
 
+    // 遅延接続タイマーをキャンセル（停止後に再接続が走らないように）
+    if (m_reconnectTimer) {
+        m_reconnectTimer->stop();
+    }
+
     if (m_authServer) {
         m_authServer->close();
         m_authServer->deleteLater();
         m_authServer = nullptr;
     }
     if (m_webSocket) {
+        m_webSocket->disconnect(this);
         m_webSocket->close();
         m_webSocket->deleteLater();
         m_webSocket = nullptr;
