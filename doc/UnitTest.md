@@ -156,3 +156,42 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
     EXPECT_EQ(argumentsAI.at(0).toString(), "こんにちは");
 }
 ```
+
+---
+
+### 3.7 GroqAIClient の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-GROQ-01** | `GroqAIClient::setApiKey` | 有効なキーを設定後 `sendRequest` を呼ぶ。 | `Authorization: Bearer <key>` ヘッダーが付与されてリクエストが送信されること。 |
+| **UT-GROQ-02** | `GroqAIClient::sendRequest` | APIキーが空の状態で `sendRequest` を呼ぶ。 | `requestFinished(false)` が発火し、エラーメッセージが返ること。 |
+| **UT-GROQ-03** | `GroqAIClient::clientId` | `clientId()` を呼ぶ。 | `"groq"` を返すこと。 |
+| **UT-GROQ-04** | `GroqAIClient::defaultStatus` | `defaultStatus()` を呼ぶ。 | `rpmMax=30`, `rpdMax=14400`, `contextWindow=131072`, `toolCall=true`, `cost=0.0` であること。 |
+| **UT-GROQ-05** | `GroqAIClient::setModel` | 空文字を渡して `setModel` を呼ぶ。 | モデルが変更されず `"llama-3.1-8b-instant"` のままであること。 |
+
+---
+
+### 3.8 RateLimitTracker の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-RLT-01** | `registerClient` | Groqのデフォルト `ProviderStatus` を登録する。 | `statusOf("groq").rpmMax == 30` かつ `available == true` であること。 |
+| **UT-RLT-02** | `updateFromReply` | `x-ratelimit-remaining-requests: 5` を含むモックレスポンスを渡す。 | `statusOf("groq").rpmRemaining == 5` に更新されること。 |
+| **UT-RLT-03** | `isAvailable` | `rpmRemaining = 0` に設定後 `isAvailable("groq")` を呼ぶ。 | `false` を返すこと。 |
+| **UT-RLT-04** | `isAvailable` | `rpmRemaining = 1` の状態で `isAvailable("groq")` を呼ぶ。 | `true` を返すこと。 |
+| **UT-RLT-05** | `earliestResetTime` | 全クライアントが `available=false`、GroqのresetAtが最も近い場合。 | `ResetInfo.clientId == "groq"` かつ `resetAt` が最小値であること。 |
+| **UT-RLT-06** | `formatWaitMessage` | RPM制限で2分後リセットの `ResetInfo` を渡す。 | 「最短で2分後に使用可能になります（Groq RPM制限解除）。」形式の文字列が返ること。 |
+| **UT-RLT-07** | `recordLatency` | 5回分のレイテンシ（100, 200, 300, 400, 500ms）を記録する。 | `latencyMs` が移動平均（300ms）であること。 |
+| **UT-RLT-08** | `saveToFile / loadFromFile` | 保存後に別インスタンスでロードする。 | `rpdRemaining`・`tpdRemaining` が保存値と一致すること。 |
+| **UT-RLT-09** | `loadFromFile` | `day_start` が前日のファイルをロードする。 | `rpdRemaining` がデフォルト値にリセットされること。 |
+
+---
+
+### 3.9 AIRouter の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-ROUT-01** | `AIRouter::selectClient` | 全クライアント `available=true`、優先度 `["groq","cerebras","mistral"]`。 | `"groq"` を返すこと。 |
+| **UT-ROUT-02** | `AIRouter::selectClient` | Groqが `available=false`、Cerebrasが `available=true`。 | `"cerebras"` を返すこと。 |
+| **UT-ROUT-03** | `AIRouter::selectClient` | 全クライアントが `available=false`。 | 空文字 `""` を返すこと。 |
+| **UT-ROUT-04** | `AIRouter::selectClient` | 優先度リストが空の場合。 | 空文字 `""` を返すこと。 |

@@ -80,3 +80,21 @@
 ## 3. テストの実施方法（結合レベル）
 - スレッドの起動・終了、および非同期イベント連携については、スタブモジュールを結合した自動テストプログラムを作成し、スレッド間のシグナルが `Qt::QueuedConnection` 経由で安全に送受信されるかをアサート（Assert）する。
 - 描画位置補正ロジックは、モック画像データを用いて `move()` が呼び出された座標値を検証する単体・結合自動テストを実行する。
+
+---
+
+### 2.8 AIルーティング・レートリミット制御連携 (F-16)
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-ROUTE-01** | `AIRouter` + `RateLimitTracker` 連携 | 全クライアント `available=true` の状態でリクエストを送信する。 | 優先度最高の Groq が選択され、`GroqAIClient::sendRequest` が呼び出されること。 | 自動テスト |
+| **IT-ROUTE-02** | フォールバック (RPM制限) | Groqの `rpmRemaining=0` を設定した状態でリクエストを送信する。 | Cerebras にフォールバックし、`CerebrasAIClient::sendRequest` が呼び出されること。 | 自動テスト |
+| **IT-ROUTE-03** | フォールバック (連鎖) | Groq・Cerebras両方が `available=false` の状態でリクエストを送信する。 | Mistral にフォールバックし、`MistralAIClient::sendRequest` が呼び出されること。 | 自動テスト |
+| **IT-ROUTE-04** | 全クライアント枯渇時 | 全クライアントが `available=false` の状態でリクエストを送信する。 | AIへのAPI呼び出しが発生せず、「最短でX分後に使用可能になります」形式の応答テキストが `AIResponseReceived` イベントで返されること。 | 自動テスト |
+| **IT-ROUTE-05** | ヘッダー更新連携 | APIレスポンスに `x-ratelimit-remaining-requests: 3` ヘッダーを含めてモックする。 | コール後に `RateLimitTracker::statusOf("groq").rpmRemaining == 3` に更新されること。 | 自動テスト |
+| **IT-ROUTE-06** | 永続化ファイル連携 | 使用量を記録してアプリを再起動（別インスタンスでロード）する。 | `log/usage_stats.json` からRPD残量が正しくリストアされること。 | 自動テスト |
+| **IT-ROUTE-07** | Groq APIキー設定連携 | 設定タブでGroq APIキーを入力し「保存して適用」を押下する。 | `local_settings.json` に `groq_api_key` が書き込まれ、`GroqAIClient` にキーが反映されること。 | 結合テスト |
+| **IT-ROUTE-08** | 自動取得ボタン連携 | Groqの `/models` エンドポイントをモックし「自動取得」ボタンを押下する。 | UIの「コンテキストウィンドウ」「ツール呼び出し」フィールドが取得値で更新されること。 | 結合テスト |
+| **IT-ROUTE-09** | 自動取得失敗時のフィードバック | 「自動取得」押下時にネットワークエラーをモックする。 | 「取得できませんでした。手動で設定してください。」旨の通知がUIに表示されること。 | 結合テスト |
+| **IT-ROUTE-10** | Manager AI 設定反映 | 「マネージャにAIを使用」チェックON、プロバイダ=Groq、モデル=`llama-3.1-8b-instant` を設定して保存する。 | `local_settings.json` の `manager_ai_enabled=true`, `manager_ai_provider="groq"`, `manager_ai_model="llama-3.1-8b-instant"` が書き込まれること。 | 結合テスト |
+

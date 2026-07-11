@@ -1175,3 +1175,283 @@ Discord 経由の会話が配信（OBS）側の演出に干渉しないように
    - ロードした過去ログから、関連する対話のターン（Q&Aペア）を最大3つ抽出し、想起コンテキスト（`m_recalledContext`）としてフォーマットする。
    - APIクライアント（Mistral）へのリクエスト時、システム指示プロンプトの直後に `[過去の関連会話の記憶: ...]` というタグでこの想起コンテキストを注入し、AIへ渡す。
    - 生成された応答の中で過去の会話を踏まえた返答が得られたら、この `m_recalledContext` は次のターンではクリアされ、メモリ肥大化を防止する。
+
+### 4.14 GroqAIClient — Groq Cloud API クライアント設計
+
+Groq は OpenAI 互換エンドポイントを提供するため、`CerebrasAIClient` と同構造で実装する。
+
+#### A. クラス構造
+
+```cpp
+// src/ai/groq_ai_client.h
+class GroqAIClient : public IAIClient {
+    Q_OBJECT
+private:
+    QNetworkAccessManager *m_networkManager;
+    QString m_apiKey;
+    QString m_model;           // デフォルト: "llama-3.1-8b-instant"
+    SearchManager *m_searchManager;
+    QString m_pendingPrompt;
+    QJsonArray m_pendingMessages;
+    QString m_activeToolCallId;
+    bool m_isToolCalling;
+
+public:
+    explicit GroqAIClient(QObject *parent = nullptr);
+    void sendRequest(const QString &prompt,
+                     const QList<QPair<QString,QString>> &history,
+                     const QString &sessionContext,
+                     const QString &systemInstruction) override;
+    void setApiKey(const QString &apiKey) override;
+    void setModel(const QString &model);
+    void setTavilyApiKey(const QString &tavilyKey) override;
+    QString clientId() const override { return "groq"; }
+    ProviderStatus defaultStatus() const override;
+
+private slots:
+    void on_networkReplyFinished(QNetworkReply *reply);
+    void on_searchFinished(const QString &resultText, bool success);
+};
+```
+
+#### B. APIエンドポイントとモデル一覧
+
+| 用途 | エンドポイント |
+| :--- | :--- |
+| Chat Completions | `https://api.groq.com/openai/v1/chat/completions` |
+| モデル一覧（自動取得用） | `https://api.groq.com/openai/v1/models` |
+
+| モデルID | 推奨用途 | RPM | RPD | TPM |
+| :--- | :--- | ---: | ---: | ---: |
+| `llama-3.1-8b-instant` | Manager AI（推奨） | 30 | 14,400 | 131,072 |
+| `llama-3.3-70b-versatile` | Worker AI（高精度） | 30 | 14,400 | 6,000 |
+| `gemma2-9b-it` | Worker AI（バランス） | 30 | 14,400 | 15,000 |
+
+#### C. レスポンスヘッダー解析
+
+毎 API コール完了時に `on_networkReplyFinished` 内で以下を解析し、`RateLimitTracker::updateFromReply()` を呼び出す:
+
+```cpp
+void parseRateLimitHeaders(QNetworkReply *reply, const QString &clientId) {
+    auto get = [&](const QByteArray &key) {
+        return reply->rawHeader(key).trimmed();
+    };
+    // 例: "x-ratelimit-remaining-requests" → rpmRemaining
+    // 例: "x-ratelimit-reset-requests"     → nextResetAt (ISO8601 or seconds)
+}
+```
+
+#### D. defaultStatus() 返却値
+
+```cpp
+ProviderStatus GroqAIClient::defaultStatus() const {
+    ProviderStatus s;
+    s.provider      = "groq";
+    s.available     = true;
+    s.rpmMax        = 30;
+    s.rpmRemaining  = 30;
+    s.rpdMax        = 14400;
+    s.rpdRemaining  = 14400;
+    s.tpmMax        = 131072;
+    s.tpmRemaining  = 131072;
+    s.contextWindow = 131072;
+    s.toolCall      = true;
+    s.supportsDiff  = false;
+    s.cost          = 0.0;
+    s.latencyMs     = 0;
+    return s;
+}
+```
+
+---
+
+### 4.15 ProviderStatus 構造体と IAIClient インターフェース拡張
+
+#### A. ProviderStatus 構造体
+
+```cpp
+// src/ai/provider_status.h
+#pragma once
+#include <QString>
+#include <QDateTime>
+
+struct ProviderStatus {
+    QString   provider;         // "groq" / "cerebras" / "mistral" / "dummy"
+    bool      available = true; // レートリミット未到達なら true
+
+    int rpmMax       = 0;  int rpmRemaining  = 0;
+    int rpdMax       = 0;  int rpdRemaining  = 0;
+    int tpmMax       = 0;  int tpmRemaining  = 0;
+    int tpdMax       = 0;  int tpdRemaining  = 0;
+
+    int    contextWindow = 0;
+    bool   toolCall      = false;
+    bool   supportsDiff  = false;
+    double cost          = 0.0;
+    int    latencyMs     = 0;
+
+    QDateTime nextResetAt; // 最短リセット時刻
+};
+```
+
+#### B. IAIClient 拡張メソッド
+
+```cpp
+// src/ai/iai_client.h に追加
+virtual QString clientId()              const = 0;
+virtual ProviderStatus defaultStatus()  const = 0;
+```
+
+各サブクラスは `clientId()` で識別文字列を、`defaultStatus()` でデフォルトの制限値を返す。
+
+---
+
+### 4.16 RateLimitTracker — 使用量追跡と ProviderStatus 管理
+
+#### A. クラス概要
+
+```cpp
+// src/ai/rate_limit_tracker.h
+class RateLimitTracker {
+public:
+    // 起動時に全クライアントのデフォルト状態を登録
+    void registerClient(const ProviderStatus &defaultStatus);
+
+    // APIレスポンスヘッダーから残量を更新
+    void updateFromReply(const QString &clientId, QNetworkReply *reply);
+
+    // 手動設定値でMax値を上書き（UI設定反映用）
+    void setMaxValues(const QString &clientId, const ProviderStatus &manual);
+
+    // レイテンシを移動平均（直近5回）で更新
+    void recordLatency(const QString &clientId, int elapsedMs);
+
+    // 使用可能かチェック（rpmRemaining > 0 かつ rpdRemaining > 0）
+    bool isAvailable(const QString &clientId) const;
+
+    // 全クライアントが枯渇している場合、最短リセット時刻とその情報を返す
+    struct ResetInfo { QDateTime resetAt; QString clientId; QString limitType; };
+    ResetInfo earliestResetTime() const;
+
+    // 「X分後に使用可能」メッセージを生成（AI呼び出しなし）
+    QString formatWaitMessage(const ResetInfo &info) const;
+
+    // 現在の ProviderStatus を取得（UI表示用）
+    ProviderStatus statusOf(const QString &clientId) const;
+    QList<ProviderStatus> allStatuses() const;
+
+    // 日/週/月単位を永続化・読み込み
+    void saveToFile(const QString &path) const;
+    void loadFromFile(const QString &path);
+
+private:
+    QMap<QString, ProviderStatus> m_statuses;
+    QMap<QString, QList<int>>     m_latencyHistory; // 直近5回
+
+    void updateAvailable(const QString &clientId);
+    static QDateTime parseResetHeader(const QByteArray &value);
+};
+```
+
+#### B. updateFromReply() ヘッダー解析ロジック
+
+```
+ヘッダー "x-ratelimit-remaining-requests" → rpmRemaining
+ヘッダー "x-ratelimit-limit-requests"     → rpmMax（≠0なら上書き）
+ヘッダー "x-ratelimit-remaining-tokens"   → tpmRemaining
+ヘッダー "x-ratelimit-limit-tokens"       → tpmMax
+ヘッダー "x-ratelimit-reset-requests"     → nextResetAt（パース: ISO8601 or "Xs" 形式）
+```
+
+値が空・0の場合は既存値を維持（欠損プロバイダ対策）。
+
+#### C. 永続化ファイル `log/usage_stats.json`
+
+```json
+{
+  "groq": {
+    "rpd_max": 14400, "rpd_remaining": 14250,
+    "tpd_max": 500000, "tpd_remaining": 455000,
+    "day_start": "2026-07-12T00:00:00Z"
+  },
+  "cerebras": { ... },
+  "mistral":  { ... }
+}
+```
+
+アプリ起動時に読み込み。`day_start` が当日以前なら該当フィールドをデフォルト値にリセット。
+分/時単位の `rpmRemaining` / `tpmRemaining` はメモリのみ（アプリ起動時にデフォルト値に戻す）。
+
+#### D. formatWaitMessage() 出力例
+
+| 状況 | 出力文字列 |
+| :--- | :--- |
+| RPM制限 (2分後) | 「現在すべてのAIクライアントがレート制限に達しています。最短で**2分後**に使用可能になります（Groq RPM制限解除）。」 |
+| RPD制限 (翌0時) | 「現在すべてのAIクライアントがレート制限に達しています。最短で**本日23:59**に使用可能になります（Cerebras RPD制限解除）。」 |
+
+---
+
+### 4.17 AIRouter — クライアント選択ロジック
+
+#### A. クラス概要
+
+```cpp
+// src/ai/ai_router.h
+enum class AIRole { Manager, Worker };
+
+class AIRouter {
+public:
+    // 優先度順に isAvailable == true の最初のクライアントIDを返す
+    // 全クライアントが unavailable なら空文字を返す
+    QString selectClient(AIRole role,
+                         const RateLimitTracker &tracker,
+                         const QStringList &priorityOrder) const;
+};
+```
+
+#### B. 優先度リスト（デフォルト設定）
+
+```cpp
+// Worker ロール
+QStringList workerPriority = { "groq", "cerebras", "mistral", "dummy" };
+
+// Manager ロール（UIで設定したプロバイダを先頭に）
+QStringList managerPriority = { m_managerProviderId, "groq", "cerebras", "mistral" };
+```
+
+#### C. AIClientManager への組み込み
+
+`on_requestAI()` の先頭（スラッシュコマンド判定後）に以下を挿入:
+
+```cpp
+// 1. Worker 選択
+QString workerId = m_router.selectClient(AIRole::Worker, m_tracker, m_workerPriority);
+if (workerId.isEmpty()) {
+    // 全クライアント枯渇 → 待機メッセージ生成
+    auto info = m_tracker.earliestResetTime();
+    QString msg = m_tracker.formatWaitMessage(info);
+    AppEvent ev; ev.type = EventType::AIResponseReceived; ev.text = msg;
+    emit notifyEvent(ev);
+    return;
+}
+
+// 2. 選択したクライアントで応答生成
+IAIClient *client = m_clientMap[workerId];
+client->sendRequest(prompt, history, sessionContext, systemInstruction);
+// ※ 使用後に updateFromReply() で残量更新（レスポンスヘッダー解析）
+```
+
+#### D. Manager AI フォールバック（将来フェーズ準備）
+
+現フェーズではManagerロールの処理はC++ロジックのみ（API呼び出しなし）。
+将来フェーズで以下を追加:
+
+```cpp
+// Manager AI へ最小プロンプトを送信
+QString managerId = m_router.selectClient(AIRole::Manager, m_tracker, m_managerPriority);
+if (!managerId.isEmpty()) {
+    QString miniPrompt = buildManagerPrompt(availableWorkers);
+    m_managerClient->sendRequest(miniPrompt, {}, "", "");
+    // Manager AI の応答 "use:groq" → workerId 決定
+}
+```
