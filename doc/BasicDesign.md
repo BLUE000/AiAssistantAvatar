@@ -1026,3 +1026,172 @@ sequenceDiagram
 }
 ```
 *   `file_name`: 実際のMarkdownファイルは、名前の競合や安全性を考慮し、IDベースの名前（例: `knowledge_20260707_233906.md`）にリネームされて `log/knowledge/` ディレクトリ配下に格納される。
+
+### 5.21 AIルーティング層 — ProviderStatus・RateLimitTracker・AIRouter 設計
+
+#### A. ProviderStatus データ構造
+
+```cpp
+// src/ai/provider_status.h
+
+struct ProviderStatus {
+    QString provider;       // "groq" / "cerebras" / "mistral" / "dummy"
+    bool    available;      // レートリミット未到達なら true
+
+    // リクエスト制限
+    int rpmMax;             // 設定値またはAPIから取得した最大RPM
+    int rpmRemaining;       // APIレスポンスヘッダーから更新される残余RPM
+    int rpdMax;
+    int rpdRemaining;
+
+    // トークン制限
+    int tpmMax;
+    int tpmRemaining;
+    int tpdMax;
+    int tpdRemaining;
+
+    // モデル仕様（自動取得 or 手動設定）
+    int    contextWindow;   // コンテキストウィンドウ（tokens）
+    bool   toolCall;        // Function Calling サポート
+    bool   supportsDiff;    // Diff出力サポート（将来拡張用）
+    double cost;            // コスト（0.0 = 無料）
+    int    latencyMs;       // 実測移動平均レイテンシ（ms）
+
+    QDateTime nextResetAt;  // 最短リセット時刻（全枯渇時のメッセージ生成に使用）
+};
+```
+
+各クライアントは `IAIClient::defaultStatus()` で自身のデフォルト値を返す。
+APIキー設定後に `/models` エンドポイントから自動取得可能な値は上書きされる。
+
+#### B. APIレスポンスヘッダーによる残量自動更新
+
+Groq / Cerebras / Mistral はいずれも OpenAI互換APIであり、以下のヘッダーを返す（一部プロバイダでは省略の場合あり）:
+
+| ヘッダー | 対応フィールド |
+| :--- | :--- |
+| `x-ratelimit-limit-requests` | `rpmMax` |
+| `x-ratelimit-remaining-requests` | `rpmRemaining` |
+| `x-ratelimit-limit-tokens` | `tpmMax` |
+| `x-ratelimit-remaining-tokens` | `tpmRemaining` |
+| `x-ratelimit-reset-requests` | `nextResetAt`（RPM） |
+
+APIコールが完了するたびに `RateLimitTracker::updateFromHeaders()` を呼び、`ProviderStatus` を更新する。
+ヘッダーが存在しない場合は手動設定値（`local_settings.json`）を維持する。
+
+#### C. レイテンシ計測
+
+```
+APIコール開始時: QElapsedTimer::start()
+APIコール完了時: elapsed() でミリ秒を取得
+latencyMs を移動平均（直近5回）で更新
+```
+
+#### D. RateLimitTracker の責務
+
+- 各クライアントの `ProviderStatus` を保持・更新
+- `isAvailable(clientId)`: 残余 > 0 かどうかを確認
+- `earliestResetTime(clientIds)`: 全クライアント枯渇時に最短リセット時刻を算出
+- `formatWaitMessage(resetAt)`: 「X分後に使用可能になります」形式の文字列を生成
+- 日・週・月単位の使用量を `log/usage_stats.json` に永続化・読み込み
+
+#### E. AIRouter の選択ロジック
+
+```
+AIRouter::selectClient(role, tracker) の処理:
+  1. 設定された優先度リストを走査（Groq→Cerebras→Mistral）
+  2. tracker.isAvailable(clientId) == true の最初のクライアントを返す
+  3. 全クライアントが unavailable → 空文字を返す
+
+Worker選択とManager選択は独立して行う（別ロール）:
+  - Workerロール: 実際の会話応答を担当
+  - Managerロール: どのWorkerを使うか決定（現フェーズはC++ロジックで選択）
+```
+
+#### F. デフォルト優先度と制限値（無料枠基準）
+
+| クライアント | priority | RPM | RPD | TPM | TPD | context |
+| :--- | :---: | ---: | ---: | ---: | ---: | ---: |
+| Groq (`llama-3.1-8b-instant`) | 1 | 30 | 14,400 | 131,072 | 500,000 | 131,072 |
+| Cerebras (`llama3.1-8b`) | 2 | 30 | 1,000 | 60,000 | 1,000,000 | 131,072 |
+| Mistral (`mistral-small-latest`) | 3 | 1 | — | — | — | 131,072 |
+| DummyAI | 99 | ∞ | ∞ | ∞ | ∞ | — |
+
+#### G. 全クライアント枯渇時の応答フォーマット（C++生成・AI呼び出しなし）
+
+```
+現在、すべてのAIクライアントがレート制限に達しています。
+最短で 2分後 に使用可能になります（Groq RPM 制限解除）。
+```
+
+---
+
+### 5.22 AIルーティング リクエスト処理シーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー
+    participant UI as UIモジュール
+    participant Core as CoreModule
+    participant AI as AIClientManager
+    participant Router as AIRouter (C++)
+    participant Tracker as RateLimitTracker
+    participant Manager as Manager AI (将来対応)
+    participant Worker as 選択された Worker AI
+
+    User->>UI: テキスト入力・送信
+    UI->>Core: directInputSubmitted(prompt)
+    Core->>AI: requestAI(prompt, user)
+
+    AI->>Tracker: isAvailable("groq"), isAvailable("cerebras"), ...
+    Tracker-->>AI: 各クライアントの available 状態
+
+    alt 少なくとも1つ利用可能
+        AI->>Router: selectClient(Worker, statuses)
+        Router-->>AI: "groq"（優先度最高の利用可能クライアント）
+
+        Note over AI,Manager: 現フェーズ: Manager AI API呼び出しなし (C++で直接選択)
+        Note over AI,Manager: 将来フェーズ: ManagerにWorker一覧を渡し "use:groq" を取得
+
+        AI->>Worker: sendRequest(prompt, history, context)
+        Worker-->>AI: responseText + レスポンスヘッダー
+
+        AI->>Tracker: updateFromHeaders(clientId, headers)
+        AI->>Tracker: recordLatency(clientId, elapsedMs)
+
+        AI->>Core: notifyEvent(AIResponseReceived, responseText)
+        Core->>UI: notifyEventToUI(...)
+        UI-->>User: 吹き出し表示
+
+    else 全クライアントが制限に達した場合
+        AI->>Tracker: earliestResetTime(allClients)
+        Tracker-->>AI: resetAt, clientId, limitType
+        AI->>Core: notifyEvent(AIResponseReceived, "最短でX分後に使用可能...")
+        Core->>UI: notifyEventToUI(...)
+        UI-->>User: 待機メッセージ表示
+    end
+```
+
+#### Manager AI フォールバックシーケンス（将来フェーズ）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AI as AIClientManager
+    participant Router as AIRouter
+    participant Tracker as RateLimitTracker
+    participant MgrGroq as Groq (Manager役)
+    participant MgrCerebras as Cerebras (Manager代行)
+
+    AI->>Tracker: isAvailable("groq") → false（RPM到達）
+    AI->>Router: selectClient(Manager, statuses)
+    Router-->>AI: "cerebras"（次の優先クライアント）
+
+    AI->>MgrCerebras: 最小プロンプト「使用可能: [groq(worker), mistral]。どれを使う？」
+    Note over MgrCerebras: Manager AIは「use:groq」を返すのみ（最小トークン消費）
+    MgrCerebras-->>AI: "use:groq"
+
+    AI->>Tracker: recordUsage("cerebras", tokens=minimal)
+```
+
