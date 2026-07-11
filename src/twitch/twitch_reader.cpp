@@ -79,6 +79,11 @@ void TwitchReader::loadSettings() {
         }
         m_avatarName = obj.value("avatar_name").toString("AIアシスタント").trimmed();
         m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
+        // greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
+        m_greetingEnabled = obj.value("greeting_enabled").toBool(false);
+        if (m_greetingEnabled) {
+            qDebug() << "TwitchReader: Greeting feature is ENABLED (greeting_enabled=true in settings).";
+        }
     }
 }
 
@@ -559,6 +564,13 @@ void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &t
 }
 
 void TwitchReader::sendGreeting() {
+    // greeting_enabled が明示的に true でない限り発火しない
+    if (!m_greetingEnabled) {
+        qDebug() << "TwitchReader: Greeting skipped (greeting_enabled is not set in local_settings.json).";
+        m_shouldGreet = false;
+        return;
+    }
+
     m_shouldGreet = false;
     m_lastGreetedChannel = m_channel;
 

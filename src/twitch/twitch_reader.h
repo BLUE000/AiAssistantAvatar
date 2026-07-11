@@ -28,6 +28,7 @@ private:
     QTimer *m_reconnectTimer = nullptr; // connectToTwitch() の debounce 用
     bool m_shouldGreet = false;          // 挨拶すべきチャンネル切替より後の初回 JOIN のみ true
     QString m_lastGreetedChannel;        // 直前に挨拶したチャンネル（二重挨拶防止）
+    bool m_greetingEnabled = false;      // local_settings.json の greeting_enabled が true の時のみ ON
 
     void loadSettings();
     void saveTokenToSettings(const QString &accessToken);

@@ -53,6 +53,8 @@ void DiscordReader::loadSettings() {
             m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed();
             m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
             m_avatarName = obj.value("avatar_name").toString().trimmed();
+            // greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
+            m_greetingEnabled = obj.value("greeting_enabled").toBool(false);
         }
     }
 }
@@ -362,6 +364,12 @@ void DiscordReader::onReplyFinished(QNetworkReply *reply) {
 }
 
 void DiscordReader::sendGreeting() {
+    // greeting_enabled が明示的に true でない限り発火しない
+    if (!m_greetingEnabled) {
+        qDebug() << "DiscordReader: Greeting skipped (greeting_enabled is not set in local_settings.json).";
+        m_shouldGreet = false;
+        return;
+    }
     if (m_channelId.isEmpty()) return;
     m_shouldGreet = false;
     m_lastGreetedChannelId = m_channelId;

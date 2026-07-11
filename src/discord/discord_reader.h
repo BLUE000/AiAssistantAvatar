@@ -26,6 +26,7 @@ private:
     QString m_avatarName;
     bool m_shouldGreet = false;       // READY 受信後に挨拶するかフラグ
     QString m_lastGreetedChannelId;   // 直前に挨拶したチャンネルID（二重挨拶防止）
+    bool m_greetingEnabled = false;   // local_settings.json の greeting_enabled が true の時のみ ON
 
     void loadSettings();
     void connectToDiscord();
