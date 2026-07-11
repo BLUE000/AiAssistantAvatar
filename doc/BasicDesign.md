@@ -924,8 +924,22 @@ UIの直接チャット入力（Direct Input）において、半角スラッシ
 *   入力の先頭が `/` である場合、`AIClientManager::on_requestAI` にて文字列の完全一致比較を実施する。
 *   **`/open_folder`**: ナレッジ入力フォルダ（`log/knowledge_input/`）を作成・オープン（`QDesktopServices::openUrl`）。10分タイマーを開始し、状態を `AwaitingFileAndExplanation` に移行。AIの応答を待たずに「フォルダを開きました。ファイルを置いて、ファイル名と説明を教えてください。」と即座にUIへシステム応答を返す。
 *   **`/cancel`**: インポート状態をリセットし、タイマーを停止して通常会話状態に戻る。即座に「ナレッジ登録をキャンセルしました。」とシステム応答を返す。
+*   **`/twitch connect`**: `TwitchConnectRequested` イベントを発火し、TwitchReaderへ「挨拶付き再接続」を要求する。TwitchReaderは `m_shouldGreet = true` をセットしてチャンネルに再接続し、JOIN確認後にチャンネルへ挨拶を行う。即座に「Twitchチャンネルへ接続します。」とシステム応答を返す。
+*   **`/discord connect`**: `DiscordConnectRequested` イベントを発火し、DiscordReaderへ「挨拶付き再接続」を要求する。DiscordReaderは `m_shouldGreet = true` をセットして再接続し、READY受信後にチャンネルへ挨拶を行う。即座に「Discordチャンネルへ接続します。」とシステム応答を返す。
 *   **その他の `/` で始まる不一致コマンド**: AIへのリクエストを送信せず、即座に「無効なコマンドです。」とシステム応答を返す。
 *   **Twitch/Discordからの `/` 入力**: セキュリティ確保のため、完全無視し、通常の文字列チャットとして扱うか、または一切の処理をバイパスする。
+
+#### 挨拶トリガー条件
+
+| 条件 | Twitch | Discord |
+| :--- | :---: | :---: |
+| アプリ起動時の初回接続 | ✕（挨拶なし） | ✕（挨拶なし） |
+| `/twitch connect` / `/discord connect` 入力時 | ✅ | ✅ |
+| 設定画面でチャンネルを変更して保存した場合 | ✅（変更後の初回JOIN時のみ） | ✅（変更後のREADY受信時のみ） |
+| 自動再接続（切断後の自動復旧） | ✕（挨拶なし） | ✕（挨拶なし） |
+
+##### 挨拶の実装方式
+`TwitchReader`（JOIN確認後）または `DiscordReader`（READY受信後）が、`TwitchCommentReceived` / `DiscordMessageReceived` イベントを挨拶プロンプトとして発火する。AIがこれを受け取り、自然な挨拶文を生成してチャンネルへ送信する。
 
 ### 5.19 スラッシュコマンド判定とフォルダオープン・インポートシーケンス
 

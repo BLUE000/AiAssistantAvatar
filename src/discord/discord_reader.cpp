@@ -89,10 +89,25 @@ void DiscordReader::on_stopReading() {
 
 void DiscordReader::on_settingsUpdated() {
     qDebug() << "DiscordReader: Settings updated, reloading...";
+    QString prevChannelId = m_channelId;
     bool wasRunning = m_isRunning;
     on_stopReading();
     loadSettings();
+    // チャンネルIDが変更された場合のみ挨拶フラグを立てる
+    if (!m_channelId.isEmpty() && m_channelId != prevChannelId) {
+        qDebug() << "DiscordReader: Channel changed from" << prevChannelId << "to" << m_channelId << ". Greeting scheduled.";
+        m_shouldGreet = true;
+    }
     if (wasRunning && m_enabled) {
+        on_startReading();
+    }
+}
+
+void DiscordReader::on_discordConnectRequested() {
+    qDebug() << "DiscordReader: /discord connect requested. Greeting scheduled.";
+    m_shouldGreet = true;
+    on_stopReading();
+    if (m_enabled) {
         on_startReading();
     }
 }
@@ -184,6 +199,11 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                 QJsonObject userObj = dObj.value("user").toObject();
                 m_botUserId = userObj.value("id").toString();
                 qDebug() << "DiscordReader: Bot is ready. Bot User ID:" << m_botUserId;
+                // READY 受信後に挨拶フラグが立っていれば挨拶発火
+                if (m_shouldGreet && m_lastGreetedChannelId != m_channelId) {
+                    qDebug() << "DiscordReader: READY received. Triggering greeting for channel" << m_channelId;
+                    QTimer::singleShot(1000, this, [this]() { sendGreeting(); }); // 1秒待ってから挨拶
+                }
             }
             else if (t == "MESSAGE_CREATE") {
                 QString channelId = dObj.value("channel_id").toString();
@@ -339,4 +359,26 @@ void DiscordReader::onReplyFinished(QNetworkReply *reply) {
         }
     }
     reply->deleteLater();
+}
+
+void DiscordReader::sendGreeting() {
+    if (m_channelId.isEmpty()) return;
+    m_shouldGreet = false;
+    m_lastGreetedChannelId = m_channelId;
+
+    // 挨拶プロンプトを DiscordMessageReceived として発火 → AI が自然な挨拶文を生成してチャンネルへ送信する
+    AppEvent event;
+    event.type = EventType::DiscordMessageReceived;
+    event.source = "DiscordReader";
+    event.text   = "\uff08システム）Discordチャンネルに接続しました。メンバーに明るく挨拶してください。";
+
+    QVariantMap meta;
+    meta["channel_id"]  = m_channelId;
+    meta["username"]    = "__system_greeting__";
+    meta["user_id"]     = "";
+    meta["is_greeting"] = true;
+    event.extraData = meta;
+
+    qDebug() << "DiscordReader: Emitting greeting event for channel" << m_channelId;
+    emit notifyEvent(event);
 }

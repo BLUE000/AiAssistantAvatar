@@ -3,15 +3,17 @@
 #include <QVariantMap>
 
 enum class EventType {
-    TwitchCommentReceived,  // 対象のコメント受信
-    DiscordMessageReceived, // Discordメッセージ受信
-    VoiceInputStarted,       // 音声認識開始
-    VoiceInputCompleted,     // 音声認識完了 (テキスト有り)
-    DirectInputSubmitted,    // キーボード直接入力
-    AIRequestSent,          // AIへ送信開始
-    AIResponseReceived,     // AIからの回答受信
-    ErrorOccurred,          // エラー発生
-    SettingsUpdated         // 設定更新
+    TwitchCommentReceived,    // 対象のコメント受信
+    DiscordMessageReceived,   // Discordメッセージ受信
+    VoiceInputStarted,        // 音声認識開始
+    VoiceInputCompleted,      // 音声認識完了 (テキスト有り)
+    DirectInputSubmitted,     // キーボード直接入力
+    AIRequestSent,            // AIへ送信開始
+    AIResponseReceived,       // AIからの回答受信
+    ErrorOccurred,            // エラー発生
+    SettingsUpdated,          // 設定更新
+    TwitchConnectRequested,   // /twitch connect コマンド（挨拶付き再接続）
+    DiscordConnectRequested    // /discord connect コマンド（挨拶付き再接続）
 };
 
 struct AppEvent {

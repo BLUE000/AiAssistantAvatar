@@ -24,12 +24,15 @@ private:
     QString m_wakeWordMode;
     bool m_nameReactionEnabled = true;
     QString m_avatarName;
+    bool m_shouldGreet = false;       // READY 受信後に挨拶するかフラグ
+    QString m_lastGreetedChannelId;   // 直前に挨拶したチャンネルID（二重挨拶防止）
 
     void loadSettings();
     void connectToDiscord();
     void sendHeartbeat();
     void identify();
     void parseGatewayMessage(const QString &message);
+    void sendGreeting();  // READY確認後に挨拶を発火
 
 public:
     explicit DiscordReader(QObject *parent = nullptr);
@@ -42,6 +45,7 @@ public slots:
     void on_startReading();
     void on_stopReading();
     void on_settingsUpdated();
+    void on_discordConnectRequested(); // /discord connect コマンドで呼ばれる（挨拶付き再接続）
     void on_requestDiscordSend(const QString &channelId, const QString &text);
 
 private slots:

@@ -299,6 +299,15 @@ void TwitchReader::onTextMessageReceived(const QString &message) {
             continue;
         }
 
+        // 366 = "End of /NAMES list" → JOIN 成功確認，挨拶フラグが立っていれば挨拶発火
+        if (line.contains(" 366 ")) {
+            if (m_shouldGreet && m_lastGreetedChannel != m_channel) {
+                qDebug() << "TwitchReader: JOIN confirmed. Triggering greeting for channel" << m_channel;
+                sendGreeting();
+            }
+            continue;
+        }
+
         // IRC メッセージパーサー
         QRegularExpression regex("^:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$");
         QRegularExpressionMatch match = regex.match(line);
@@ -486,9 +495,25 @@ void TwitchReader::fetchChannelName(const QString &token) {
 
 void TwitchReader::on_settingsUpdated() {
     qDebug() << "TwitchReader: Settings updated. Reloading config.";
+    QString prevChannel = m_channel;
     loadSettings();
+    // チャンネルが変更された場合のみ挨拶フラグを立てる
+    if (!m_channel.isEmpty() && m_channel.toLower() != prevChannel.toLower()) {
+        qDebug() << "TwitchReader: Channel changed from" << prevChannel << "to" << m_channel << ". Greeting scheduled.";
+        m_shouldGreet = true;
+    }
     if (m_isRunning) {
         connectToTwitch();
+    }
+}
+
+void TwitchReader::on_twitchConnectRequested() {
+    qDebug() << "TwitchReader: /twitch connect requested. Greeting scheduled.";
+    m_shouldGreet = true;
+    if (m_isRunning) {
+        connectToTwitch();
+    } else {
+        on_startReading();
     }
 }
 
@@ -533,3 +558,23 @@ void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &t
     qDebug() << "TwitchReader: Sent PRIVMSG to" << ch << ":" << text;
 }
 
+void TwitchReader::sendGreeting() {
+    m_shouldGreet = false;
+    m_lastGreetedChannel = m_channel;
+
+    // 挨拶プロンプトを TwitchCommentReceived として発火→ AI が自然な挨拶文を生成してチャンネルへ送信する
+    AppEvent event;
+    event.type = EventType::TwitchCommentReceived;
+    event.source = "TwitchReader";
+    event.text   = "\uff08システム）チャンネルに接続しました。視聴者に明るく挨拶してください。";
+
+    QVariantMap meta;
+    meta["user"]         = "__system_greeting__";
+    meta["raw_message"]  = "";
+    meta["twitch_channel"] = m_channel;
+    meta["is_greeting"]  = true;
+    event.extraData = meta;
+
+    qDebug() << "TwitchReader: Emitting greeting event for channel" << m_channel;
+    emit notifyEvent(event);
+}

@@ -14,7 +14,7 @@ void CoreModule::on_notify_events(const AppEvent &event) {
     
     switch (event.type) {
         case EventType::TwitchCommentReceived: {
-            // TwitchからのメッセージはUIに中継（UIのキューで順次処理）
+            // TwitchからのメッセージはUIに中継（UIのキャーで順次処理）
             emit notifyEventToUI(event);
             break;
         }
@@ -41,6 +41,22 @@ void CoreModule::on_notify_events(const AppEvent &event) {
                 emit requestTwitchSend(twitchChannel, event.text);
             }
             // Discord/Twitch/直接入力いずれの場合もUIに中継
+            emit notifyEventToUI(event);
+            break;
+        }
+        case EventType::TwitchConnectRequested: {
+            // /twitch connect コマンド → TwitchReaderへ挨拶付き再接続を要求
+            qDebug() << "CoreModule: Routing TwitchConnectRequested to TwitchReader.";
+            emit requestTwitchConnect();
+            // UIにもコマンド結果を表示
+            emit notifyEventToUI(event);
+            break;
+        }
+        case EventType::DiscordConnectRequested: {
+            // /discord connect コマンド → DiscordReaderへ挨拶付き再接続を要求
+            qDebug() << "CoreModule: Routing DiscordConnectRequested to DiscordReader.";
+            emit requestDiscordConnect();
+            // UIにもコマンド結果を表示
             emit notifyEventToUI(event);
             break;
         }

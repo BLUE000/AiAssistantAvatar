@@ -474,6 +474,22 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             m_importingFileName.clear();
             m_importingFileContent.clear();
             responseEvent.text = "ナレッジの登録作業をキャンセルしました。";
+        } else if (trimmedPrompt == "/twitch connect") {
+            // TwitchConnectRequested イベントを発火 → CoreModule → TwitchReader::on_twitchConnectRequested()
+            AppEvent connectEvent;
+            connectEvent.type = EventType::TwitchConnectRequested;
+            connectEvent.source = "AIClientManager";
+            connectEvent.text = "";
+            emit notifyEvent(connectEvent);
+            responseEvent.text = "Twitchチャンネルへ接続します。";
+        } else if (trimmedPrompt == "/discord connect") {
+            // DiscordConnectRequested イベントを発火 → CoreModule → DiscordReader::on_discordConnectRequested()
+            AppEvent connectEvent;
+            connectEvent.type = EventType::DiscordConnectRequested;
+            connectEvent.source = "AIClientManager";
+            connectEvent.text = "";
+            emit notifyEvent(connectEvent);
+            responseEvent.text = "Discordチャンネルへ接続します。";
         } else {
             responseEvent.text = "無効なコマンドです。";
         }

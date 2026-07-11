@@ -26,6 +26,8 @@ private:
     QNetworkAccessManager *m_networkManager = nullptr;
     QString m_configPath;
     QTimer *m_reconnectTimer = nullptr; // connectToTwitch() の debounce 用
+    bool m_shouldGreet = false;          // 挨拶すべきチャンネル切替より後の初回 JOIN のみ true
+    QString m_lastGreetedChannel;        // 直前に挨拶したチャンネル（二重挨拶防止）
 
     void loadSettings();
     void saveTokenToSettings(const QString &accessToken);
@@ -34,6 +36,7 @@ private:
     void startOAuthServer();
     void connectToTwitch();       // debounce エントリ（外部から呼ぶ）
     void doConnectToTwitch();     // 実際の接続処理（タイマーから呼ばれる）
+    void sendGreeting();          // JOIN確認後に挨拶を発火
 
 public:
     explicit TwitchReader(QObject *parent = nullptr);
@@ -50,6 +53,7 @@ public slots:
     void on_stopReading();
     void on_settingsUpdated();
     void on_twitchReauthRequested();
+    void on_twitchConnectRequested(); // /twitch connect コマンドで呼ばれる（挨拶付き再接続）
     
     // テスト用の擬似コメント注入用スロット
     void injectTestComment(const QString &user, const QString &message);

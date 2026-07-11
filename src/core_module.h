@@ -26,6 +26,8 @@ signals:
     void requestTwitchSend(const QString &channel, const QString &text);   // Twitchメッセージ送信要求
     void requestDeleteKnowledge(const QString &id);
     void requestKnowledgeMetadata();
+    void requestTwitchConnect();   // /twitch connect コマンド → TwitchReader へ挨拶付き再接続
+    void requestDiscordConnect();  // /discord connect コマンド → DiscordReader へ挨拶付き再接続
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット

@@ -177,6 +177,11 @@ int main(int argc, char *argv[]) {
                      discord, &DiscordReader::on_requestDiscordSend, Qt::QueuedConnection);
     QObject::connect(core, &CoreModule::requestTwitchSend,
                      twitch, &TwitchReader::on_requestTwitchSend, Qt::QueuedConnection);
+    // /twitch connect / /discord connect コマンド → 挨拶付き再接続
+    QObject::connect(core, &CoreModule::requestTwitchConnect,
+                     twitch, &TwitchReader::on_twitchConnectRequested, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestDiscordConnect,
+                     discord, &DiscordReader::on_discordConnectRequested, Qt::QueuedConnection);
 
     // SubModules -> Core (イベント通知)
     QObject::connect(twitch, &TwitchReader::notifyEvent,
