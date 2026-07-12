@@ -1,5 +1,6 @@
 #pragma once
 #include "iai_client.h"
+#include "provider_status.h"
 #include <QTimer>
 
 class DummyAIClient : public IAIClient {
@@ -13,4 +14,6 @@ public:
     ~DummyAIClient() override;
     void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) override;
     void setApiKey(const QString &apiKey) override;
+    QString clientId() const override { return QStringLiteral("dummy"); }
+    ProviderStatus defaultStatus() const override;
 };

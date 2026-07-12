@@ -31,7 +31,10 @@ set(TEST_SOURCES
     ../src/ai/iai_client.cpp
     ../src/ai/mistral_ai_client.cpp
     ../src/ai/cerebras_ai_client.cpp
+    ../src/ai/groq_ai_client.cpp
     ../src/ai/dummy_ai_client.cpp
+    ../src/ai/rate_limit_tracker.cpp
+    ../src/ai/ai_router.cpp
     ../src/search/isearch_provider.cpp
     ../src/search/search_manager.cpp
     ../src/search/tavily_search_provider.cpp

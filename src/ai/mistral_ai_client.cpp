@@ -9,7 +9,7 @@
 #include <QDebug>
 
 MistralAIClient::MistralAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false)
+    : IAIClient(parent), m_isToolCalling(false), m_model("mistral-small-latest")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,
@@ -25,6 +25,12 @@ MistralAIClient::~MistralAIClient() {
 
 void MistralAIClient::setApiKey(const QString &apiKey) {
     m_apiKey = apiKey;
+}
+
+void MistralAIClient::setModel(const QString &model) {
+    if (!model.trimmed().isEmpty()) {
+        m_model = model.trimmed();
+    }
 }
 
 void MistralAIClient::setTavilyApiKey(const QString &tavilyKey) {
@@ -48,7 +54,7 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = "mistral-small-latest"; // Function Callingに対応した標準モデル
+    requestBody["model"] = m_model;
 
     QJsonArray messages;
     QJsonObject systemMessage;
@@ -214,6 +220,11 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 }
 
 void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
+    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+    if (manager) {
+        manager->tracker().updateFromReply(QStringLiteral("mistral"), reply);
+    }
+
     reply->deleteLater();
 
     if (reply->error() != QNetworkReply::NoError) {
@@ -303,7 +314,7 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
                             QJsonObject requestBody;
-                            requestBody["model"] = "mistral-small-latest";
+                            requestBody["model"] = m_model;
                             requestBody["messages"] = m_pendingMessages;
                             requestBody["tools"] = m_toolsArray;
                             requestBody["tool_choice"] = "auto";
@@ -356,7 +367,7 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
                             QJsonObject requestBody;
-                            requestBody["model"] = "mistral-small-latest";
+                            requestBody["model"] = m_model;
                             requestBody["messages"] = m_pendingMessages;
                             requestBody["tools"] = m_toolsArray;
                             requestBody["tool_choice"] = "auto";
@@ -406,7 +417,7 @@ void MistralAIClient::on_searchFinished(const QString &resultText, bool success)
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = "mistral-small-latest";
+    requestBody["model"] = m_model;
     requestBody["messages"] = m_pendingMessages; // 検索結果を含んだメッセージ履歴
     requestBody["tools"] = m_toolsArray; // 再送信リクエストでもツール定義を渡す
     requestBody["tool_choice"] = "auto"; // モデルにツール使用権限を与える
@@ -417,4 +428,24 @@ void MistralAIClient::on_searchFinished(const QString &resultText, bool success)
     qDebug() << "MistralAIClient: Sending final response request to Mistral...";
     qDebug() << "MistralAIClient: Final Request Body:" << QString::fromUtf8(postData);
     m_networkManager->post(request, postData);
+}
+
+ProviderStatus MistralAIClient::defaultStatus() const {
+    ProviderStatus s;
+    s.provider      = QStringLiteral("mistral");
+    s.available     = true;
+    s.rpmMax        = 1;
+    s.rpmRemaining  = 1;
+    s.rpdMax        = -1;     // Mistral free tier: 制限値不明のため-1（チェックバイパス）
+    s.rpdRemaining  = -1;
+    s.tpmMax        = -1;
+    s.tpmRemaining  = -1;
+    s.tpdMax        = -1;
+    s.tpdRemaining  = -1;
+    s.contextWindow = 131072;
+    s.toolCall      = true;
+    s.supportsDiff  = false;
+    s.cost          = 0.0;
+    s.latencyMs     = 0;
+    return s;
 }

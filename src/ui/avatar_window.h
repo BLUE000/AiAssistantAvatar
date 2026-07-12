@@ -9,6 +9,7 @@
 #include <QQueue>
 #include <QJsonObject>
 #include "../app_event.h"
+#include "../ai/provider_status.h"
 
 struct ImageSetting {
     QString filePath;
@@ -99,10 +100,32 @@ private:
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
     QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
+    QCheckBox *m_aiProviderGroqCheckbox = nullptr; // Groq
     QLineEdit *m_aiApiKeyEdit = nullptr;
     QLineEdit *m_aiCerebrasApiKeyEdit = nullptr;
     QComboBox *m_aiCerebrasModelCombo = nullptr;
+    QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
+    QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
+
+    // マネージャAI設定用UI
+    QCheckBox *m_managerEnabledCheckbox = nullptr;
+    QComboBox *m_managerProviderCombo = nullptr;
+    QComboBox *m_managerModelCombo = nullptr;
+
+    // プロバイダ限界設定用UI
+    QComboBox *m_limitProviderCombo = nullptr;
+    QLineEdit *m_limitRpmEdit = nullptr;
+    QLineEdit *m_limitRpdEdit = nullptr;
+    QLineEdit *m_limitTpmEdit = nullptr;
+    QLineEdit *m_limitTpdEdit = nullptr;
+    QLineEdit *m_limitContextEdit = nullptr;
+    QCheckBox *m_limitToolCallCheckbox = nullptr;
+    QLineEdit *m_limitCostEdit = nullptr;
+    QLabel *m_limitRemainingLabel = nullptr;
+    QPushButton *m_limitAutoFetchButton = nullptr;
+
+    QNetworkAccessManager *m_modelsNetworkManager = nullptr;
     QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
     QCheckBox *m_discordEnabledCheckbox = nullptr;
@@ -219,6 +242,9 @@ private slots:
     void onAddUserClicked();
     void onUserTableCellChanged(int row, int column);
     void onDeleteKnowledgeClicked();
+    void onLimitProviderChanged(int index);
+    void onLimitAutoFetchClicked();
+    void onModelsReplyFinished(QNetworkReply *reply);
 
 protected:
     void moveEvent(QMoveEvent *event) override;
@@ -240,6 +266,7 @@ signals:
     void twitchReauthRequested();
     void deleteKnowledgeRequested(const QString &id);
     void requestKnowledgeMetadataRequested();
+    void requestProviderStatus(const QString &providerId);
 
     // ニックネーム管理用要求シグナル
     void approveNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
@@ -252,4 +279,5 @@ public slots:
     void on_notify_events(const AppEvent &event);
     void onNicknameDataUpdated(const QJsonObject &data);
     void onKnowledgeDataUpdated(const QJsonObject &data);
+    void onProviderStatusReceived(const ProviderStatus &status);
 };

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "iai_client.h"
 #include "provider_status.h"
 #include <QNetworkAccessManager>
@@ -7,12 +7,12 @@
 
 class SearchManager;
 
-class MistralAIClient : public IAIClient {
+class GroqAIClient : public IAIClient {
     Q_OBJECT
 private:
     QNetworkAccessManager *m_networkManager;
     QString m_apiKey;
-    QString m_model;
+    QString m_model;           // デフォルト: "llama-3.1-8b-instant"
     SearchManager *m_searchManager;
 
     // Function Calling 状態管理用
@@ -23,13 +23,17 @@ private:
     QJsonArray m_toolsArray;
 
 public:
-    explicit MistralAIClient(QObject *parent = nullptr);
-    ~MistralAIClient() override;
-    void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) override;
+    explicit GroqAIClient(QObject *parent = nullptr);
+    ~GroqAIClient() override;
+
+    void sendRequest(const QString &prompt,
+                     const QList<QPair<QString,QString>> &history = {},
+                     const QString &sessionContext = QString(),
+                     const QString &systemInstruction = QString()) override;
     void setApiKey(const QString &apiKey) override;
     void setModel(const QString &model);
     void setTavilyApiKey(const QString &tavilyKey) override;
-    QString clientId() const override { return QStringLiteral("mistral"); }
+    QString clientId() const override { return QStringLiteral("groq"); }
     ProviderStatus defaultStatus() const override;
 
 private slots:

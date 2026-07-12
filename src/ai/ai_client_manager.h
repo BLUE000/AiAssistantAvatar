@@ -7,6 +7,8 @@
 #include <QTimer>
 #include "iai_client.h"
 #include "../app_event.h"
+#include "rate_limit_tracker.h"
+#include "ai_router.h"
 
 enum class KnowledgeImportState {
     Idle,
@@ -19,7 +21,7 @@ class AIClientManager : public QObject {
     Q_OBJECT
 private:
     IAIClient *m_currentClient = nullptr;
-    QString m_provider; // "mistral", "cerebras", or "dummy"
+    QString m_provider; // 現在のWorker API（UI設定、優先度の最優先に配置）
     QString m_transCipherKey; // 難読化用の秘密鍵
     QList<QPair<QString, QString>> m_chatHistory; // 会話履歴 (ユーザー入力, AI応答)
     QString m_sessionContext; // マークダウンのコンテキスト要約
@@ -41,12 +43,35 @@ private:
     QString m_currentRequester;
     QString m_previousRequester; // 前回のリクエスター（切り替わり検知用）
 
+    // --- F-15/F-16 AIルーティング・Groq対応追加 ---
+    class MistralAIClient *m_mistralClient = nullptr;
+    class CerebrasAIClient *m_cerebrasClient = nullptr;
+    class GroqAIClient *m_groqClient = nullptr;
+    class DummyAIClient *m_dummyClient = nullptr;
+
+    QMap<QString, IAIClient*> m_clientMap;
+    RateLimitTracker m_tracker;
+    AIRouter m_router;
+
+    bool m_managerEnabled = false;
+    QString m_managerProvider = "groq";
+    QString m_managerModel = "llama-3.1-8b-instant";
+    QString m_groqModel = "llama-3.3-70b-versatile";
+    QString m_cerebrasModel = "llama3.1-8b";
+    QString m_mistralModel = "mistral-small-latest";
+    QString m_tavilyApiKey;
+    qint64 m_apiCallStartTimeMs = 0;
+
+    QStringList workerPriorityOrder() const;
+    QStringList managerPriorityOrder() const;
+
     struct PendingRequest {
         QString prompt;
         QString user;
     };
     QList<PendingRequest> m_pendingRequests;
     void processPendingRequests();
+    bool selectAndPrepareClient();
 
     void loadCredentials();
     void loadSessionContext();
@@ -97,6 +122,13 @@ public:
     QString lastFinalPrompt() const { return m_lastFinalPrompt; }
     QString avatarName() const { return m_avatarName; }
 
+    RateLimitTracker& tracker() { return m_tracker; }
+    const RateLimitTracker& tracker() const { return m_tracker; }
+    bool managerEnabled() const { return m_managerEnabled; }
+    QString managerProvider() const { return m_managerProvider; }
+    QString managerModel() const { return m_managerModel; }
+    QString groqModel() const { return m_groqModel; }
+
     // 暗号化バックアップの復号・読み出し用I/F
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
 
@@ -105,6 +137,7 @@ signals:
     void chatHistoryUpdated(const QList<QPair<QString, QString>> &history); // 履歴更新シグナル
     void userNamesUpdated(const QJsonObject &data);
     void knowledgeMetadataUpdated(const QJsonObject &data);
+    void providerStatusResponse(const ProviderStatus &status);
 
 public slots:
     void on_requestAI(const QString &prompt, const QString &user = "");
@@ -128,6 +161,7 @@ public slots:
     void onImportTimeout();
     QString finalizeKnowledgeImport(const QString &title, const QString &description, const QStringList &keywords);
     void openKnowledgeInputFolder();
+    void on_requestProviderStatus(const QString &providerId);
 
     QJsonObject userNamesObj() const { return m_userNamesObj; }
 };

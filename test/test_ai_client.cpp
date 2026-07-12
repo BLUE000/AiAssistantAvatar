@@ -1001,3 +1001,72 @@ TEST_F(AIClientTest, RAGRecallTest) {
     // Cleanup
     QDir("log").removeRecursively();
 }
+
+TEST_F(AIClientTest, RateLimitTrackerTest) {
+    RateLimitTracker tracker;
+    
+    ProviderStatus s1;
+    s1.provider = "groq";
+    s1.available = true;
+    s1.rpmMax = 30;
+    s1.rpmRemaining = 30;
+    s1.rpdMax = 100;
+    s1.rpdRemaining = 100;
+    
+    tracker.registerClient(s1);
+    
+    // 1. 初期状態チェック
+    EXPECT_TRUE(tracker.isAvailable("groq"));
+    EXPECT_EQ(tracker.statusOf("groq").rpmRemaining, 30);
+
+    // 2. 擬似的に残り0に変更
+    ProviderStatus manual = s1;
+    manual.rpmRemaining = 0;
+    manual.available = false;
+    tracker.registerClient(manual);
+    EXPECT_FALSE(tracker.isAvailable("groq"));
+
+    // 3. 移動平均レイテンシ
+    tracker.recordLatency("groq", 100);
+    tracker.recordLatency("groq", 200);
+    tracker.recordLatency("groq", 300);
+    EXPECT_EQ(tracker.statusOf("groq").latencyMs, 200); // (100+200+300)/3
+}
+
+TEST_F(AIClientTest, AIRouterRoutingTest) {
+    RateLimitTracker tracker;
+    AIRouter router;
+
+    ProviderStatus s1;
+    s1.provider = "groq";
+    s1.available = true;
+    
+    ProviderStatus s2;
+    s2.provider = "cerebras";
+    s2.available = false; // 枯渇
+
+    ProviderStatus s3;
+    s3.provider = "mistral";
+    s3.available = true;
+
+    tracker.registerClient(s1);
+    tracker.registerClient(s2);
+    tracker.registerClient(s3);
+
+    QStringList priority = {"groq", "cerebras", "mistral"};
+
+    // 1. 優先度最高かつ利用可能な groq が選ばれること
+    EXPECT_EQ(router.selectClient(AIRole::Worker, tracker, priority), "groq");
+
+    // 2. groq も枯渇状態にする
+    s1.available = false;
+    tracker.registerClient(s1);
+
+    // 3. 次に利用可能な mistral が選ばれること（cerebrasはスキップされる）
+    EXPECT_EQ(router.selectClient(AIRole::Worker, tracker, priority), "mistral");
+
+    // 4. 全枯渇状態
+    s3.available = false;
+    tracker.registerClient(s3);
+    EXPECT_EQ(router.selectClient(AIRole::Worker, tracker, priority), "");
+}

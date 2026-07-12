@@ -1,4 +1,4 @@
-#include "cerebras_ai_client.h"
+#include "groq_ai_client.h"
 #include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
@@ -8,47 +8,47 @@
 #include <QUrl>
 #include <QDebug>
 
-CerebrasAIClient::CerebrasAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false), m_model("gemma-4-31b")
+GroqAIClient::GroqAIClient(QObject *parent)
+    : IAIClient(parent), m_isToolCalling(false), m_model("llama-3.1-8b-instant")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,
-            this, &CerebrasAIClient::on_networkReplyFinished);
+            this, &GroqAIClient::on_networkReplyFinished);
 
     m_searchManager = new SearchManager(this);
     connect(m_searchManager, &SearchManager::searchFinished,
-            this, &CerebrasAIClient::on_searchFinished);
+            this, &GroqAIClient::on_searchFinished);
 }
 
-CerebrasAIClient::~CerebrasAIClient() {
+GroqAIClient::~GroqAIClient() {
 }
 
-void CerebrasAIClient::setApiKey(const QString &apiKey) {
+void GroqAIClient::setApiKey(const QString &apiKey) {
     m_apiKey = apiKey;
 }
 
-void CerebrasAIClient::setModel(const QString &model) {
+void GroqAIClient::setModel(const QString &model) {
     if (!model.isEmpty()) {
         m_model = model;
     }
 }
 
-void CerebrasAIClient::setTavilyApiKey(const QString &tavilyKey) {
+void GroqAIClient::setTavilyApiKey(const QString &tavilyKey) {
     if (m_searchManager) {
         m_searchManager->setTavilyApiKey(tavilyKey);
     }
 }
 
-void CerebrasAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
+void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     if (m_apiKey.isEmpty()) {
-        emit requestFinished("Cerebras APIキーが設定されていません。local_settings.json を確認してください。", false);
+        emit requestFinished("Groq APIキーが設定されていません。local_settings.json を確認してください。", false);
         return;
     }
 
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
 
-    QUrl url("https://api.cerebras.ai/v1/chat/completions");
+    QUrl url("https://api.groq.com/openai/v1/chat/completions");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
@@ -214,15 +214,15 @@ void CerebrasAIClient::sendRequest(const QString &prompt, const QList<QPair<QStr
     QJsonDocument doc(requestBody);
     QByteArray postData = doc.toJson();
 
-    qDebug() << "CerebrasAIClient: Sending request with tools, history size:" << history.size();
-    qDebug() << "CerebrasAIClient: Request Body:" << QString::fromUtf8(postData);
+    qDebug() << "GroqAIClient: Sending request with tools, history size:" << history.size();
+    qDebug() << "GroqAIClient: Request Body:" << QString::fromUtf8(postData);
     m_networkManager->post(request, postData);
 }
 
-void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
+void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
     if (manager) {
-        manager->tracker().updateFromReply(QStringLiteral("cerebras"), reply);
+        manager->tracker().updateFromReply(QStringLiteral("groq"), reply);
     }
 
     reply->deleteLater();
@@ -231,13 +231,13 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         QString errorMsg = QString("ネットワークエラー: %1 (%2)")
                             .arg(reply->errorString())
                             .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
-        qWarning() << "CerebrasAIClient Error:" << errorMsg;
+        qWarning() << "GroqAIClient Error:" << errorMsg;
         emit requestFinished(errorMsg, false);
         return;
     }
 
     QByteArray responseData = reply->readAll();
-    qDebug() << "CerebrasAIClient: Received response:" << QString::fromUtf8(responseData);
+    qDebug() << "GroqAIClient: Received response:" << QString::fromUtf8(responseData);
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (doc.isNull() || !doc.isObject()) {
         emit requestFinished("レスポンスJSONの解析に失敗しました。", false);
@@ -266,7 +266,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             QJsonDocument argsDoc = QJsonDocument::fromJson(argsStr.toUtf8());
                             QString query = argsDoc.object()["query"].toString();
 
-                            qDebug() << "CerebrasAIClient: Function call detected. id:" << m_activeToolCallId << "query:" << query;
+                            qDebug() << "GroqAIClient: Function call detected. id:" << m_activeToolCallId << "query:" << query;
                             
                             // tool_calls を含む assistant メッセージを履歴に追加する (Cerebras APIの仕様上必須)
                             m_pendingMessages.append(messageObj);
@@ -283,7 +283,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             QString targetUser = argsDoc.object()["target_user"].toString().trimmed();
                             QString nickname = argsDoc.object()["nickname"].toString().trimmed();
 
-                            qDebug() << "CerebrasAIClient: update_nickname call detected. id:" << toolCallId << "target_user:" << targetUser << "nickname:" << nickname;
+                            qDebug() << "GroqAIClient: update_nickname call detected. id:" << toolCallId << "target_user:" << targetUser << "nickname:" << nickname;
 
                             // tool_calls を含む assistant メッセージを履歴に追加する
                             m_pendingMessages.append(messageObj);
@@ -308,7 +308,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             m_pendingMessages.append(toolResponse);
 
                             // 再度 Cerebras に最終回答リクエストを送信
-                            QUrl url("https://api.cerebras.ai/v1/chat/completions");
+                            QUrl url("https://api.groq.com/openai/v1/chat/completions");
                             QNetworkRequest request(url);
                             request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
                             request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
@@ -322,7 +322,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             QJsonDocument doc(requestBody);
                             QByteArray postData = doc.toJson();
 
-                            qDebug() << "CerebrasAIClient: Sending request back to Cerebras after update_nickname execution...";
+                            qDebug() << "GroqAIClient: Sending request back to Groq after update_nickname execution...";
                             m_networkManager->post(request, postData);
                             return;
                         } else if (funcName == "finalize_knowledge_import") {
@@ -340,7 +340,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                                 if (!kw.isEmpty()) keywords.append(kw);
                             }
 
-                            qDebug() << "CerebrasAIClient: finalize_knowledge_import call detected. id:" << toolCallId << "title:" << title << "description:" << description << "keywords:" << keywords;
+                            qDebug() << "GroqAIClient: finalize_knowledge_import call detected. id:" << toolCallId << "title:" << title << "description:" << description << "keywords:" << keywords;
 
                             m_pendingMessages.append(messageObj);
 
@@ -361,7 +361,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             
                             m_pendingMessages.append(toolResponse);
 
-                            QUrl url("https://api.cerebras.ai/v1/chat/completions");
+                            QUrl url("https://api.groq.com/openai/v1/chat/completions");
                             QNetworkRequest request(url);
                             request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
                             request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
@@ -375,7 +375,7 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             QJsonDocument doc(requestBody);
                             QByteArray postData = doc.toJson();
 
-                            qDebug() << "CerebrasAIClient: Sending request back to Cerebras after finalize_knowledge_import execution...";
+                            qDebug() << "GroqAIClient: Sending request back to Groq after finalize_knowledge_import execution...";
                             m_networkManager->post(request, postData);
                             return;
                         }
@@ -393,9 +393,9 @@ void CerebrasAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     emit requestFinished("レスポンスから適切なメッセージが見つかりませんでした。", false);
 }
 
-void CerebrasAIClient::on_searchFinished(const QString &resultText, bool success) {
-    qDebug() << "CerebrasAIClient: Search finished. Success:" << success << "Result length:" << resultText.length();
-    qDebug() << "CerebrasAIClient: Search result content:" << resultText;
+void GroqAIClient::on_searchFinished(const QString &resultText, bool success) {
+    qDebug() << "GroqAIClient: Search finished. Success:" << success << "Result length:" << resultText.length();
+    qDebug() << "GroqAIClient: Search result content:" << resultText;
 
     // 検索結果 (toolロール) をメッセージ履歴に追加
     QJsonObject toolResponse;
@@ -410,7 +410,7 @@ void CerebrasAIClient::on_searchFinished(const QString &resultText, bool success
     m_pendingMessages.append(toolResponse);
 
     // 再度 Cerebras に最終回答リクエストを送信
-    QUrl url("https://api.cerebras.ai/v1/chat/completions");
+    QUrl url("https://api.groq.com/openai/v1/chat/completions");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
@@ -424,21 +424,21 @@ void CerebrasAIClient::on_searchFinished(const QString &resultText, bool success
     QJsonDocument doc(requestBody);
     QByteArray postData = doc.toJson();
 
-    qDebug() << "CerebrasAIClient: Sending final response request to Cerebras...";
-    qDebug() << "CerebrasAIClient: Final Request Body:" << QString::fromUtf8(postData);
+    qDebug() << "GroqAIClient: Sending final response request to Groq...";
+    qDebug() << "GroqAIClient: Final Request Body:" << QString::fromUtf8(postData);
     m_networkManager->post(request, postData);
 }
 
-ProviderStatus CerebrasAIClient::defaultStatus() const {
+ProviderStatus GroqAIClient::defaultStatus() const {
     ProviderStatus s;
-    s.provider      = QStringLiteral("cerebras");
+    s.provider      = QStringLiteral("groq");
     s.available     = true;
     s.rpmMax        = 30;
     s.rpmRemaining  = 30;
-    s.rpdMax        = 1000;
-    s.rpdRemaining  = 1000;
-    s.tpmMax        = 60000;
-    s.tpmRemaining  = 60000;
+    s.rpdMax        = 14400;
+    s.rpdRemaining  = 14400;
+    s.tpmMax        = 131072;
+    s.tpmRemaining  = 131072;
     s.contextWindow = 131072;
     s.toolCall      = true;
     s.supportsDiff  = false;

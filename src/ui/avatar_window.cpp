@@ -1131,21 +1131,25 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     scrollArea->setFrameShape(QFrame::NoFrame);
 
     QWidget *scrollContent = new QWidget(scrollArea);
-    // スクロールコンテンツ内の縦レイアウト
     QVBoxLayout *mainLayout = new QVBoxLayout(scrollContent);
     mainLayout->setContentsMargins(10, 10, 10, 10);
-    mainLayout->setSpacing(8);
+    mainLayout->setSpacing(10);
 
     m_aiProviderMistralCheckbox = new QCheckBox("Mistral AI を使用する", scrollContent);
     m_aiProviderCerebrasCheckbox = new QCheckBox("Cerebras AI を使用する", scrollContent);
+    m_aiProviderGroqCheckbox = new QCheckBox("Groq AI を使用する", scrollContent);
 
-    // 排他制御
-    connect(m_aiProviderMistralCheckbox, &QCheckBox::toggled, this, [this](bool checked){
-        if (checked) m_aiProviderCerebrasCheckbox->setChecked(false);
-    });
-    connect(m_aiProviderCerebrasCheckbox, &QCheckBox::toggled, this, [this](bool checked){
-        if (checked) m_aiProviderMistralCheckbox->setChecked(false);
-    });
+    // 排他制御 (Worker AI 用)
+    auto handleExclusiveCheck = [this](QCheckBox* checkedBox) {
+        if (checkedBox->isChecked()) {
+            if (checkedBox != m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(false);
+            if (checkedBox != m_aiProviderCerebrasCheckbox) m_aiProviderCerebrasCheckbox->setChecked(false);
+            if (checkedBox != m_aiProviderGroqCheckbox) m_aiProviderGroqCheckbox->setChecked(false);
+        }
+    };
+    connect(m_aiProviderMistralCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderMistralCheckbox); });
+    connect(m_aiProviderCerebrasCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderCerebrasCheckbox); });
+    connect(m_aiProviderGroqCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderGroqCheckbox); });
 
     m_aiApiKeyEdit = new QLineEdit(scrollContent);
     m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
@@ -1156,13 +1160,21 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_aiCerebrasApiKeyEdit->setPlaceholderText("Cerebras API キーを入力...");
 
     m_aiCerebrasModelCombo = new QComboBox(scrollContent);
-    m_aiCerebrasModelCombo->addItems({"gemma-4-31b", "zai-glm-4.7", "gpt-oss-120b"});
+    m_aiCerebrasModelCombo->addItems({"llama3.1-8b (推奨)", "llama3.3-70b", "gemma-4-31b"});
+
+    m_aiGroqApiKeyEdit = new QLineEdit(scrollContent);
+    m_aiGroqApiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_aiGroqApiKeyEdit->setPlaceholderText("Groq API キーを入力...");
+
+    m_aiGroqModelCombo = new QComboBox(scrollContent);
+    m_aiGroqModelCombo->addItems({"llama-3.3-70b-versatile (推奨)", "llama-3.1-8b-instant", "gemma2-9b-it"});
 
     m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_tavilyApiKeyEdit->setPlaceholderText("Tavily キーを入力...");
 
-    // AI 設定グループ
-    QGroupBox *aiGroup = new QGroupBox("AI 設定", scrollContent);
+    // 1. Worker AI 設定グループ
+    QGroupBox *aiGroup = new QGroupBox("Worker AI 設定", scrollContent);
     QFormLayout *aiLayout = new QFormLayout(aiGroup);
     aiLayout->setContentsMargins(10, 10, 10, 10);
     aiLayout->setSpacing(6);
@@ -1171,10 +1183,85 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     aiLayout->addRow("Cerebras AI 使用:", m_aiProviderCerebrasCheckbox);
     aiLayout->addRow("Cerebras API キー:", m_aiCerebrasApiKeyEdit);
     aiLayout->addRow("Cerebras モデル:", m_aiCerebrasModelCombo);
+    aiLayout->addRow("Groq AI 使用:", m_aiProviderGroqCheckbox);
+    aiLayout->addRow("Groq API キー:", m_aiGroqApiKeyEdit);
+    aiLayout->addRow("Groq モデル:", m_aiGroqModelCombo);
     aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
     mainLayout->addWidget(aiGroup);
 
-    // 保存・適用ボタン (AI設定を即座に適用できるように配置)
+    // 2. Manager AI 設定グループ
+    QGroupBox *managerGroup = new QGroupBox("Manager AI 設定", scrollContent);
+    QFormLayout *managerLayout = new QFormLayout(managerGroup);
+    managerLayout->setContentsMargins(10, 10, 10, 10);
+    managerLayout->setSpacing(6);
+
+    m_managerEnabledCheckbox = new QCheckBox("マネージャにAIを使用", scrollContent);
+    m_managerProviderCombo = new QComboBox(scrollContent);
+    m_managerProviderCombo->addItems({"groq", "cerebras", "mistral"});
+
+    m_managerModelCombo = new QComboBox(scrollContent);
+    // 初期推奨設定の表示
+    auto updateManagerModelComboList = [this](const QString &provider) {
+        m_managerModelCombo->clear();
+        if (provider == "groq") {
+            m_managerModelCombo->addItems({"llama-3.1-8b-instant (推奨)", "llama-3.3-70b-versatile", "gemma2-9b-it"});
+        } else if (provider == "cerebras") {
+            m_managerModelCombo->addItems({"llama3.1-8b (推奨)", "llama3.3-70b"});
+        } else if (provider == "mistral") {
+            m_managerModelCombo->addItems({"mistral-small-latest (推奨)", "mistral-large-latest"});
+        }
+    };
+    connect(m_managerProviderCombo, &QComboBox::currentTextChanged, this, updateManagerModelComboList);
+    updateManagerModelComboList("groq"); // 初期化
+
+    // 表示トグルのバインディング
+    auto toggleManagerFields = [this](bool checked) {
+        m_managerProviderCombo->setEnabled(checked);
+        m_managerModelCombo->setEnabled(checked);
+    };
+    connect(m_managerEnabledCheckbox, &QCheckBox::toggled, this, toggleManagerFields);
+    toggleManagerFields(false); // 初期は無効状態
+
+    managerLayout->addRow("機能有効化:", m_managerEnabledCheckbox);
+    managerLayout->addRow("マネージャAIプロバイダ:", m_managerProviderCombo);
+    managerLayout->addRow("マネージャAIモデル:", m_managerModelCombo);
+    mainLayout->addWidget(managerGroup);
+
+    // 3. プロバイダ制限 (レートリミット上限) 設定グループ
+    QGroupBox *limitGroup = new QGroupBox("プロバイダ制限設定 (レートリミット)", scrollContent);
+    QFormLayout *limitLayout = new QFormLayout(limitGroup);
+    limitLayout->setContentsMargins(10, 10, 10, 10);
+    limitLayout->setSpacing(6);
+
+    m_limitProviderCombo = new QComboBox(scrollContent);
+    m_limitProviderCombo->addItems({"groq", "cerebras", "mistral"});
+    connect(m_limitProviderCombo, &QComboBox::currentIndexChanged, this, &AvatarWindow::onLimitProviderChanged);
+
+    m_limitRpmEdit = new QLineEdit(scrollContent);
+    m_limitRpdEdit = new QLineEdit(scrollContent);
+    m_limitTpmEdit = new QLineEdit(scrollContent);
+    m_limitTpdEdit = new QLineEdit(scrollContent);
+    m_limitContextEdit = new QLineEdit(scrollContent);
+    m_limitToolCallCheckbox = new QCheckBox("Function Calling 対応", scrollContent);
+    m_limitCostEdit = new QLineEdit(scrollContent);
+    m_limitRemainingLabel = new QLabel("残りリクエスト: --- / ---", scrollContent);
+
+    m_limitAutoFetchButton = new QPushButton("APIから自動取得", scrollContent);
+    connect(m_limitAutoFetchButton, &QPushButton::clicked, this, &AvatarWindow::onLimitAutoFetchClicked);
+
+    limitLayout->addRow("設定プロバイダ:", m_limitProviderCombo);
+    limitLayout->addRow("最大 RPM (1分制限):", m_limitRpmEdit);
+    limitLayout->addRow("最大 RPD (1日制限):", m_limitRpdEdit);
+    limitLayout->addRow("最大 TPM (1分トークン):", m_limitTpmEdit);
+    limitLayout->addRow("最大 TPD (1日トークン):", m_limitTpdEdit);
+    limitLayout->addRow("コンテキスト長 (tokens):", m_limitContextEdit);
+    limitLayout->addRow("機能:", m_limitToolCallCheckbox);
+    limitLayout->addRow("コスト (ドル/1M):", m_limitCostEdit);
+    limitLayout->addRow("現在状況:", m_limitRemainingLabel);
+    limitLayout->addRow("自動取得アクション:", m_limitAutoFetchButton);
+    mainLayout->addWidget(limitGroup);
+
+    // 保存・適用ボタン
     QHBoxLayout *btnLayout = new QHBoxLayout();
     QPushButton *btnSave = new QPushButton("設定を保存して適用", scrollContent);
     btnSave->setFixedHeight(32);
@@ -1182,10 +1269,13 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     btnLayout->addWidget(btnSave);
     mainLayout->addLayout(btnLayout);
 
-    mainLayout->addStretch(); // 下部に余白を作る
+    mainLayout->addStretch();
 
     scrollArea->setWidget(scrollContent);
     containerLayout->addWidget(scrollArea);
+
+    m_modelsNetworkManager = new QNetworkAccessManager(this);
+    connect(m_modelsNetworkManager, &QNetworkAccessManager::finished, this, &AvatarWindow::onModelsReplyFinished);
 }
 
 void AvatarWindow::loadSettingsToUI() {
@@ -1235,15 +1325,45 @@ void AvatarWindow::loadSettingsToUI() {
             QString provider = obj.value("ai_provider").toString(ConfigDefaults::AI_PROVIDER);
             if (m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
             if (m_aiProviderCerebrasCheckbox) m_aiProviderCerebrasCheckbox->setChecked(provider == "cerebras");
+            if (m_aiProviderGroqCheckbox) m_aiProviderGroqCheckbox->setChecked(provider == "groq");
 
             if (m_aiApiKeyEdit) m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
             if (m_aiCerebrasApiKeyEdit) m_aiCerebrasApiKeyEdit->setText(obj.value("cerebras_api_key").toString());
+            if (m_aiGroqApiKeyEdit) m_aiGroqApiKeyEdit->setText(obj.value("groq_api_key").toString());
 
             if (m_aiCerebrasModelCombo) {
-                QString cerModel = obj.value("cerebras_model").toString("llama-3.3-70b");
+                QString cerModel = obj.value("cerebras_model").toString("llama3.1-8b");
                 int modelIdx = m_aiCerebrasModelCombo->findText(cerModel);
+                if (modelIdx < 0) modelIdx = m_aiCerebrasModelCombo->findText(cerModel + " (推奨)");
                 if (modelIdx >= 0) m_aiCerebrasModelCombo->setCurrentIndex(modelIdx);
             }
+
+            if (m_aiGroqModelCombo) {
+                QString groqModel = obj.value("groq_model").toString("llama-3.3-70b-versatile");
+                int modelIdx = m_aiGroqModelCombo->findText(groqModel);
+                if (modelIdx < 0) modelIdx = m_aiGroqModelCombo->findText(groqModel + " (推奨)");
+                if (modelIdx >= 0) m_aiGroqModelCombo->setCurrentIndex(modelIdx);
+            }
+
+            // マネージャAI設定ロード
+            if (m_managerEnabledCheckbox) {
+                bool mgrEnabled = obj.value("manager_ai_enabled").toBool(false);
+                m_managerEnabledCheckbox->setChecked(mgrEnabled);
+            }
+            if (m_managerProviderCombo) {
+                QString mgrProvider = obj.value("manager_ai_provider").toString("groq");
+                int idx = m_managerProviderCombo->findText(mgrProvider);
+                if (idx >= 0) m_managerProviderCombo->setCurrentIndex(idx);
+            }
+            if (m_managerModelCombo) {
+                QString mgrModel = obj.value("manager_ai_model").toString("llama-3.1-8b-instant");
+                int idx = m_managerModelCombo->findText(mgrModel);
+                if (idx < 0) idx = m_managerModelCombo->findText(mgrModel + " (推奨)");
+                if (idx >= 0) m_managerModelCombo->setCurrentIndex(idx);
+            }
+
+            // 制限上限設定をUIの初期プロバイダ（Comboの現在値）に合わせて表示
+            onLimitProviderChanged(m_limitProviderCombo->currentIndex());
 
             if (m_tavilyApiKeyEdit) m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
@@ -1316,12 +1436,40 @@ void AvatarWindow::saveSettingsFromUI() {
     QString provider = "dummy";
     if (m_aiProviderMistralCheckbox->isChecked()) provider = "mistral";
     else if (m_aiProviderCerebrasCheckbox->isChecked()) provider = "cerebras";
+    else if (m_aiProviderGroqCheckbox->isChecked()) provider = "groq";
     obj["ai_provider"] = provider;
 
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
     obj["cerebras_api_key"] = m_aiCerebrasApiKeyEdit->text().trimmed();
-    obj["cerebras_model"] = m_aiCerebrasModelCombo->currentText();
+    
+    QString cerModel = m_aiCerebrasModelCombo->currentText();
+    obj["cerebras_model"] = cerModel.replace(" (推奨)", "").trimmed();
+
+    obj["groq_api_key"] = m_aiGroqApiKeyEdit->text().trimmed();
+    QString groqModel = m_aiGroqModelCombo->currentText();
+    obj["groq_model"] = groqModel.replace(" (推奨)", "").trimmed();
+
     obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
+
+    // マネージャAI設定保存
+    obj["manager_ai_enabled"] = m_managerEnabledCheckbox->isChecked();
+    obj["manager_ai_provider"] = m_managerProviderCombo->currentText();
+    QString mgrModel = m_managerModelCombo->currentText();
+    obj["manager_ai_model"] = mgrModel.replace(" (推奨)", "").trimmed();
+
+    // プロバイダ制限の保存（既存のオブジェクトをロードし、現在 UI で編集中の一社を上書き）
+    QJsonObject limitsObj = obj["provider_limits"].toObject();
+    QString curLimProvider = m_limitProviderCombo->currentText();
+    QJsonObject curLimObj = limitsObj[curLimProvider].toObject();
+    curLimObj["rpm_max"] = m_limitRpmEdit->text().trimmed().toInt();
+    curLimObj["rpd_max"] = m_limitRpdEdit->text().trimmed().toInt();
+    curLimObj["tpm_max"] = m_limitTpmEdit->text().trimmed().toInt();
+    curLimObj["tpd_max"] = m_limitTpdEdit->text().trimmed().toInt();
+    curLimObj["context"] = m_limitContextEdit->text().trimmed().toInt();
+    curLimObj["tool_call"] = m_limitToolCallCheckbox->isChecked();
+    curLimObj["cost"] = m_limitCostEdit->text().trimmed().toDouble();
+    limitsObj[curLimProvider] = curLimObj;
+    obj["provider_limits"] = limitsObj;
     obj["twitch_oauth_token"] = m_twitchOAuthToken;
     obj["twitch_username"] = m_twitchUsername;
     obj["webhook_url"] = m_webhookUrl;
@@ -1939,4 +2087,172 @@ void AvatarWindow::onDeleteKnowledgeClicked() {
 void AvatarWindow::onKnowledgeDataUpdated(const QJsonObject &data) {
     m_cachedKnowledgeData = data;
     updateKnowledgeTable();
+}
+
+void AvatarWindow::onProviderStatusReceived(const ProviderStatus &status) {
+    if (!m_limitProviderCombo) return;
+    // 現在選択中のプロバイダと一致する場合のみ反映
+    if (status.provider != m_limitProviderCombo->currentText()) return;
+
+    QString limitText = QString("RPM残り: %1 / %2, RPD残り: %3 / %4\nTPM残り: %5 / %6, TPD残り: %7 / %8\n実測平均レイテンシ: %9 ms")
+                            .arg(status.rpmRemaining).arg(status.rpmMax)
+                            .arg(status.rpdRemaining).arg(status.rpdMax)
+                            .arg(status.tpmRemaining).arg(status.tpmMax)
+                            .arg(status.tpdRemaining).arg(status.tpdMax)
+                            .arg(status.latencyMs);
+    m_limitRemainingLabel->setText(limitText);
+}
+
+void AvatarWindow::onLimitProviderChanged(int index) {
+    Q_UNUSED(index)
+    if (!m_limitProviderCombo) return;
+    QString providerId = m_limitProviderCombo->currentText();
+
+    // フォームを一旦クリア
+    m_limitRpmEdit->clear();
+    m_limitRpdEdit->clear();
+    m_limitTpmEdit->clear();
+    m_limitTpdEdit->clear();
+    m_limitContextEdit->clear();
+    m_limitToolCallCheckbox->setChecked(false);
+    m_limitCostEdit->clear();
+    m_limitRemainingLabel->setText("残り制限: --- / ---");
+
+    // 既存設定ファイルから上限値をロードしてUIに仮表示
+    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    if (!QFile::exists(configPath)) configPath = "local_settings.json";
+#ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+#endif
+    if (!QFile::exists(configPath)) configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        if (root.contains("provider_limits")) {
+            QJsonObject limits = root["provider_limits"].toObject();
+            if (limits.contains(providerId)) {
+                QJsonObject pLim = limits[providerId].toObject();
+                m_limitRpmEdit->setText(QString::number(pLim.value("rpm_max").toInt()));
+                m_limitRpdEdit->setText(QString::number(pLim.value("rpd_max").toInt()));
+                m_limitTpmEdit->setText(QString::number(pLim.value("tpm_max").toInt()));
+                m_limitTpdEdit->setText(QString::number(pLim.value("tpd_max").toInt()));
+                m_limitContextEdit->setText(QString::number(pLim.value("context").toInt()));
+                m_limitToolCallCheckbox->setChecked(pLim.value("tool_call").toBool());
+                m_limitCostEdit->setText(QString::number(pLim.value("cost").toDouble()));
+            }
+        }
+    }
+
+    // AIスレッドに対して最新の残量統計要求を非同期で発火
+    emit requestProviderStatus(providerId);
+}
+
+void AvatarWindow::onLimitAutoFetchClicked() {
+    if (!m_limitProviderCombo) return;
+    QString providerId = m_limitProviderCombo->currentText();
+    QString apiKey;
+    QString urlStr;
+
+    if (providerId == "groq") {
+        apiKey = m_aiGroqApiKeyEdit->text().trimmed();
+        urlStr = "https://api.groq.com/openai/v1/models";
+    } else if (providerId == "cerebras") {
+        apiKey = m_aiCerebrasApiKeyEdit->text().trimmed();
+        urlStr = "https://api.cerebras.ai/v1/models";
+    } else if (providerId == "mistral") {
+        apiKey = m_aiApiKeyEdit->text().trimmed();
+        urlStr = "https://api.mistral.ai/v1/models";
+    }
+
+    if (apiKey.isEmpty()) {
+        QMessageBox::warning(this, "警告", QString("%1 のAPIキーが入力されていません。自動取得するにはまず設定欄にキーを入力してください。").arg(providerId));
+        return;
+    }
+
+    qDebug() << "AvatarWindow: Fetching models for provider:" << providerId << "from URL:" << urlStr;
+    statusBar()->showMessage(QString("%1 からモデル情報を取得中...").arg(providerId));
+
+    QNetworkRequest request((QUrl(urlStr)));
+    request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+    
+    QNetworkReply *reply = m_modelsNetworkManager->get(request);
+    reply->setProperty("providerId", providerId);
+}
+
+void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
+    reply->deleteLater();
+    QString providerId = reply->property("providerId").toString();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        qWarning() << "AvatarWindow: Failed to fetch models:" << reply->errorString();
+        QMessageBox::critical(this, "エラー", QString("%1 からモデル情報の自動取得に失敗しました。\nAPIキーが有効であるか、またインターネット接続を確認してください。").arg(providerId));
+        statusBar()->clearMessage();
+        return;
+    }
+
+    QByteArray responseData = reply->readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+    if (doc.isNull() || !doc.isObject()) {
+        QMessageBox::warning(this, "警告", "レスポンスデータのパースに失敗しました。");
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    QJsonArray dataArr = root.value("data").toArray();
+
+    int maxContext = 0;
+    bool toolCallSupported = false;
+
+    if (providerId == "groq") {
+        for (const QJsonValue &v : dataArr) {
+            QJsonObject mObj = v.toObject();
+            QString id = mObj.value("id").toString();
+            if (id == "llama-3.3-70b-versatile" || id == "llama-3.1-8b-instant") {
+                maxContext = qMax(maxContext, 131072);
+                toolCallSupported = true;
+            }
+        }
+        if (maxContext == 0) maxContext = 131072;
+        toolCallSupported = true;
+    } else if (providerId == "cerebras") {
+        for (const QJsonValue &v : dataArr) {
+            QJsonObject mObj = v.toObject();
+            QString id = mObj.value("id").toString();
+            if (id.startsWith("llama")) {
+                maxContext = qMax(maxContext, 131072);
+                toolCallSupported = true;
+            }
+        }
+        if (maxContext == 0) maxContext = 131072;
+        toolCallSupported = true;
+    } else if (providerId == "mistral") {
+        for (const QJsonValue &v : dataArr) {
+            QJsonObject mObj = v.toObject();
+            QString id = mObj.value("id").toString();
+            if (id.contains("small") || id.contains("large")) {
+                maxContext = qMax(maxContext, 131072);
+                toolCallSupported = true;
+            }
+        }
+        if (maxContext == 0) maxContext = 131072;
+        toolCallSupported = true;
+    }
+
+    m_limitContextEdit->setText(QString::number(maxContext));
+    m_limitToolCallCheckbox->setChecked(toolCallSupported);
+
+    if (m_limitRpmEdit->text().trimmed().isEmpty() || m_limitRpmEdit->text().trimmed() == "0") {
+        if (providerId == "groq") m_limitRpmEdit->setText("30");
+        else if (providerId == "cerebras") m_limitRpmEdit->setText("30");
+        else if (providerId == "mistral") m_limitRpmEdit->setText("1");
+    }
+    if (m_limitRpdEdit->text().trimmed().isEmpty() || m_limitRpdEdit->text().trimmed() == "0") {
+        if (providerId == "groq") m_limitRpdEdit->setText("14400");
+        else if (providerId == "cerebras") m_limitRpdEdit->setText("1000");
+    }
+
+    QMessageBox::information(this, "成功", QString("%1 のモデル・スペック情報を取得し、UIへ自動設定しました。\n「保存して適用」を押すことで有効化されます。").arg(providerId));
+    statusBar()->showMessage(QString("%1 の自動取得が完了しました。").arg(providerId), 3000);
 }

@@ -1,6 +1,7 @@
 #include "ai_client_manager.h"
 #include "mistral_ai_client.h"
 #include "cerebras_ai_client.h"
+#include "groq_ai_client.h"
 #include "dummy_ai_client.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
@@ -26,17 +27,44 @@ AIClientManager::AIClientManager(QObject *parent)
     m_importTimeoutTimer->setSingleShot(true);
     connect(m_importTimeoutTimer, &QTimer::timeout, this, &AIClientManager::onImportTimeout);
 
+    // AI クライアントの全インスタンス化
+    m_mistralClient = new MistralAIClient(this);
+    m_cerebrasClient = new CerebrasAIClient(this);
+    m_groqClient = new GroqAIClient(this);
+    m_dummyClient = new DummyAIClient(this);
+
+    m_clientMap["mistral"] = m_mistralClient;
+    m_clientMap["cerebras"] = m_cerebrasClient;
+    m_clientMap["groq"] = m_groqClient;
+    m_clientMap["dummy"] = m_dummyClient;
+
+    // トラッカーへの初期登録
+    m_tracker.registerClient(m_mistralClient->defaultStatus());
+    m_tracker.registerClient(m_cerebrasClient->defaultStatus());
+    m_tracker.registerClient(m_groqClient->defaultStatus());
+    m_tracker.registerClient(m_dummyClient->defaultStatus());
+
+    // シグナルコネクションの設定
+    for (IAIClient *client : m_clientMap.values()) {
+        connect(client, &IAIClient::requestFinished, this, &AIClientManager::on_clientRequestFinished);
+    }
+
+    // 過去の使用状況統計をロード
+    QDir().mkpath("log");
+    m_tracker.loadFromFile("log/usage_stats.json");
+
     loadCredentials();
     loadBlacklist();
     loadWhitelist();
     loadUserNames();
     loadSessionContext();
     loadKnowledgeMetadata();
-    setAIProvider(m_provider); // ロードされたプロバイダを設定
+    setAIProvider(m_provider, true); // ロードされたプロバイダを設定（forceRefresh=true）
 }
 
 AIClientManager::~AIClientManager() {
-    delete m_currentClient;
+    // 親子がQObjectなので自動開放されますが、二重解放防止のためにマップから削除して明示的に処理
+    m_clientMap.clear();
 }
 
 void AIClientManager::loadSessionContext() {
@@ -101,7 +129,64 @@ void AIClientManager::loadCredentials() {
             m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
             m_streamerName = obj["twitch_channel"].toString().trimmed().toLower();
             m_avatarName = obj["avatar_name"].toString("AIアシスタント").trimmed();
-            qDebug() << "AIClientManager: Loaded settings from" << configPath << "Blacklist enabled:" << m_blacklistEnabled << "Streamer name:" << m_streamerName << "Avatar name:" << m_avatarName;
+
+            // APIキーとモデル設定の読み込み
+            QString mistralKey = obj["mistral_api_key"].toString();
+            QString cerebrasKey = obj["cerebras_api_key"].toString();
+            QString groqKey = obj["groq_api_key"].toString();
+            m_tavilyApiKey = obj["tavily_api_key"].toString();
+
+            m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
+            m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
+            m_mistralModel = obj["mistral_model"].toString("mistral-small-latest");
+
+            // 各クライアントにキーとモデルを設定
+            m_mistralClient->setApiKey(mistralKey);
+            m_mistralClient->setModel(m_mistralModel);
+            m_mistralClient->setTavilyApiKey(m_tavilyApiKey);
+
+            m_cerebrasClient->setApiKey(cerebrasKey);
+            m_cerebrasClient->setModel(m_cerebrasModel);
+            m_cerebrasClient->setTavilyApiKey(m_tavilyApiKey);
+
+            m_groqClient->setApiKey(groqKey);
+            m_groqClient->setModel(m_groqModel);
+            m_groqClient->setTavilyApiKey(m_tavilyApiKey);
+
+            // DummyClient は基本設定を引き継ぐ
+            m_dummyClient->setApiKey(mistralKey);
+
+            // マネージャAI設定
+            m_managerEnabled = obj["manager_ai_enabled"].toBool(false);
+            m_managerProvider = obj["manager_ai_provider"].toString("groq");
+            m_managerModel = obj["manager_ai_model"].toString("llama-3.1-8b-instant");
+
+            // プロバイダ制限（上限）の読み込みと適用
+            if (obj.contains("provider_limits") && obj["provider_limits"].isObject()) {
+                QJsonObject limitsObj = obj["provider_limits"].toObject();
+                for (const QString &providerId : limitsObj.keys()) {
+                    QJsonObject pLim = limitsObj[providerId].toObject();
+                    ProviderStatus s = m_tracker.statusOf(providerId);
+                    
+                    if (pLim.contains("rpm_max")) s.rpmMax = pLim["rpm_max"].toInt();
+                    if (pLim.contains("rpd_max")) s.rpdMax = pLim["rpd_max"].toInt();
+                    if (pLim.contains("tpm_max")) s.tpmMax = pLim["tpm_max"].toInt();
+                    if (pLim.contains("tpd_max")) s.tpdMax = pLim["tpd_max"].toInt();
+                    if (pLim.contains("context")) s.contextWindow = pLim["context"].toInt();
+                    if (pLim.contains("tool_call")) s.toolCall = pLim["tool_call"].toBool();
+                    if (pLim.contains("cost")) s.cost = pLim["cost"].toDouble();
+
+                    m_tracker.setMaxValues(providerId, s);
+                }
+            }
+
+            qDebug() << "AIClientManager: Loaded settings from" << configPath
+                     << "Blacklist enabled:" << m_blacklistEnabled
+                     << "Streamer name:" << m_streamerName
+                     << "Avatar name:" << m_avatarName
+                     << "Manager AI enabled:" << m_managerEnabled
+                     << "Manager AI Provider:" << m_managerProvider
+                     << "Manager AI Model:" << m_managerModel;
         }
     }
 }
@@ -333,67 +418,48 @@ QString AIClientManager::mapLanguage(const QString &lang) const {
 }
 
 void AIClientManager::setAIProvider(const QString &provider, bool forceRefresh) {
-    if (!forceRefresh && m_currentClient && m_provider == provider) return;
+    if (!forceRefresh && m_provider == provider && m_currentClient) return;
 
-    qDebug() << "AIClientManager: Changing AI Provider to" << provider;
-
-    if (m_currentClient) {
-        m_currentClient->disconnect(this);
-        delete m_currentClient;
-        m_currentClient = nullptr;
-    }
+    qDebug() << "AIClientManager: Changing default/preferred Worker AI Provider to" << provider;
 
     m_provider = provider;
-
-    // 設定ファイルから一時的にAPIキー等をロードする
-    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    if (!QFile::exists(configPath)) {
-        configPath = "local_settings.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
-#endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-    }
-
-    QString mistralKey;
-    QString cerebrasKey;
-    QString cerebrasModel = "gemma-4-31b";
-    QString tavilyKey;
-
-    QFile file(configPath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
-        file.close();
-        mistralKey = obj["mistral_api_key"].toString();
-        cerebrasKey = obj["cerebras_api_key"].toString();
-        cerebrasModel = obj["cerebras_model"].toString("gemma-4-31b");
-        tavilyKey = obj["tavily_api_key"].toString();
-    }
-
-    if (provider == "mistral") {
-        m_currentClient = new MistralAIClient(this);
-        m_currentClient->setApiKey(mistralKey);
-    } else if (provider == "cerebras") {
-        CerebrasAIClient *cerClient = new CerebrasAIClient(this);
-        cerClient->setModel(cerebrasModel);
-        m_currentClient = cerClient;
-        m_currentClient->setApiKey(cerebrasKey);
+    if (m_clientMap.contains(provider)) {
+        m_currentClient = m_clientMap[provider];
     } else {
-        m_currentClient = new DummyAIClient(this);
-        m_currentClient->setApiKey(mistralKey);
+        m_currentClient = m_dummyClient;
     }
+}
 
-    m_currentClient->setTavilyApiKey(tavilyKey);
+QStringList AIClientManager::workerPriorityOrder() const {
+    QStringList order;
+    // UIで選択されたプロバイダを最優先に配置
+    if (!m_provider.isEmpty()) {
+        order.append(m_provider);
+    }
+    // 残りのプロバイダを重複なしで追加
+    QStringList defaultPriority = { "groq", "cerebras", "mistral", "dummy" };
+    for (const QString &p : defaultPriority) {
+        if (!order.contains(p)) {
+            order.append(p);
+        }
+    }
+    return order;
+}
 
-    connect(m_currentClient, &IAIClient::requestFinished,
-            this, &AIClientManager::on_clientRequestFinished);
+QStringList AIClientManager::managerPriorityOrder() const {
+    QStringList order;
+    // 設定された Manager AI プロバイダを最優先に配置
+    if (!m_managerProvider.isEmpty()) {
+        order.append(m_managerProvider);
+    }
+    // 残りのプロバイダを重複なしで追加
+    QStringList defaultPriority = { "groq", "cerebras", "mistral", "dummy" };
+    for (const QString &p : defaultPriority) {
+        if (!order.contains(p)) {
+            order.append(p);
+        }
+    }
+    return order;
 }
 
 void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
@@ -593,14 +659,14 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
         m_isTranslationRequest = true;
 
-        // コアへ送信開始イベントを通知
-        AppEvent event;
-        event.type = EventType::AIRequestSent;
-        event.source = "AIClientManager";
-        event.text = filteredPrompt;
-        emit notifyEvent(event);
+        if (selectAndPrepareClient()) {
+            // コアへ送信開始イベントを通知
+            AppEvent event;
+            event.type = EventType::AIRequestSent;
+            event.source = "AIClientManager";
+            event.text = filteredPrompt;
+            emit notifyEvent(event);
 
-        if (m_currentClient) {
             // 翻訳用のプロンプトを作成。
             // 翻訳以外の不要な発言やクォートを排除するため、厳密なインストラクションを含める。
             QString translationPrompt = QString("Translate the following text to %1. Output ONLY the translation without any other text, explanations, or quotes.\n\nText:\n%2")
@@ -698,21 +764,28 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         finalPrompt = m_recalledContext + "\n\n" + finalPrompt;
     }
 
-    // コアへ送信開始イベントを通知
-    AppEvent event;
-    event.type = EventType::AIRequestSent;
-    event.source = "AIClientManager";
-    event.text = filteredPrompt;
-    emit notifyEvent(event);
-
     m_lastFinalPrompt = finalPrompt;
 
-    if (m_currentClient) {
+    if (selectAndPrepareClient()) {
+        // コアへ送信開始イベントを通知
+        AppEvent event;
+        event.type = EventType::AIRequestSent;
+        event.source = "AIClientManager";
+        event.text = filteredPrompt;
+        emit notifyEvent(event);
+
         m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext, additionalSystemPrompt);
     }
 }
 
 void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success) {
+    if (m_apiCallStartTimeMs > 0 && m_currentClient) {
+        int elapsed = QDateTime::currentMSecsSinceEpoch() - m_apiCallStartTimeMs;
+        m_tracker.recordLatency(m_currentClient->clientId(), elapsed);
+        m_apiCallStartTimeMs = 0;
+    }
+    m_tracker.saveToFile("log/usage_stats.json");
+
     qDebug() << "AIClientManager: Client request finished. Success:" << success 
              << "Resetting:" << m_isResetting 
              << "Merging:" << m_isMergingSummaries
@@ -1063,7 +1136,7 @@ void AIClientManager::resetSession(bool isManual) {
         emit notifyEvent(event);
     }
 
-    if (m_currentClient) {
+    if (selectAndPrepareClient()) {
         // AIに要約とキーワードの抽出を依頼する特別なプロンプト
         QString summaryPrompt = 
             "これまでの対話から、主要なトピックキーワード（3〜5個）をカンマ区切りで抽出し、さらに会話の簡潔な要約（2〜3文）を作成してください。\n"
@@ -1072,6 +1145,9 @@ void AIClientManager::resetSession(bool isManual) {
             "Summary: 要約文";
         
         m_currentClient->sendRequest(summaryPrompt, m_chatHistory, "");
+    } else {
+        m_isResetting = false;
+        processPendingRequests();
     }
 }
 
@@ -1471,7 +1547,7 @@ void AIClientManager::checkAndMergeSummaries() {
         }
     }
 
-    if (m_currentClient && !m_mergingSessionIds.isEmpty()) {
+    if (!m_mergingSessionIds.isEmpty() && selectAndPrepareClient()) {
         QString mergePrompt = 
             "以下は、過去のいくつかの対話セッションのサマリ情報です。これらを統合し、この期間全体の主要トピックを表す1つの「マージ要約（メタサマリ）」と、全体を代表するキーワード（5〜8個）を抽出してください。\n"
             "形式は必ず以下の通りにしてください（余計な挨拶や説明は絶対に含めないでください）：\n"
@@ -1482,6 +1558,7 @@ void AIClientManager::checkAndMergeSummaries() {
         m_currentClient->sendRequest(mergePrompt, QList<QPair<QString, QString>>(), "");
     } else {
         m_isMergingSummaries = false;
+        processPendingRequests();
     }
 }
 
@@ -1833,6 +1910,31 @@ void AIClientManager::processPendingRequests() {
         PendingRequest req = m_pendingRequests.takeFirst();
         qDebug() << "AIClientManager: Processing queued pending request for user:" << req.user;
         on_requestAI(req.prompt, req.user);
+    }
+}
+
+bool AIClientManager::selectAndPrepareClient() {
+    QString workerId = m_router.selectClient(AIRole::Worker, m_tracker, workerPriorityOrder());
+    if (workerId.isEmpty()) {
+        auto resetInfo = m_tracker.earliestResetTime();
+        QString waitMsg = m_tracker.formatWaitMessage(resetInfo);
+        qWarning() << "AIClientManager: All AI clients are rate-limited.";
+        
+        AppEvent ev;
+        ev.type = EventType::AIResponseReceived;
+        ev.text = waitMsg;
+        emit notifyEvent(ev);
+        return false;
+    }
+    m_currentClient = m_clientMap[workerId];
+    qDebug() << "AIClientManager: Routing request to client:" << workerId;
+    m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch(); // レイテンシ計測開始
+    return true;
+}
+
+void AIClientManager::on_requestProviderStatus(const QString &providerId) {
+    if (m_clientMap.contains(providerId)) {
+        emit providerStatusResponse(m_tracker.statusOf(providerId));
     }
 }
 

@@ -11,6 +11,7 @@
 #include "twitch/twitch_reader.h"
 #include "stt/stt_manager.h"
 #include "ai/ai_client_manager.h"
+#include "ai/provider_status.h"
 #include "discord/discord_reader.h"
 #include "obs/obs_http_server.h"
 #include <QJsonDocument>
@@ -52,6 +53,7 @@ int main(int argc, char *argv[]) {
 
     // 1. メタタイプの登録 (スレッド間で AppEvent を渡すために必須)
     qRegisterMetaType<AppEvent>("AppEvent");
+    qRegisterMetaType<ProviderStatus>("ProviderStatus");
 
     // 2. TrustChain による改ざん検知の実行
     qDebug() << "TrustChain: Starting provenance verification...";
@@ -142,9 +144,13 @@ int main(int argc, char *argv[]) {
     QObject::connect(&window, &AvatarWindow::twitchReauthRequested,
                      core, &CoreModule::on_twitchReauthRequested, Qt::QueuedConnection);
 
-    // UI -> AI (Direct Execution)
+    // UI -> AI (Direct Execution & Status requests)
     QObject::connect(&window, &AvatarWindow::requestAIExecution,
                      ai, &AIClientManager::on_requestAI, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::requestProviderStatus,
+                     ai, &AIClientManager::on_requestProviderStatus, Qt::QueuedConnection);
+    QObject::connect(ai, &AIClientManager::providerStatusResponse,
+                     &window, &AvatarWindow::onProviderStatusReceived, Qt::QueuedConnection);
 
     // Core -> UI
     QObject::connect(core, &CoreModule::notifyEventToUI,
