@@ -1295,13 +1295,21 @@ void AvatarWindow::loadSettingsToUI() {
         configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
     }
 
-    if (!QFile::exists(configPath)) return;
+    if (!QFile::exists(configPath)) {
+        qWarning() << "AvatarWindow: Settings file does not exist at paths. Tried:" << configPath;
+        return;
+    }
 
+    qDebug() << "AvatarWindow: Loading settings from:" << configPath;
     QFile file(configPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QByteArray data = file.readAll();
         file.close();
-        QJsonDocument doc = QJsonDocument::fromJson(data);
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+        if (parseError.error != QJsonParseError::NoError) {
+            qWarning() << "AvatarWindow: JSON Parse Error in settings file:" << parseError.errorString() << "at offset" << parseError.offset;
+        }
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
             if (m_wsPortEdit) m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT)));
