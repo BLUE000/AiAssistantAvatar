@@ -498,8 +498,10 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     m_currentTwitchChannel = twitchChannel;
     m_currentRequester = cleanUser.trimmed().toLower();
 
+    bool isSystemGreeting = (cleanUser.toLower() == "__system_greeting__");
+
     // リクエスト元が切り替わった場合、直近の会話履歴を要約保存してクリア（サイレントリセット）
-    if (!m_previousRequester.isEmpty() && m_currentRequester != m_previousRequester) {
+    if (!isSystemGreeting && !m_previousRequester.isEmpty() && m_currentRequester != m_previousRequester) {
         if (!m_chatHistory.isEmpty()) {
             qDebug() << "AIClientManager: Requester changed from [" << m_previousRequester
                      << "] to [" << m_currentRequester << "]. Triggering silent resetSession to archive previous conversation.";
@@ -515,7 +517,9 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             return;
         }
     }
-    m_previousRequester = m_currentRequester;
+    if (!isSystemGreeting) {
+        m_previousRequester = m_currentRequester;
+    }
 
     // ニックネームファイルを再ロード
     loadUserNames();
@@ -685,7 +689,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     // ユーザー名に対応した呼びかけ指示プロンプトの構築
     QString finalPrompt = filteredPrompt;
     QString additionalSystemPrompt;
-    if (!cleanUser.isEmpty()) {
+    if (!cleanUser.isEmpty() && !isSystemGreeting) {
         QString systemInstructions;
         QString platformName = m_currentDiscordChannelId.isEmpty() ? "Twitch" : "Discord";
         QJsonObject usersMap = m_userNamesObj.value("users").toObject();
@@ -703,7 +707,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             if (!preferred.isEmpty()) {
                 // 優先される呼び名が指定されている場合
                 systemInstructions = QString(
-                    "[システム指示: このコメントの投稿者は「%1」さんです。回答の冒頭で、必ず「%1さん、」または「%1、」と呼びかけてください。他の呼び方は使わず、この呼び方で統一してください。また、もし今回のコメントで新たな呼び方の変更指示（例：「〇〇です」などの自己紹介や「〇〇と呼んで」などの指示）があれば、その指示に従い、今後の対話でそれを反映させてください。]"
+                    "[システム指示: このコメントの投稿者は「%1」さんです。回答の冒頭で，必ず「%1さん、」または「%1、」と呼びかけてください。他の呼び方は使わず、この呼び方で統一してください。また、もし今回のコメントで新たな呼び方の変更指示（例：「〇〇です」などの自己紹介や「〇〇と呼んで」などの指示）があれば、その指示に従い、今後の対話でそれを反映させてください。]"
                 ).arg(preferred);
             } else if (!nicknames.isEmpty()) {
                 // 愛称リストがある場合
@@ -727,6 +731,11 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         if (!systemInstructions.isEmpty()) {
             additionalSystemPrompt = systemInstructions;
         }
+    }
+
+    if (isSystemGreeting) {
+        finalPrompt = "接続時の最初の挨拶を行ってください。";
+        additionalSystemPrompt = "[システム指示: これは配信接続時の自動挨拶要求です。配信を開始したばかりですので、配信に来てくれた視聴者に向けて明るく元気に最初の挨拶（例:『皆さんこんにちは！配信開始しました！』など）を行ってください。ユーザーからのチャット発言はありませんので、『（システム）チャンネルに接続しました』や『〜についてですね』といったシステム側の文字列をオウム返しにしたり、それに対して回答したりすることは絶対に避けてください。純粋な挨拶のみを出力してください。]";
     }
 
     m_lastPrompt = filteredPrompt;
