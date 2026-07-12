@@ -36,23 +36,26 @@ void TwitchReader::setSettings(const QString &channel, const QString &token, con
 }
 
 void TwitchReader::loadSettings() {
-    m_configPath = "local_settings.json";
+    QString actualPath = m_configPath;
+    if (actualPath.isEmpty()) {
+        actualPath = "local_settings.json";
 #ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(m_configPath)) {
-        m_configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
+        if (!QFile::exists(actualPath)) {
+            actualPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+        }
 #endif
-    if (!QFile::exists(m_configPath)) {
-        m_configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
-    if (!QFile::exists(m_configPath)) {
-        m_configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-    }
-    if (!QFile::exists(m_configPath)) {
-        m_configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+        if (!QFile::exists(actualPath)) {
+            actualPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+        }
+        if (!QFile::exists(actualPath)) {
+            actualPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+        }
+        if (!QFile::exists(actualPath)) {
+            actualPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
+        }
     }
 
-    QFile file(m_configPath);
+    QFile file(actualPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "TwitchReader: local_settings.json not found or unable to open. Tried path:" << m_configPath;
         return;
@@ -79,10 +82,11 @@ void TwitchReader::loadSettings() {
         }
         m_avatarName = obj.value("avatar_name").toString("AIアシスタント").trimmed();
         m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
-        // greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
-        m_greetingEnabled = obj.value("greeting_enabled").toBool(false);
+        // twitch_greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
+        bool fallbackGreet = obj.value("greeting_enabled").toBool(false);
+        m_greetingEnabled = obj.value("twitch_greeting_enabled").toBool(fallbackGreet);
         if (m_greetingEnabled) {
-            qDebug() << "TwitchReader: Greeting feature is ENABLED (greeting_enabled=true in settings).";
+            qDebug() << "TwitchReader: Greeting feature is ENABLED (twitch_greeting_enabled=true in settings).";
         }
     }
 }
@@ -564,9 +568,9 @@ void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &t
 }
 
 void TwitchReader::sendGreeting() {
-    // greeting_enabled が明示的に true でない限り発火しない
+    // twitch_greeting_enabled が明示的に true でない限り発火しない
     if (!m_greetingEnabled) {
-        qDebug() << "TwitchReader: Greeting skipped (greeting_enabled is not set in local_settings.json).";
+        qDebug() << "TwitchReader: Greeting skipped (twitch_greeting_enabled is not set in local_settings.json).";
         m_shouldGreet = false;
         return;
     }

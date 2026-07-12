@@ -8,6 +8,8 @@
 #include <QJsonObject>
 #include "ai/ai_client_manager.h"
 #include "cipher_engine.h"
+#include "twitch/twitch_reader.h"
+#include "discord/discord_reader.h"
 
 class AIClientTest : public ::testing::Test {
 protected:
@@ -1069,4 +1071,111 @@ TEST_F(AIClientTest, AIRouterRoutingTest) {
     s3.available = false;
     tracker.registerClient(s3);
     EXPECT_EQ(router.selectClient(AIRole::Worker, tracker, priority), "");
+}
+
+TEST_F(AIClientTest, SegregatedGreetingSettingsTest) {
+    // 既存の local_settings.json があれば一時的に退避
+    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(configPath);
+    if (hasOriginal) {
+        QFile file(configPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        // 1. 個別設定の検証 (Twitch=true, Discord=false)
+        QJsonObject obj;
+        obj["twitch_greeting_enabled"] = true;
+        obj["discord_greeting_enabled"] = false;
+        QFile file(configPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        TwitchReader twitch;
+        DiscordReader discord;
+        twitch.setConfigPath(configPath);
+        discord.setConfigPath(configPath);
+        twitch.on_settingsUpdated();
+        discord.on_settingsUpdated();
+
+        EXPECT_TRUE(twitch.isGreetingEnabled());
+        EXPECT_FALSE(discord.isGreetingEnabled());
+    }
+
+    {
+        // 2. 個別設定の検証 (Twitch=false, Discord=true)
+        QJsonObject obj;
+        obj["twitch_greeting_enabled"] = false;
+        obj["discord_greeting_enabled"] = true;
+        QFile file(configPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        TwitchReader twitch;
+        DiscordReader discord;
+        twitch.setConfigPath(configPath);
+        discord.setConfigPath(configPath);
+        twitch.on_settingsUpdated();
+        discord.on_settingsUpdated();
+
+        EXPECT_FALSE(twitch.isGreetingEnabled());
+        EXPECT_TRUE(discord.isGreetingEnabled());
+    }
+
+    {
+        // 3. 後方互換性(共通キー greeting_enabled = true)
+        QJsonObject obj;
+        obj["greeting_enabled"] = true;
+        QFile file(configPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        TwitchReader twitch;
+        DiscordReader discord;
+        twitch.setConfigPath(configPath);
+        discord.setConfigPath(configPath);
+        twitch.on_settingsUpdated();
+        discord.on_settingsUpdated();
+
+        EXPECT_TRUE(twitch.isGreetingEnabled());
+        EXPECT_TRUE(discord.isGreetingEnabled());
+    }
+
+    {
+        // 4. 後方互換性(共通キー greeting_enabled = false)
+        QJsonObject obj;
+        obj["greeting_enabled"] = false;
+        QFile file(configPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        TwitchReader twitch;
+        DiscordReader discord;
+        twitch.setConfigPath(configPath);
+        discord.setConfigPath(configPath);
+        twitch.on_settingsUpdated();
+        discord.on_settingsUpdated();
+
+        EXPECT_FALSE(twitch.isGreetingEnabled());
+        EXPECT_FALSE(discord.isGreetingEnabled());
+    }
+
+    // 元の設定ファイルを復元
+    if (hasOriginal) {
+        QFile file(configPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
+    } else {
+        QFile::remove(configPath);
+    }
 }

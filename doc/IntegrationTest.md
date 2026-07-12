@@ -98,3 +98,12 @@
 | **IT-ROUTE-09** | 自動取得失敗時のフィードバック | 「自動取得」押下時にネットワークエラーをモックする。 | 「取得できませんでした。手動で設定してください。」旨の通知がUIに表示されること。 | 結合テスト |
 | **IT-ROUTE-10** | Manager AI 設定反映 | 「マネージャにAIを使用」チェックON、プロバイダ=Groq、モデル=`llama-3.1-8b-instant` を設定して保存する。 | `local_settings.json` の `manager_ai_enabled=true`, `manager_ai_provider="groq"`, `manager_ai_model="llama-3.1-8b-instant"` が書き込まれること。 | 結合テスト |
 
+---
+
+### 2.9 接続時挨拶個別設定連携
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-GREET-01** | UIと設定ファイルの連動 | 設定タブで「Twitch接続時にチャットで挨拶する」をON、「Discord接続時にチャットで挨拶する」をOFFにして「設定を保存して適用」を押下する。 | `local_settings.json` の `twitch_greeting_enabled` が `true`、`discord_greeting_enabled` が `false` にそれぞれ書き込まれ、保存されること。 | 結合テスト |
+
+

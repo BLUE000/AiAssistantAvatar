@@ -941,6 +941,14 @@ UIの直接チャット入力（Direct Input）において、半角スラッシ
 ##### 挨拶の実装方式
 `TwitchReader`（JOIN確認後）または `DiscordReader`（READY受信後）が、`TwitchCommentReceived` / `DiscordMessageReceived` イベントを挨拶プロンプトとして発火する。AIがこれを受け取り、自然な挨拶文を生成してチャンネルへ送信する。
 
+##### 接続時挨拶の有効判定と設定
+接続時挨拶は、`local_settings.json` の以下の個別設定値に従って処理を有効化する。
+- Twitch側: `"twitch_greeting_enabled": true/false`
+- Discord側: `"discord_greeting_enabled": true/false`
+
+**後方互換性(フォールバック):**
+旧設定値 `"greeting_enabled": true/false` が存在し、かつ個別設定値が未定義の場合は、旧設定値をデフォルト値として採用する。個別キーも旧キーも存在しない場合は `false`（挨拶なし）とする。
+
 ### 5.19 スラッシュコマンド判定とフォルダオープン・インポートシーケンス
 
 ```mermaid

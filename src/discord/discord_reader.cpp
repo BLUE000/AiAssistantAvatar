@@ -27,14 +27,17 @@ DiscordReader::~DiscordReader() {
 }
 
 void DiscordReader::loadSettings() {
-    QString configPath = "local_settings.json";
+    QString configPath = m_configPath;
+    if (configPath.isEmpty()) {
+        configPath = "local_settings.json";
 #ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
+        if (!QFile::exists(configPath)) {
+            configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
+        }
 #endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+        if (!QFile::exists(configPath)) {
+            configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+        }
     }
 
     if (!QFile::exists(configPath)) return;
@@ -53,8 +56,9 @@ void DiscordReader::loadSettings() {
             m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed();
             m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
             m_avatarName = obj.value("avatar_name").toString().trimmed();
-            // greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
-            m_greetingEnabled = obj.value("greeting_enabled").toBool(false);
+            // discord_greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
+            bool fallbackGreet = obj.value("greeting_enabled").toBool(false);
+            m_greetingEnabled = obj.value("discord_greeting_enabled").toBool(fallbackGreet);
         }
     }
 }
@@ -364,9 +368,9 @@ void DiscordReader::onReplyFinished(QNetworkReply *reply) {
 }
 
 void DiscordReader::sendGreeting() {
-    // greeting_enabled が明示的に true でない限り発火しない
+    // discord_greeting_enabled が明示的に true でない限り発火しない
     if (!m_greetingEnabled) {
-        qDebug() << "DiscordReader: Greeting skipped (greeting_enabled is not set in local_settings.json).";
+        qDebug() << "DiscordReader: Greeting skipped (discord_greeting_enabled is not set in local_settings.json).";
         m_shouldGreet = false;
         return;
     }

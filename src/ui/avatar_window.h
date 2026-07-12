@@ -129,6 +129,8 @@ private:
     QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
     QCheckBox *m_discordEnabledCheckbox = nullptr;
+    QCheckBox *m_twitchGreetingCheckbox = nullptr;
+    QCheckBox *m_discordGreetingCheckbox = nullptr;
     QLineEdit *m_discordBotTokenEdit = nullptr;
     QLineEdit *m_discordChannelIdEdit = nullptr;
     QLineEdit *m_bubbleShortEdit = nullptr;

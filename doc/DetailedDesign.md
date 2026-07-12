@@ -211,8 +211,9 @@ private:
     QLineEdit *m_aiCerebrasApiKeyEdit = nullptr;
     QComboBox *m_aiCerebrasModelCombo = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
-    QLineEdit *m_webhookUrlEdit = nullptr;
     QCheckBox *m_webhookEnabledCheckbox = nullptr;
+    QCheckBox *m_twitchGreetingCheckbox = nullptr;
+    QCheckBox *m_discordGreetingCheckbox = nullptr;
     
     // OBS配信用WebSocketサーバー
     QWebSocketServer *m_wsServer = nullptr;
@@ -360,8 +361,8 @@ private:
 
     QWebSocket *m_webSocket = nullptr;
     QTcpServer *m_authServer = nullptr;
-    QNetworkAccessManager *m_networkManager = nullptr;
     QString m_configPath;
+    bool m_greetingEnabled = false;
 
     void loadSettings();
     void saveTokenToSettings(const QString &accessToken);
@@ -416,8 +417,8 @@ private:
     QWebSocket *m_webSocket = nullptr;
     QNetworkAccessManager *m_networkManager = nullptr;
     QTimer *m_heartbeatTimer = nullptr;
-    int m_lastSequence = 0;
     bool m_hasAck = true;
+    bool m_greetingEnabled = false;
 
     void loadSettings();
     void connectToDiscord();

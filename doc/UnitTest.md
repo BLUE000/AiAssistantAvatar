@@ -195,3 +195,14 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-ROUT-02** | `AIRouter::selectClient` | Groqが `available=false`、Cerebrasが `available=true`。 | `"cerebras"` を返すこと。 |
 | **UT-ROUT-03** | `AIRouter::selectClient` | 全クライアントが `available=false`。 | 空文字 `""` を返すこと。 |
 | **UT-ROUT-04** | `AIRouter::selectClient` | 優先度リストが空の場合。 | 空文字 `""` を返すこと。 |
+
+---
+
+### 3.10 接続時挨拶設定の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-GREET-01** | `TwitchReader::loadSettings` | `local_settings.json` に `"twitch_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
+| **UT-GREET-02** | `TwitchReader::loadSettings` | `local_settings.json` に `"twitch_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること。 |
+| **UT-GREET-03** | `DiscordReader::loadSettings` | `local_settings.json` に `"discord_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
+| **UT-GREET-04** | `DiscordReader::loadSettings` | `local_settings.json` に `"discord_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること。 |

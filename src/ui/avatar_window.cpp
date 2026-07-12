@@ -975,6 +975,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     
     m_avatarNameEdit = new QLineEdit(scrollContent);
     m_nameReactionCheckbox = new QCheckBox("名前（アバター名）呼ばれて反応する", scrollContent);
+    m_twitchGreetingCheckbox = new QCheckBox("接続時にチャットで挨拶する", scrollContent);
     
     m_webhookUrlEdit = new QLineEdit(scrollContent);
     m_webhookEnabledCheckbox = new QCheckBox("有効にする", scrollContent);
@@ -1055,6 +1056,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     twitchLayout->addRow("チャンネル:", m_twitchChannelEdit);
     twitchLayout->addRow("クライアント ID:", m_twitchClientIdEdit);
     twitchLayout->addRow("OAuth用ポート:", m_twitchPortEdit);
+    twitchLayout->addRow("起動時挨拶:", m_twitchGreetingCheckbox);
     
     QWidget *wakeWordWidget = new QWidget(scrollContent);
     QHBoxLayout *wakeWordLayout = new QHBoxLayout(wakeWordWidget);
@@ -1091,6 +1093,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     discordLayout->setSpacing(6);
     
     m_discordEnabledCheckbox = new QCheckBox("Discordボット連携を有効化", scrollContent);
+    m_discordGreetingCheckbox = new QCheckBox("接続時にチャットで挨拶する", scrollContent);
     m_discordBotTokenEdit = new QLineEdit(scrollContent);
     m_discordBotTokenEdit->setEchoMode(QLineEdit::Password);
     m_discordBotTokenEdit->setPlaceholderText("ボットのトークンを入力...");
@@ -1101,6 +1104,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
     discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
     discordLayout->addRow("チャンネル ID:", m_discordChannelIdEdit);
+    discordLayout->addRow("起動時挨拶:", m_discordGreetingCheckbox);
     mainLayout->addWidget(discordGroup);
 
     // 保存・適用ボタン
@@ -1400,6 +1404,14 @@ void AvatarWindow::loadSettingsToUI() {
 
             if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
             if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
+
+            bool fallbackGreeting = obj.value("greeting_enabled").toBool(false);
+            if (m_twitchGreetingCheckbox) {
+                m_twitchGreetingCheckbox->setChecked(obj.value("twitch_greeting_enabled").toBool(fallbackGreeting));
+            }
+            if (m_discordGreetingCheckbox) {
+                m_discordGreetingCheckbox->setChecked(obj.value("discord_greeting_enabled").toBool(fallbackGreeting));
+            }
         }
     }
 }
@@ -1492,6 +1504,14 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["discord_enabled"] = m_discordEnabledCheckbox->isChecked();
     obj["discord_bot_token"] = m_discordBotTokenEdit->text().trimmed();
     obj["discord_channel_id"] = m_discordChannelIdEdit->text().trimmed();
+
+    if (m_twitchGreetingCheckbox) {
+        obj["twitch_greeting_enabled"] = m_twitchGreetingCheckbox->isChecked();
+    }
+    if (m_discordGreetingCheckbox) {
+        obj["discord_greeting_enabled"] = m_discordGreetingCheckbox->isChecked();
+    }
+    obj.remove("greeting_enabled");
 
     obj["obs_http_enabled"] = m_obsHttpEnabledCheckbox->isChecked();
     obj["obs_http_port"] = m_obsHttpPortEdit->text().trimmed().toInt();

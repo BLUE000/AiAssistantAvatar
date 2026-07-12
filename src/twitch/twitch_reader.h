@@ -45,6 +45,8 @@ public:
 
     void setSettings(const QString &channel, const QString &token, const QString &clientId, const QString &wakeWord, const QString &avatarName = "AIアシスタント", bool nameReactionEnabled = true);
     void setWakeWordMode(const QString &mode) { m_wakeWordMode = mode.trimmed().toLower(); }
+    bool isGreetingEnabled() const { return m_greetingEnabled; }
+    void setConfigPath(const QString &path) { m_configPath = path; }
 
 signals:
     void notifyEvent(const AppEvent &event);

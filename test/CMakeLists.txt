@@ -27,6 +27,7 @@ set(TEST_SOURCES
     test_ai_client.cpp
     test_search_manager.cpp
     ../src/twitch/twitch_reader.cpp
+    ../src/discord/discord_reader.cpp
     ../src/ai/ai_client_manager.cpp
     ../src/ai/iai_client.cpp
     ../src/ai/mistral_ai_client.cpp
