@@ -10,6 +10,11 @@
 #include "cipher_engine.h"
 #include "twitch/twitch_reader.h"
 #include "discord/discord_reader.h"
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QEventLoop>
+#include <QTimer>
 
 class AIClientTest : public ::testing::Test {
 protected:
@@ -1178,4 +1183,59 @@ TEST_F(AIClientTest, SegregatedGreetingSettingsTest) {
     } else {
         QFile::remove(configPath);
     }
+}
+
+TEST(VerifyAPI, TestDecryptLocal) {
+    // ローカルに検証用の schedules_response.json がある場合のみ実行
+    QFile file("scratch/schedules_response.json");
+    if (!file.open(QIODevice::ReadOnly)) {
+        qDebug() << "VerifyAPI.TestDecryptLocal: scratch/schedules_response.json not found, skipping.";
+        return;
+    }
+    QByteArray responseData = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
+    ASSERT_EQ(parseError.error, QJsonParseError::NoError);
+    ASSERT_TRUE(doc.isObject());
+    QJsonObject root = doc.object();
+    EXPECT_EQ(root.value("status").toString(), "success");
+
+    QJsonArray data = root.value("data").toArray();
+    qDebug() << "Total tasks retrieved:" << data.size();
+
+    for (int i = 0; i < data.size(); ++i) {
+        QJsonObject task = data.at(i).toObject();
+        QString id = task.value("id").toString();
+        QString rawTitle = task.value("title").toString();
+        int progress = task.value("progress_rate").toInt();
+
+        // 復号化
+        QByteArray encrypted = QByteArray::fromBase64(rawTitle.toUtf8());
+        CipherResult decResult = CipherEngine::decrypt(encrypted, "test_secret_key_12345");
+        EXPECT_TRUE(decResult.isSuccess());
+        if (decResult.isSuccess()) {
+            QString decryptedTitle = QString::fromUtf8(decResult.data());
+            qDebug() << QString("Decrypted [%1]: %2 (progress: %3%)").arg(i).arg(decryptedTitle).arg(progress);
+        }
+    }
+}
+
+TEST(VerifyAPI, TestRAGTriggerAndFallback) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // Discordからの「予定教えて」リクエスト (RAGトリガー条件に合致)
+    // 実際にfetchSchedulesが走り、テスト環境ではTLSエラー等でTimeout/Fallbackするはずですが、
+    // クラッシュせずに空の結果が返ってフォールバックされ、正常に完了することを確認します。
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    manager.on_requestAI("明日の予定は何ですか？", "[Discord:12345] streamer");
+    
+    // AIRequestSent シグナルが送信され、処理が進行することを確認
+    EXPECT_GE(eventSpy.count(), 1);
+    
+    // cleanup
+    QDir("log").removeRecursively();
 }

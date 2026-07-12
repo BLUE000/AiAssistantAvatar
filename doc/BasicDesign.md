@@ -1201,5 +1201,42 @@ sequenceDiagram
     MgrCerebras-->>AI: "use:groq"
 
     AI->>Tracker: recordUsage("cerebras", tokens=minimal)
+
+## 10. Discord 外部スケジュール API 連携機能設計
+
+Discord 経由での対話において、ユーザーから予定やタスク進捗に関する発言があった際、外部 API からスケジュール情報を自動取得し、RAG（検索拡張生成）技術を用いて AI のシステムプロンプトにコンテキストとして注入します。
+
+### 10.1 連携構成と処理フロー
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Discord as Discordボット
+    participant Manager as AIClientManager
+    participant API as 外部スケジュールAPI
+    participant TC as TransCipher (復号エンジン)
+    participant LLM as 各AIクライアント
+
+    Discord->>Manager: 1. チャット受信 (例:「今後の予定教えて」)
+    Note over Manager: Discord発かつトリガーワード（予定、進捗等）が含まれるか検証
+    
+    rect rgb(240, 240, 240)
+        Note over Manager: キーワード検知時のみAPI連携処理を実行
+        Manager->>API: 2. GET /schedules.php (work & stream)
+        API-->>Manager: 3. JSONレスポンス返却 (暗号化title含む)
+        Manager->>TC: 4. 暗号化titleの復号要求 (キー: test_secret_key_12345)
+        TC-->>Manager: 5. プレーンテキスト返却
+    end
+    
+    Note over Manager: 復号後のタイトルを含んだMarkdown形式のスケジュールテキストをシステムプロンプトへ動的注入
+    
+    Manager->>LLM: 6. APIリクエスト (会話履歴 + 注入されたシステム指示)
+    LLM-->>Manager: 7. 最新の予定データに基づいた自然な回答を生成
+    Manager->>Discord: 8. 回答メッセージ返信
+```
+
+### 10.2 復号とデータ形式
+- **難読化解除キー**: `TRANSCIPHER_SECRET_KEY` に設定された `"test_secret_key_12345"`
+- **データ形式**: API から返される Base64 文字列をバイナリデータ（QByteArray）にデコードし、`CipherEngine::decrypt` メソッドによって元の UTF-8 文字列に復号します。
 ```
 

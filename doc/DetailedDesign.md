@@ -1455,4 +1455,57 @@ if (!managerId.isEmpty()) {
     m_managerClient->sendRequest(miniPrompt, {}, "", "");
     // Manager AI の応答 "use:groq" → workerId 決定
 }
+
+## 5. Discord 外部スケジュール API 連携機能詳細設計
+
+Discord からの予定に関する問いかけに対して、外部 API から取得したスケジュールデータをインジェクション（RAG）する機能の詳細設計を示す。
+
+### 5.1 クラス設計 of 拡張 (`AIClientManager`)
+
+`AIClientManager` クラスに、以下のプライベートメソッドを追加する。
+
+```cpp
+// src/ai/ai_client_manager.h
+private:
+    /**
+     * @brief 外部 API から指定されたカテゴリのスケジュール情報を取得・復号化する
+     * @param category "work" (作業) または "stream" (配信)
+     * @param startDate 取得開始日 (YYYY-MM-DD)
+     * @param days 取得日数
+     * @return 復号化された Markdown 形式の予定リストテキスト
+     */
+    QString fetchSchedules(const QString &category, const QDate &startDate, int days);
+
+    /**
+     * @brief work と stream の双方のスケジュールを取得し、LLMに与えるシステムコンテキストを構築する
+     */
+    QString getDiscordSchedulesContext();
+```
+
+### 5.2 APIリクエストと復号化ロジックの実装詳細
+
+`fetchSchedules` 内で、以下の順序で HTTP 通信および難読化解除を行う。
+
+1. **URLの組み立て**:
+   `https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php` に対し、`QUrlQuery` を用いてパラメータ `category`, `start_date`, `days` を設定する。
+2. **ブロッキング待機**:
+   `QNetworkAccessManager` を使用し、非同期の `get()` を投げる。`QEventLoop` と `QTimer` を接続し、最大 5 秒間イベントループを実行して待機する。
+3. **レスポンス解析**:
+   `QJsonDocument` でレスポンス（JSON）を読み込み、配列 `data` をイテレートする。
+4. **TransCipher 復号**:
+   - 暗号化されたタイトル `title` (Base64形式の文字列) を取得。
+   - `QByteArray::fromBase64` でデコード。
+   - `CipherEngine::decrypt(encryptedData, "test_secret_key_12345")` を実行。
+   - 復号が成功した場合にプレーンテキストのタイトルを取得。
+
+### 5.3 自動インジェクションのトリガー仕様
+
+`AIClientManager::on_requestAI` の対話コンテキスト生成フェーズにおいて、以下の条件を満たしたときに自動実行する。
+
+- **トリガー条件**:
+  - 送信元が Discord である場合（`!m_currentDiscordChannelId.isEmpty()` または `user` が `[Discord:` から始まる）。
+  - 送信プロンプト（伏字化マスク適用後の文字列）に、以下のいずれかの部分一致ワードが含まれる：
+    `予定`、`スケジュール`、`タスク`、`状況`、`進捗`、`配信`、`作業`、`schedule`、`task`、`work`、`stream`
+- **インジェクション先**:
+  - `getDiscordSchedulesContext()` で生成された Markdown テキストを、AI API に送信するシステム命令（`additionalSystemPrompt` / `system` ロール）の末尾に結合して送信する。
 ```

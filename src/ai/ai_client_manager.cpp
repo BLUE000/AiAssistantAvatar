@@ -5,6 +5,12 @@
 #include "dummy_ai_client.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QEventLoop>
+#include <QDate>
+#include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -771,6 +777,26 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     scanMemorySummaries(filteredPrompt);
     if (!m_recalledContext.isEmpty()) {
         finalPrompt = m_recalledContext + "\n\n" + finalPrompt;
+    }
+
+    // Discordスケジュール自動取得RAGの実行
+    bool isDiscord = !m_currentDiscordChannelId.isEmpty() || user.startsWith("[Discord:");
+    if (isDiscord) {
+        QString lowerPrompt = filteredPrompt.toLower();
+        if (lowerPrompt.contains("予定") || lowerPrompt.contains("スケジュール") || 
+            lowerPrompt.contains("タスク") || lowerPrompt.contains("状況") || 
+            lowerPrompt.contains("進捗") || lowerPrompt.contains("配信") ||
+            lowerPrompt.contains("作業") || lowerPrompt.contains("schedule") || 
+            lowerPrompt.contains("task") || lowerPrompt.contains("work") || 
+            lowerPrompt.contains("stream")) {
+            
+            QString schedulesContext = getDiscordSchedulesContext();
+            if (!additionalSystemPrompt.isEmpty()) {
+                additionalSystemPrompt += "\n\n" + schedulesContext;
+            } else {
+                additionalSystemPrompt = schedulesContext;
+            }
+        }
     }
 
     m_lastFinalPrompt = finalPrompt;
@@ -1945,6 +1971,87 @@ void AIClientManager::on_requestProviderStatus(const QString &providerId) {
     if (m_clientMap.contains(providerId)) {
         emit providerStatusResponse(m_tracker.statusOf(providerId));
     }
+}
+
+QString AIClientManager::fetchSchedules(const QString &category, const QDate &startDate, int days) {
+    QNetworkAccessManager manager;
+    QString baseUrl = "https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php";
+    QUrl url(baseUrl);
+    QUrlQuery query;
+    query.addQueryItem("category", category);
+    query.addQueryItem("start_date", startDate.toString("yyyy-MM-dd"));
+    query.addQueryItem("days", QString::number(days));
+    url.setQuery(query);
+
+    QNetworkRequest request(url);
+    QNetworkReply *reply = manager.get(request);
+
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timer.start(5000); // 5秒タイムアウト
+
+    loop.exec();
+
+    QString resultText;
+
+    if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
+        QByteArray responseData = reply->readAll();
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
+        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+            QJsonObject root = doc.object();
+            if (root.value("status").toString() == "success") {
+                QJsonArray data = root.value("data").toArray();
+                for (int i = 0; i < data.size(); ++i) {
+                    QJsonObject task = data.at(i).toObject();
+                    QString rawTitle = task.value("title").toString();
+                    QString startAt = task.value("start_at").toString();
+                    QString endAt = task.value("end_at").toString();
+                    int progress = task.value("progress_rate").toInt();
+
+                    // TransCipherによる復号
+                    QByteArray encrypted = QByteArray::fromBase64(rawTitle.toUtf8());
+                    CipherResult decResult = CipherEngine::decrypt(encrypted, "test_secret_key_12345");
+                    QString title = decResult.isSuccess() ? QString::fromUtf8(decResult.data()) : rawTitle;
+
+                    resultText += QString("- タスク: %1\n  期間: %2 ~ %3\n  進捗率: %4%\n")
+                                      .arg(title)
+                                      .arg(startAt)
+                                      .arg(endAt)
+                                      .arg(progress);
+                }
+            } else {
+                qWarning() << "AIClientManager: schedules API status not success:" << root.value("status").toString();
+            }
+        } else {
+            qWarning() << "AIClientManager: schedules API response JSON parse error:" << parseError.errorString();
+        }
+    } else {
+        qWarning() << "AIClientManager: schedules API request failed or timed out:" 
+                   << (reply->isFinished() ? reply->errorString() : "Timeout");
+    }
+
+    reply->deleteLater();
+    return resultText;
+}
+
+QString AIClientManager::getDiscordSchedulesContext() {
+    QDate today = QDate::currentDate();
+    // 今日から7日間のスケジュールを取得
+    QString workSchedules = fetchSchedules("work", today, 7);
+    QString streamSchedules = fetchSchedules("stream", today, 7);
+
+    QString context = "\n[システム指示: 以下は外部APIから取得したユーザーの最新スケジュールと作業・配信の進捗状況です。ユーザーから今後の予定やタスク、進捗状況について尋ねられた場合は、以下の情報をベースにして親切に回答してください。情報が存在しない（空である）場合は、予定が登録されていない旨を優しく伝えてください。]\n";
+    context += "【作業・タスク予定 (work)】\n";
+    context += workSchedules.isEmpty() ? "登録されている作業予定はありません。\n" : workSchedules;
+    context += "\n【配信・ストリーム予定 (stream)】\n";
+    context += streamSchedules.isEmpty() ? "登録されている配信予定はありません。\n" : streamSchedules;
+    context += "\n";
+
+    return context;
 }
 
 

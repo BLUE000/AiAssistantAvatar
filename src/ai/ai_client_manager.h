@@ -105,6 +105,10 @@ private:
     void saveKnowledgeMetadata();
     void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
 
+    // Discord外部スケジュールAPI連携RAG
+    QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
+    QString getDiscordSchedulesContext();
+
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
