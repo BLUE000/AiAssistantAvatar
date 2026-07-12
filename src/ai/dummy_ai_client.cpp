@@ -1,4 +1,5 @@
 #include "dummy_ai_client.h"
+#include "ai_client_manager.h"
 #include <QDebug>
 #include <QRegularExpression>
 
@@ -9,7 +10,14 @@ DummyAIClient::DummyAIClient(QObject *parent)
     m_dummyTimer->setSingleShot(true);
     
     connect(m_dummyTimer, &QTimer::timeout, this, [this]() {
-        QString mockResponse = QString("「%1」についてですね！私はテスト用のAIアシスタントです。元気に稼働していますよ！").arg(m_lastPrompt);
+        QString avatarName = "AIアシスタント";
+        AIClientManager *manager = qobject_cast<AIClientManager*>(this->parent());
+        if (manager) {
+            avatarName = manager->avatarName();
+        }
+        QString mockResponse = QString("「%1」についてですね！私はテスト用キャラクターの「%2」です。元気に稼働していますよ！")
+                                   .arg(m_lastPrompt)
+                                   .arg(avatarName);
         emit requestFinished(mockResponse, true);
     });
 }
