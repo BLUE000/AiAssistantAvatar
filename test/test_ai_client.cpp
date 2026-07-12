@@ -566,18 +566,14 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     EXPECT_TRUE(users1.contains("alice"));
     EXPECT_EQ(users1.value("alice").toObject().value("preferred").toString(), "ありりん");
 
-    // 2. 他人による他人のニックネーム登録 (承認待ち)
+    // 2. 他人による他人のニックネーム登録 (拒否され記憶されない)
     manager.on_requestAI("アリスを『ありちゃん』と呼んで", "bob");
     QString result2 = manager.handleNicknameUpdateRequest("alice", "ありちゃん");
-    EXPECT_TRUE(result2.startsWith("Notification:"));
+    EXPECT_TRUE(result2.startsWith("Error:"));
 
     QJsonObject data2 = manager.userNamesObj();
     QJsonArray pending2 = data2.value("pending_requests").toArray();
-    EXPECT_EQ(pending2.size(), 1);
-    QJsonObject req2 = pending2.at(0).toObject();
-    EXPECT_EQ(req2.value("requester").toString(), "bob");
-    EXPECT_EQ(req2.value("target").toString(), "alice");
-    EXPECT_EQ(req2.value("nickname").toString(), "ありちゃん");
+    EXPECT_TRUE(pending2.isEmpty()); // 記憶されていないこと
 
     // 3. 配信主による他人へのニックネーム登録 (自動登録)
     manager.on_requestAI("アリスを『アリスっち』と呼ぶことにする", "test_streamer");
@@ -588,11 +584,29 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     QJsonObject users3 = data3.value("users").toObject();
     EXPECT_EQ(users3.value("alice").toObject().value("preferred").toString(), "アリスっち");
 
-    // 4. 配信主による他人の申請の承認
-    // 再度 bob から申請を出す
-    manager.on_requestAI("アリスを『ありちゃん』にして", "bob");
-    manager.handleNicknameUpdateRequest("alice", "ありちゃん");
+    // 4. 配信主による他人の申請の承認 (手動で保留リクエストを追加してテスト)
+    // テストのために手動で bob からの保留申請を注入する
+    QJsonObject customUserNames = manager.userNamesObj();
+    QJsonArray customPending = customUserNames.value("pending_requests").toArray();
+    QJsonObject reqObj;
+    reqObj["requester"] = "bob";
+    reqObj["target"] = "alice";
+    reqObj["nickname"] = "ありちゃん";
+    reqObj["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    customPending.append(reqObj);
+    customUserNames["pending_requests"] = customPending;
     
+    // AIClientManagerに強制反映するための workaround
+    // テスト用に直接ファイルを保存してリロードさせます
+    {
+        QFile file("user_names.json");
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(QJsonDocument(customUserNames).toJson());
+            file.close();
+        }
+    }
+    manager.on_settingsUpdated(); // これで強制リロード
+
     // 承認
     manager.approveNicknameRequest("bob", "alice", "ありちゃん");
     QJsonObject data4 = manager.userNamesObj();
@@ -601,10 +615,26 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     QJsonArray pending4 = data4.value("pending_requests").toArray();
     EXPECT_TRUE(pending4.isEmpty());
 
-    // 5. 配信主による申請の却下
-    manager.on_requestAI("アリスを『ありんこ』と呼んで", "bob");
-    manager.handleNicknameUpdateRequest("alice", "ありんこ");
+    // 5. 配信主による申請の却下 (手動で保留リクエストを追加してテスト)
+    QJsonObject customUserNames5 = manager.userNamesObj();
+    QJsonArray customPending5 = customUserNames5.value("pending_requests").toArray();
+    QJsonObject reqObj5;
+    reqObj5["requester"] = "bob";
+    reqObj5["target"] = "alice";
+    reqObj5["nickname"] = "ありんこ";
+    reqObj5["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    customPending5.append(reqObj5);
+    customUserNames5["pending_requests"] = customPending5;
     
+    {
+        QFile file("user_names.json");
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(QJsonDocument(customUserNames5).toJson());
+            file.close();
+        }
+    }
+    manager.on_settingsUpdated();
+
     // 却下
     manager.rejectNicknameRequest("bob", "alice", "ありんこ");
     QJsonObject data5 = manager.userNamesObj();

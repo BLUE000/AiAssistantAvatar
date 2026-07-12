@@ -1395,37 +1395,9 @@ QString AIClientManager::handleNicknameUpdateRequest(const QString &target, cons
             .arg(nickTrimmed).arg(targetLower);
     }
     
-    // 2. 承認待ちケース (本人以外からの他者への指示)
-    QJsonArray pendingList = m_userNamesObj.value("pending_requests").toArray();
-    
-    // 既存の重複する申請がないかチェック (もしあったら更新)
-    bool isDuplicate = false;
-    for (int i = 0; i < pendingList.size(); ++i) {
-        QJsonObject req = pendingList.at(i).toObject();
-        if (req.value("requester").toString().toLower() == requester &&
-            req.value("target").toString().toLower() == targetLower) {
-            req["nickname"] = nickTrimmed;
-            req["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-            pendingList[i] = req;
-            isDuplicate = true;
-            break;
-        }
-    }
-    
-    if (!isDuplicate) {
-        QJsonObject reqObj;
-        reqObj["requester"] = requester;
-        reqObj["target"] = targetLower;
-        reqObj["nickname"] = nickTrimmed;
-        reqObj["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-        pendingList.append(reqObj);
-    }
-    
-    m_userNamesObj["pending_requests"] = pendingList;
-    saveUserNames();
-    
-    return QString("Notification: Nickname registration request submitted. The streamer must approve this request to change '%1's nickname to '%2'.")
-        .arg(targetLower).arg(nickTrimmed);
+    // 2. 他者による設定の拒否（本人以外からの他者への指示は保存しない）
+    qDebug() << "AIClientManager: Rejected nickname request because requester is not the target user and not the streamer.";
+    return QString("Error: You can only set your own nickname. Changing nicknames for other users is prohibited.");
 }
 
 void AIClientManager::approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname) {
