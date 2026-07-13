@@ -215,5 +215,5 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
 | **UT-SCHED-01** | `AIClientManager::fetchSchedules` | ローカルに保存したテスト用の擬似 JSON レスポンスファイル（`schedules_response.json`）をロードして復号処理を実行。 | `TransCipher` によりタイトル `"joPsj/8IBE..."` が `"【非公開】WebHook用HTML"` などの正しい日本語文字列に復号されること。 |
-| **UT-SCHED-02** | `AIClientManager::on_requestAI` | 任意の経路（ユーザー `"[Twitch] user"` など）で「予定教えて」と入力する。 | トリガーが検知され、システムプロンプト（`additionalSystemPrompt`）の末尾にスケジュール連携コンテキストが自動でインジェクションされること。 |
-| **UT-SCHED-03** | `AIClientManager::on_requestAI` | 任意の経路で予定に関連しない一般的な問いかけ（「こんにちは」など）を入力する。 | トリガーが検知されず、システムプロンプトにスケジュール連携コンテキストがインジェクションされないこと。 |
+| **UT-SCHED-02** | `AIClientManager::on_requestAI` | Discord 経由（`"[Discord:123] streamer"`）または UI直接入力（`""`）で「予定教えて」と入力する。 | トリガーが検知され、システムプロンプト（`additionalSystemPrompt`）の末尾にスケジュール連携コンテキストが自動でインジェクションされること。 |
+| **UT-SCHED-03** | `AIClientManager::on_requestAI` | Twitch 経由（`"[Twitch] streamer"`）で「予定教えて」と入力する、または予定に関連しない問いかけを行う。 | トリガーが検知されず、システムプロンプトにスケジュール連携コンテキストがインジェクションされないこと。 |
