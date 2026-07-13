@@ -17,10 +17,13 @@ enum class KnowledgeImportState {
     QandAMode
 };
 
+class SystemResponseManager;
+
 class AIClientManager : public QObject {
     Q_OBJECT
 private:
     IAIClient *m_currentClient = nullptr;
+    SystemResponseManager *m_systemResponseManager = nullptr;
     QString m_provider; // 現在のWorker API（UI設定、優先度の最優先に配置）
     QString m_transCipherKey; // 難読化用の秘密鍵
     QList<QPair<QString, QString>> m_chatHistory; // 会話履歴 (ユーザー入力, AI応答)

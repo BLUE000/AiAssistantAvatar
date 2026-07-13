@@ -35,6 +35,7 @@ set(TEST_SOURCES
     ../src/ai/groq_ai_client.cpp
     ../src/ai/dummy_ai_client.cpp
     ../src/ai/rate_limit_tracker.cpp
+    ../src/ai/system_response_manager.cpp
     ../src/ai/ai_router.cpp
     ../src/search/isearch_provider.cpp
     ../src/search/search_manager.cpp
@@ -50,6 +51,7 @@ add_executable(AiAssistantAvatarTest ${TEST_SOURCES})
 target_include_directories(AiAssistantAvatarTest PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_BINARY_DIR}
 )
 
 target_compile_definitions(AiAssistantAvatarTest PRIVATE

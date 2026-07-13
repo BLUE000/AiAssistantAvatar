@@ -1507,5 +1507,56 @@ private:
   - 送信プロンプト（伏字化マスク適用後の文字列）に、以下のいずれかの部分一致ワードが含まれる：
     `予定`、`スケジュール`、`タスク`、`状況`、`進捗`、`配信`、`作業`、`schedule`、`task`、`work`、`stream`
 - **インジェクション先**:
-  - `getDiscordSchedulesContext()` で生成された Markdown テキストを、AI API に送信するシステム命令（`additionalSystemPrompt` / `system` ロール）の末尾に結合して送信する。
+  - `getDiscordSchedulesContext()` で生成された Markdown テキストを、AI API に送信する system 命令（`additionalSystemPrompt` / `system` ロール）の末尾に結合して送信する。
 ```
+
+
+## 6. システム固定自動応答機能詳細設計
+
+AIを介さず、システム側でルールベースの即答を行うための設計を示す。
+
+### 6.1 クラス設計 (`SystemResponseManager`)
+
+固定応答ルールを管理・判定する独立したモジュールとして `SystemResponseManager` クラスを定義する。
+
+```cpp
+// src/ai/system_response_manager.h
+#pragma once
+#include <QObject>
+#include <QString>
+
+class SystemResponseManager : public QObject {
+    Q_OBJECT
+public:
+    explicit SystemResponseManager(QObject *parent = nullptr);
+    ~SystemResponseManager();
+
+    /**
+     * @brief 入力プロンプトを判定し、固定応答があればそれを返す。なければ空文字列を返す。
+     * @param prompt ユーザーの入力メッセージ
+     */
+    QString processPrompt(const QString &prompt);
+};
+```
+
+### 6.2 応答ルール仕様と実装詳細 (`system_response_manager.cpp`)
+
+`processPrompt` メソッド内で、以下の応答ルールを処理する。
+
+1. **バージョン情報**:
+   - **トリガーキーワード**: `version`、`バージョン`、`ばーじょん`、`バージョンは`、`現在のバージョン`、`今のバージョン`、`バージョン情報`
+   - **判定方法**: トリマー処理と小文字化（`toLower`）を施したプロンプトに対し、以下の正規表現パターンでマッチングを行う。
+     `(^version$|^バージョン$|^ばーじょん$|バージョンは|バージョンを教えて|今のバージョン|現在のバージョン|versioninfo|バージョン情報)`
+   - **返答テキスト**: 自動生成された `version.h` 内 of `PROJECT_VERSION` を利用し、`"現在のバージョンは v%1 です。"` という形式で文字列を構築して返却する。
+
+### 6.3 コアフローとの統合 (`AIClientManager` の拡張)
+
+`AIClientManager` は `SystemResponseManager` のインスタンスをプライベートメンバとして保持する。
+
+1. **初期化**:
+   - `AIClientManager` のコンストラクタにて `m_systemResponseManager = new SystemResponseManager(this);` として初期化する。
+2. **呼び出し制御**:
+   - `AIClientManager::on_requestAI` にて、スラッシュコマンドの前処理の直後（通常のAI処理に入る前）に、`m_systemResponseManager->processPrompt(prompt)` を呼び出す。
+   - 戻り値が空文字列でない場合：
+     - 通常のAIリクエスト処理（履歴追加やAPIリクエスト）をすべてバイパスする。
+     - 戻り値のテキストを格納した `AppEvent`（`type = EventType::AIResponseReceived`）を発火（`emit notifyEvent`）し、メソッドを即座に `return` する。

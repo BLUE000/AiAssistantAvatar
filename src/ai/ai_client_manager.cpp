@@ -3,6 +3,7 @@
 #include "cerebras_ai_client.h"
 #include "groq_ai_client.h"
 #include "dummy_ai_client.h"
+#include "system_response_manager.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
 #include <QNetworkAccessManager>
@@ -28,6 +29,7 @@
 AIClientManager::AIClientManager(QObject *parent)
     : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
+    m_systemResponseManager = new SystemResponseManager(this);
     m_currentResetStartTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     m_importTimeoutTimer = new QTimer(this);
     m_importTimeoutTimer->setSingleShot(true);
@@ -71,6 +73,7 @@ AIClientManager::AIClientManager(QObject *parent)
 AIClientManager::~AIClientManager() {
     // 親子がQObjectなので自動開放されますが、二重解放防止のためにマップから削除して明示的に処理
     m_clientMap.clear();
+    m_systemResponseManager = nullptr;
 }
 
 void AIClientManager::loadSessionContext() {
@@ -569,6 +572,17 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         } else {
             responseEvent.text = "無効なコマンドです。";
         }
+        emit notifyEvent(responseEvent);
+        return;
+    }
+
+    // システム固定応答モジュールによる判定
+    QString staticResponse = m_systemResponseManager->processPrompt(trimmedPrompt);
+    if (!staticResponse.isEmpty()) {
+        AppEvent responseEvent;
+        responseEvent.source = "AIClientManager";
+        responseEvent.type = EventType::AIResponseReceived;
+        responseEvent.text = staticResponse;
         emit notifyEvent(responseEvent);
         return;
     }
@@ -1422,7 +1436,8 @@ QString AIClientManager::handleNicknameUpdateRequest(const QString &target, cons
         saveUserNames();
     }
 
-    return "Notification: The nickname update request has been submitted to the streamer for approval.";
+    return QString("Success: Temporarily acknowledged setting '%1' as the nickname for '%2'.")
+        .arg(nickTrimmed).arg(targetLower);
 }
 
 void AIClientManager::approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname) {

@@ -569,7 +569,7 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     // 2. 他人による他人のニックネーム登録 (保留リストに追加され、承認待ち状態になる)
     manager.on_requestAI("アリスを『ありちゃん』と呼んで", "bob");
     QString result2 = manager.handleNicknameUpdateRequest("alice", "ありちゃん");
-    EXPECT_TRUE(result2.startsWith("Notification:"));
+    EXPECT_TRUE(result2.startsWith("Success:"));
 
     QJsonObject data2 = manager.userNamesObj();
     QJsonArray pending2 = data2.value("pending_requests").toArray();
@@ -1274,6 +1274,34 @@ TEST(VerifyAPI, TestRAGTriggerAndFallback) {
     // AIRequestSent シグナルが送信され、処理が進行することを確認
     EXPECT_GE(eventSpy.count(), 1);
     
+    // cleanup
+    QDir("log").removeRecursively();
+}
+
+TEST(SystemResponseTest, TestVersionAutoReply) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+    
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // バージョンに関する問い合わせ
+    manager.on_requestAI("現在のバージョンを教えて", "streamer");
+
+    // イベント通知 (AIResponseReceived) が即座に来るはず
+    ASSERT_GE(eventSpy.count(), 1);
+    
+    AppEvent ev = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_TRUE(ev.text.contains("現在のバージョンは v"));
+    EXPECT_TRUE(ev.text.contains("です。"));
+    
+    // バリエーションテスト
+    eventSpy.clear();
+    manager.on_requestAI("version", "streamer");
+    ASSERT_GE(eventSpy.count(), 1);
+    ev = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_TRUE(ev.text.contains("現在のバージョンは v"));
+
     // cleanup
     QDir("log").removeRecursively();
 }
