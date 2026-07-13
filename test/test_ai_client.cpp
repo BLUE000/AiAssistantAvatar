@@ -569,7 +569,7 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     // 2. 他人による他人のニックネーム登録 (保留リストに追加され、承認待ち状態になる)
     manager.on_requestAI("アリスを『ありちゃん』と呼んで", "bob");
     QString result2 = manager.handleNicknameUpdateRequest("alice", "ありちゃん");
-    EXPECT_TRUE(result2.startsWith("Success:"));
+    EXPECT_TRUE(result2.startsWith("Notification:"));
 
     QJsonObject data2 = manager.userNamesObj();
     QJsonArray pending2 = data2.value("pending_requests").toArray();

@@ -1436,8 +1436,7 @@ QString AIClientManager::handleNicknameUpdateRequest(const QString &target, cons
         saveUserNames();
     }
 
-    return QString("Success: Temporarily acknowledged setting '%1' as the nickname for '%2'.")
-        .arg(nickTrimmed).arg(targetLower);
+    return "Notification: The nickname update request has been submitted to the streamer for approval.";
 }
 
 void AIClientManager::approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname) {
