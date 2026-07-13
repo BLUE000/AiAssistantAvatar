@@ -2079,7 +2079,7 @@ QString AIClientManager::getDiscordSchedulesContext() {
     QString workSchedules = fetchSchedules("work", today, 7);
     QString streamSchedules = fetchSchedules("stream", today, 7);
 
-    QString context = "\n[システム指示: 以下は外部APIから取得したユーザーの最新スケジュールと作業・配信の進捗状況です。ユーザーから今後の予定やタスク、進捗状況について尋ねられた場合は、以下の情報をベースにして親切に回答してください。情報が存在しない（空である）場合は、予定が登録されていない旨を優しく伝えてください。]\n";
+    QString context = "\n[システム指示: 以下は外部APIから取得したユーザーの最新スケジュールと作業・配信の進捗状況です。※日時はすべて日本標準時（JST）です。ユーザーから今後の予定やタスク、進捗状況について尋ねられた場合は、以下の情報をベースにして親切に回答してください。情報が存在しない（空である）場合は、予定が登録されていない旨を優しく伝えてください。]\n";
     context += "【作業・タスク予定 (work)】\n";
     context += workSchedules.isEmpty() ? "登録されている作業予定はありません。\n" : workSchedules;
     context += "\n【配信・ストリーム予定 (stream)】\n";
