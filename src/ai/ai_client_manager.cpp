@@ -2023,6 +2023,30 @@ QString AIClientManager::fetchSchedules(const QString &category, const QDate &st
                     QString endAt = task.value("end_at").toString();
                     int progress = task.value("progress_rate").toInt();
 
+                    // 曜日の取得とフォーマット整形
+                    auto formatWithDay = [](const QString &dateTimeStr) -> QString {
+                        QDateTime dt = QDateTime::fromString(dateTimeStr, "yyyy-MM-dd HH:mm:ss");
+                        if (!dt.isValid()) {
+                            dt = QDateTime::fromString(dateTimeStr, "yyyy-MM-dd HH:mm");
+                        }
+                        if (!dt.isValid()) {
+                            dt = QDateTime::fromString(dateTimeStr, Qt::ISODate);
+                        }
+                        if (dt.isValid()) {
+                            static const QStringList days = {"", "月", "火", "水", "木", "金", "土", "日"};
+                            int dayOfWeek = dt.date().dayOfWeek();
+                            QString dayStr = (dayOfWeek >= 1 && dayOfWeek <= 7) ? days.at(dayOfWeek) : "";
+                            return QString("%1(%2) %3")
+                                .arg(dt.toString("yyyy-MM-dd"))
+                                .arg(dayStr)
+                                .arg(dt.toString("HH:mm:ss"));
+                        }
+                        return dateTimeStr;
+                    };
+
+                    QString startFormatted = formatWithDay(startAt);
+                    QString endFormatted = formatWithDay(endAt);
+
                     // TransCipherによる復号
                     QByteArray encrypted = QByteArray::fromBase64(rawTitle.toUtf8());
                     CipherResult decResult = CipherEngine::decrypt(encrypted, "test_secret_key_12345");
@@ -2030,8 +2054,8 @@ QString AIClientManager::fetchSchedules(const QString &category, const QDate &st
 
                     resultText += QString("- タスク: %1\n  期間: %2 ~ %3\n  進捗率: %4%\n")
                                       .arg(title)
-                                      .arg(startAt)
-                                      .arg(endAt)
+                                      .arg(startFormatted)
+                                      .arg(endFormatted)
                                       .arg(progress);
                 }
             } else {
