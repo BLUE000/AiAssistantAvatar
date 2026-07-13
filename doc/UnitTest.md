@@ -82,7 +82,7 @@ classDiagram
 | **UT-AI-09** | `AIClientManager` (一時ファイル確認と読込) | `AwaitingFileAndExplanation` 状態で、一時フォルダに `test.md` を配置し、チャットで「test.mdの説明」を入力する。 | 1. 10分タイマーが停止すること。<br>2. `test.md` の内容が読み込まれ、メンバ変数 `m_importingFileContent` に保持されること。<br>3. 状態が `QandAMode` に遷移し、AI要求（ファイル内容＋説明）が送信されること。 |
 | **UT-AI-10** | `AIClientManager` (ナレッジ本登録とメタデータ) | `QandAMode` 状態で、本登録ツール `finalizeKnowledgeImport("タイトル", "説明", キーワードリスト)` を実行する。 | 1. 一時フォルダのファイルが `log/knowledge/` にコピー・リネームされること。<br>2. `knowledge_metadata.json` にメタデータ（タイトル、説明、キーワード、ファイル名）が正しく追加保存されること。<br>3. 状態が `Idle` に戻り、UI更新シグナル `knowledgeMetadataUpdated` が発火すること。 |
 | **UT-AI-11** | `AIClientManager` (セキュリティ制限) | Twitch/Discord（`user` が非空）から、`/open_folder` やナレッジ登録関連の入力を行う。 | 1. コマンド判定がバイパスされ、AIクライアントへのツール追加や実行が拒否・無視されること（Twitch/Discordからはナレッジ操作不可）。 |
-| **UT-AI-12** | `AIClientManager` (システム固定自動応答) | プロンプト「現在のバージョンを教えて」または「version」で `on_requestAI` を実行する。 | 1. AIクライアントは呼び出されず（バイパス）、即座に `EventType::AIResponseReceived` シグナルが発生すること。<br>2. 応答テキストに `現在のバージョンは v` および `です。` が含まれること。 |
+| **UT-AI-12** | `AIClientManager` (システム固定自動応答) | プロンプト「version」や「アバターが使っているAIは？」、「マイクラのバージョン教えて」で `on_requestAI` を実行する。 | 1. バージョン単体やアバター指定のバージョン/AI問い合わせに対して、AIクライアントが呼ばれず（バイパス）、即座に `EventType::AIResponseReceived` が発生し、正しい固定テキストが返ること。<br>2. アバターを修飾しない無関係な対象のバージョン（「マイクラのバージョン」など）や、無関係なAIの問い合わせはバイパスされず、通常のAI処理へ送られること。 |
 
 
 ---

@@ -1278,29 +1278,49 @@ TEST(VerifyAPI, TestRAGTriggerAndFallback) {
     QDir("log").removeRecursively();
 }
 
-TEST(SystemResponseTest, TestVersionAutoReply) {
+TEST(SystemResponseTest, TestVersionAndAIAutoReply) {
     AIClientManager manager;
     manager.setAIProvider("dummy");
     
     QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
 
-    // バージョンに関する問い合わせ
-    manager.on_requestAI("現在のバージョンを教えて", "streamer");
-
-    // イベント通知 (AIResponseReceived) が即座に来るはず
+    // 1. バージョン単体問い合わせ
+    manager.on_requestAI("version", "streamer");
     ASSERT_GE(eventSpy.count(), 1);
-    
     AppEvent ev = eventSpy.at(0).at(0).value<AppEvent>();
     EXPECT_EQ(ev.type, EventType::AIResponseReceived);
     EXPECT_TRUE(ev.text.contains("現在のバージョンは v"));
     EXPECT_TRUE(ev.text.contains("です。"));
-    
-    // バリエーションテスト
+
+    // 2. アバター＋バージョン問い合わせ（デフォルトアバター名は「AIアシスタント」）
     eventSpy.clear();
-    manager.on_requestAI("version", "streamer");
+    manager.on_requestAI("AIアシスタントのバージョン教えて", "streamer");
     ASSERT_GE(eventSpy.count(), 1);
     ev = eventSpy.at(0).at(0).value<AppEvent>();
     EXPECT_TRUE(ev.text.contains("現在のバージョンは v"));
+
+    // 3. 誤検知防止テスト (無関係なゲームのバージョン)
+    eventSpy.clear();
+    manager.on_requestAI("マイクラのバージョン教えて", "streamer");
+    ASSERT_GE(eventSpy.count(), 1);
+    ev = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIRequestSent);
+
+    // 4. AIプロバイダ問い合わせ
+    eventSpy.clear();
+    manager.on_requestAI("アバターが使っているAIは？", "streamer");
+    ASSERT_GE(eventSpy.count(), 1);
+    ev = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_TRUE(ev.text.contains("現在稼働しているAIは"));
+    EXPECT_TRUE(ev.text.contains("ダミーAIクライアント"));
+
+    // 5. 誤検知防止テスト (無関係な文脈のAI)
+    eventSpy.clear();
+    manager.on_requestAI("どのAIが良いかな？", "streamer");
+    ASSERT_GE(eventSpy.count(), 1);
+    ev = eventSpy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIRequestSent);
 
     // cleanup
     QDir("log").removeRecursively();
