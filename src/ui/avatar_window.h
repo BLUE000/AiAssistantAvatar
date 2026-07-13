@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QQueue>
 #include <QJsonObject>
+#include <QFormLayout>
 #include "../app_event.h"
 #include "../ai/provider_status.h"
 
