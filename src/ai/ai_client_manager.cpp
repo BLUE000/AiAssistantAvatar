@@ -832,6 +832,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     }
 
     m_lastFinalPrompt = finalPrompt;
+    m_lastAdditionalSystemPrompt = additionalSystemPrompt;
 
     if (selectAndPrepareClient()) {
         // コアへ送信開始イベントを通知
@@ -1107,6 +1108,37 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         }
 
     } else {
+        // レートリミットエラー (429等) のチェックとフォールバック処理
+        QString lowerErr = responseText.toLower();
+        bool isRateLimit = lowerErr.contains("429") || 
+                           lowerErr.contains("too many requests") || 
+                           lowerErr.contains("rate limit") || 
+                           lowerErr.contains("rate-limit");
+
+        if (isRateLimit && m_currentClient) {
+            QString failedId = m_currentClient->clientId();
+            qWarning() << "AIClientManager: Detected rate limit error (429) for client:" << failedId;
+            
+            // トラッカーを強制的にレートリミット状態にする (60秒リセット待ちにする)
+            m_tracker.forceRateLimit(failedId, 60);
+
+            // 別のクライアントを選択して再送を試みる
+            if (selectAndPrepareClient()) {
+                qDebug() << "AIClientManager: Retrying with next client:" << m_currentClient->clientId();
+                
+                // コアへ送信開始イベントを再通知
+                AppEvent retryEvent;
+                retryEvent.type = EventType::AIRequestSent;
+                retryEvent.source = "AIClientManager";
+                retryEvent.text = m_lastPrompt;
+                emit notifyEvent(retryEvent);
+
+                // 再送
+                m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory, m_sessionContext, m_lastAdditionalSystemPrompt);
+                return; // 早期リターンして再試行を継続
+            }
+        }
+
         event.type = EventType::ErrorOccurred;
         event.text = responseText; // エラーメッセージが格納されている
         emit notifyEvent(event);

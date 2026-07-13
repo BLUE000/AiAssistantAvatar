@@ -33,6 +33,7 @@ private:
     QString m_lastPrompt; // 応答待ち中の最新プロンプト
     QString m_lastPromptWithTag; // 送信元タグ付きの最新プロンプト
     QString m_lastFinalPrompt; // 最終的に送信されたシステム指示/RAG入りプロンプト
+    QString m_lastAdditionalSystemPrompt; // 最終的に送信されたシステム指示(RAG等)
     QString m_currentResetSessionId;
     QString m_currentResetStartTime;
     bool m_isMergingSummaries = false;

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "provider_status.h"
 #include <QMap>
 #include <QList>
@@ -21,6 +21,9 @@ public:
 
     /// APIレスポンスヘッダーから残量を更新する（毎APIコール後に呼ぶ）
     void updateFromReply(const QString &clientId, QNetworkReply *reply);
+
+    /// レートリミットエラー検出時に、強制的に使用不可にする
+    void forceRateLimit(const QString &clientId, int durationSecs);
 
     /// 手動設定値でMax値を上書きする（UI設定反映用）
     void setMaxValues(const QString &clientId, const ProviderStatus &manual);

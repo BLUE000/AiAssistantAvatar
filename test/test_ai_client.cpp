@@ -1223,6 +1223,42 @@ TEST_F(AIClientTest, SegregatedGreetingSettingsTest) {
     }
 }
 
+TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
+    AIClientManager manager;
+    manager.setAIProvider("cerebras");
+
+    // 全クライアントの状態をリセットして available=true にする（CerebrasとDummyのみ）
+    ProviderStatus s1 = manager.tracker().statusOf("cerebras");
+    s1.available = true;
+    s1.rpmRemaining = 10;
+    manager.tracker().registerClient(s1);
+
+    ProviderStatus s2 = manager.tracker().statusOf("dummy");
+    s2.available = true;
+    s2.rpmRemaining = 10;
+    manager.tracker().registerClient(s2);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // 1. リクエストを発行（内部で cerebras が選ばれて送信開始される）
+    manager.on_requestAI("テストプロンプト", "userA");
+
+    // 2. 擬似的に 429 エラーレスポンスを注入する
+    manager.on_clientRequestFinished("Error status code 429", false);
+
+    // 3. イベントを監視する
+    bool hasResponse = false;
+    for (int i = 0; i < eventSpy.size(); ++i) {
+        AppEvent ev = eventSpy.at(i).at(0).value<AppEvent>();
+        if (ev.type == EventType::AIResponseReceived) {
+            hasResponse = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(hasResponse);
+    EXPECT_FALSE(manager.tracker().isAvailable("cerebras")); // 429を受けたcerebrasは利用不可になっているはず
+}
+
 TEST(VerifyAPI, TestDecryptLocal) {
     // ローカルに検証用の schedules_response.json がある場合のみ実行
     QFile file("scratch/schedules_response.json");

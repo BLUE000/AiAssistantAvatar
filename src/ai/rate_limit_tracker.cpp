@@ -1,4 +1,4 @@
-﻿#include "rate_limit_tracker.h"
+#include "rate_limit_tracker.h"
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -50,6 +50,18 @@ void RateLimitTracker::updateFromReply(const QString &clientId, QNetworkReply *r
     if (resetAt.isValid()) s.nextResetAt = resetAt;
 
     updateAvailable(clientId);
+}
+
+// ---------------------------------------------------------------------------
+// forceRateLimit
+// ---------------------------------------------------------------------------
+void RateLimitTracker::forceRateLimit(const QString &clientId, int durationSecs) {
+    if (!m_statuses.contains(clientId)) return;
+    ProviderStatus &s = m_statuses[clientId];
+    s.rpmRemaining = 0;
+    s.nextResetAt = QDateTime::currentDateTimeUtc().addSecs(durationSecs);
+    s.available = false;
+    qWarning() << "[RateLimitTracker] Forced rate limit on client" << clientId << "for" << durationSecs << "seconds.";
 }
 
 // ---------------------------------------------------------------------------
