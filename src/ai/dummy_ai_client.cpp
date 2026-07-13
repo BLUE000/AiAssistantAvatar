@@ -15,8 +15,7 @@ DummyAIClient::DummyAIClient(QObject *parent)
         if (manager) {
             avatarName = manager->avatarName();
         }
-        QString mockResponse = QString("私はテスト用キャラクターの「%2」です。「%1」というコメント、ありがとうございます！元気に稼働していますよ！")
-                                   .arg(m_lastPrompt)
+        QString mockResponse = QString("私はテスト用キャラクターの「%1」です。コメントありがとうございます！元気に稼働していますよ！")
                                    .arg(avatarName);
         emit requestFinished(mockResponse, true);
     });
