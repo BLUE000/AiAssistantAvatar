@@ -1,5 +1,6 @@
 #include "system_response_manager.h"
 #include "version.h"
+#include <QRegularExpression>
 
 SystemResponseManager::SystemResponseManager(QObject *parent)
     : QObject(parent)
@@ -25,44 +26,85 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
         mentionsAvatar = true;
     }
 
-    // 1. バージョン情報の判定 (複数キーワード AND 判定と、無関係ワードの排除)
-    bool hasVersionKeyword = (trimmed.contains("version") || trimmed.contains("バージョン") || trimmed.contains("ばーじょん") || trimmed.contains("versioninfo"));
-    if (hasVersionKeyword) {
-        // バージョン単体、またはアバターへの言及がある場合
-        bool isVersionTarget = (trimmed == "version" || trimmed == "バージョン" || trimmed == "ばーじょん" || trimmed == "versioninfo" || mentionsAvatar);
+    // プレフィックスなしでの「version」「バージョン」単体一致も許容
+    bool isPlainVersionCmd = (trimmed == "version" || trimmed == "バージョン" || trimmed == "ばーじょん" || trimmed == "versioninfo");
+
+    // 呼びかけも単体コマンドもなければ、自動応答しない（通常のAIに任せる）
+    if (!mentionsAvatar && !isPlainVersionCmd) {
+        return "";
+    }
+
+    // 1. バージョン情報の判定
+    if (trimmed.contains("version") || trimmed.contains("バージョン") || trimmed.contains("ばーじょん")) {
+        // 「〇〇のバージョン」という修飾語があるかチェック
+        QRegularExpression modifierRegex("([a-zA-Z0-9_\\x{4e00}-\\x{9fa5}]+)の(バージョン|version)");
+        QRegularExpressionMatch match = modifierRegex.match(trimmed);
         
-        // 他の対象（マイクラ、ゲーム、Windowsなど）のバージョンを尋ねるものではないことを確認
-        bool hasOtherContext = (trimmed.contains("ゲーム") || trimmed.contains("マイクラ") || trimmed.contains("windows") ||
-                               trimmed.contains("mac") || trimmed.contains("os") || trimmed.contains("python") ||
-                               trimmed.contains("qt") || trimmed.contains("obs") || trimmed.contains("discord") || trimmed.contains("twitch"));
-        
-        if (isVersionTarget && !hasOtherContext) {
+        bool isOwnVersion = true;
+        if (match.hasMatch()) {
+            QString modifier = match.captured(1);
+            // 修飾語がアバターやシステム自身を指しているか？
+            bool isSelfModifier = false;
+            if (!avatarName.isEmpty() && modifier == avatarName.toLower()) isSelfModifier = true;
+            if (modifier == "アバター" || modifier == "あばたー" || modifier == "avatar" ||
+                modifier == "君" || modifier == "あなた" || modifier == "このアプリ" ||
+                modifier == "このシステム" || modifier == "このソフト" || modifier == "本体" ||
+                modifier == "システム") {
+                isSelfModifier = true;
+            }
+            // 自分以外（マイクラ、Windowsなど無関係な名詞）の修飾語がある場合は、他者のバージョンとみなす
+            if (!isSelfModifier) {
+                isOwnVersion = false;
+            }
+        }
+
+        if (isOwnVersion) {
             return QString("現在のバージョンは v%1 です。").arg(PROJECT_VERSION);
         }
     }
 
-    // 2. 使用中AI情報の判定 (複数キーワード AND 判定と、無関係ワードの排除)
-    bool hasAIKeyword = (trimmed.contains("ai") || trimmed.contains("エーアイ") || trimmed.contains("モデル") || trimmed.contains("プロバイダ"));
-    if (hasAIKeyword && mentionsAvatar) {
-        // 接続・使用を示す動詞または所有格の確認
-        bool hasUsageKeyword = (trimmed.contains("使っている") || trimmed.contains("使用している") || 
-                               trimmed.contains("動いている") || trimmed.contains("稼働している") || 
-                               trimmed.contains("動かしている") || trimmed.contains("のai") || 
-                               trimmed.contains("のモデル") || trimmed.contains("のプロバイダ"));
+    // 2. 使用中AI情報の判定（アバターへの呼びかけが必須）
+    if (mentionsAvatar && (trimmed.contains("ai") || trimmed.contains("エーアイ") || trimmed.contains("モデル") || trimmed.contains("プロバイダ"))) {
+        // 「〇〇のai」という修飾語があるか
+        QRegularExpression modifierRegex("([a-zA-Z0-9_\\x{4e00}-\\x{9fa5}]+)の(ai|エーアイ|モデル|プロバイダ)");
+        QRegularExpressionMatch match = modifierRegex.match(trimmed);
         
-        // 無関係な雑談や他の製品に関するものではないか
-        bool hasIrrelevantKeyword = (trimmed.contains("おすすめ") || trimmed.contains("比較") || trimmed.contains("未来") || trimmed.contains("chatgpt") || trimmed.contains("openai"));
-
-        if (hasUsageKeyword && !hasIrrelevantKeyword) {
-            QString friendlyName = currentProvider;
-            if (currentProvider == "mistral") friendlyName = "Mistral AI";
-            else if (currentProvider == "groq") friendlyName = "Groq";
-            else if (currentProvider == "cerebras") friendlyName = "Cerebras";
-            else if (currentProvider == "dummy") friendlyName = "ダミーAIクライアント";
-            else if (!friendlyName.isEmpty()) {
-                friendlyName[0] = friendlyName[0].toUpper(); // 先頭大文字化
+        bool isOwnAI = true;
+        if (match.hasMatch()) {
+            QString modifier = match.captured(1);
+            bool isSelfModifier = false;
+            if (!avatarName.isEmpty() && modifier == avatarName.toLower()) isSelfModifier = true;
+            if (modifier == "アバター" || modifier == "あばたー" || modifier == "avatar" ||
+                modifier == "君" || modifier == "あなた" || modifier == "このアプリ" ||
+                modifier == "このシステム" || modifier == "このソフト" || modifier == "本体" ||
+                modifier == "システム") {
+                isSelfModifier = true;
             }
-            return QString("現在稼働しているAIは %1 です。").arg(friendlyName);
+            if (!isSelfModifier) {
+                isOwnAI = false;
+            }
+        }
+
+        // 「使っている」「使用している」などの接続語があるか、あるいは「〇〇のAI」で自分自身のAIであることが確定しているか
+        bool hasUsageWord = (trimmed.contains("使っている") || trimmed.contains("使用している") || 
+                             trimmed.contains("動いている") || trimmed.contains("稼働している") || 
+                             trimmed.contains("動かしている") || trimmed.contains("のai") || 
+                             trimmed.contains("のモデル") || trimmed.contains("のプロバイダ"));
+
+        if (isOwnAI && hasUsageWord) {
+            // 他社サービス名などが明記されている場合は、一般的な雑談とみなし除外
+            bool hasOtherAI = (trimmed.contains("chatgpt") || trimmed.contains("openai") || trimmed.contains("gemini") || trimmed.contains("claude"));
+            if (!hasOtherAI) {
+                QString friendlyName = currentProvider;
+                if (currentProvider == "mistral") friendlyName = "Mistral AI";
+                else if (currentProvider == "groq") friendlyName = "Groq";
+                else if (currentProvider == "cerebras") friendlyName = "Cerebras";
+                else if (currentProvider == "dummy") friendlyName = "ダミーAIクライアント";
+                else if (!friendlyName.isEmpty()) {
+                    friendlyName[0] = friendlyName[0].toUpper(); // 先頭大文字化
+                }
+                return QString("現在稼働しているAIは %1 です。").arg(friendlyName);
+            }
         }
     }
 
