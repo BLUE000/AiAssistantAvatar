@@ -153,14 +153,29 @@ void AIClientManager::loadCredentials() {
             m_mistralClient->setApiKey(mistralKey);
             m_mistralClient->setModel(m_mistralModel);
             m_mistralClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("mistral");
+                s.available = !mistralKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
 
             m_cerebrasClient->setApiKey(cerebrasKey);
             m_cerebrasClient->setModel(m_cerebrasModel);
             m_cerebrasClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("cerebras");
+                s.available = !cerebrasKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
 
             m_groqClient->setApiKey(groqKey);
             m_groqClient->setModel(m_groqModel);
             m_groqClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("groq");
+                s.available = !groqKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
 
             // DummyClient は基本設定を引き継ぐ
             m_dummyClient->setApiKey(mistralKey);
@@ -1108,16 +1123,20 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         }
 
     } else {
-        // レートリミットエラー (429等) のチェックとフォールバック処理
+        // レートリミットエラー (429等) や APIキー未設定エラー等のチェックとフォールバック処理
         QString lowerErr = responseText.toLower();
-        bool isRateLimit = lowerErr.contains("429") || 
-                           lowerErr.contains("too many requests") || 
-                           lowerErr.contains("rate limit") || 
-                           lowerErr.contains("rate-limit");
+        bool isRetryableError = lowerErr.contains("429") || 
+                               lowerErr.contains("too many requests") || 
+                               lowerErr.contains("rate limit") || 
+                               lowerErr.contains("rate-limit") ||
+                               lowerErr.contains("apiキーが設定されていません") ||
+                               lowerErr.contains("api_key") ||
+                               lowerErr.contains("api key") ||
+                               lowerErr.contains("tls initialization failed");
 
-        if (isRateLimit && m_currentClient) {
+        if (isRetryableError && m_currentClient) {
             QString failedId = m_currentClient->clientId();
-            qWarning() << "AIClientManager: Detected rate limit error (429) for client:" << failedId;
+            qWarning() << "AIClientManager: Detected retryable error for client:" << failedId << "Error:" << responseText;
             
             // トラッカーを強制的にレートリミット状態にする (60秒リセット待ちにする)
             m_tracker.forceRateLimit(failedId, 60);
