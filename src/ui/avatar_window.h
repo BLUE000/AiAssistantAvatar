@@ -9,6 +9,7 @@
 #include <QQueue>
 #include <QJsonObject>
 #include <QFormLayout>
+#include <QVBoxLayout>
 #include "../app_event.h"
 #include "../ai/provider_status.h"
 
@@ -136,6 +137,8 @@ private:
     QLineEdit *m_discordChannelIdEdit = nullptr;
     QLineEdit *m_taskFlowApiUrlEdit = nullptr;
     QFormLayout *m_discordLayout = nullptr;
+    QWidget *m_discordChannelsContainer = nullptr;
+    QVBoxLayout *m_discordChannelsLayout = nullptr;
     
     struct DiscordChannelSetting {
         QLineEdit *channelIdEdit = nullptr;
