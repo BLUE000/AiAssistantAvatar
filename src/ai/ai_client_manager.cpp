@@ -793,9 +793,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         finalPrompt = m_recalledContext + "\n\n" + finalPrompt;
     }
 
-    // Discordスケジュール自動取得RAGの実行
-    bool isDiscord = !m_currentDiscordChannelId.isEmpty() || user.startsWith("[Discord:");
-    if (isDiscord) {
+    // スケジュール自動取得RAGの実行 (Discord, Twitch, 直接入力すべてで有効)
+    {
         QString lowerPrompt = filteredPrompt.toLower();
         if (lowerPrompt.contains("予定") || lowerPrompt.contains("スケジュール") || 
             lowerPrompt.contains("タスク") || lowerPrompt.contains("状況") || 
