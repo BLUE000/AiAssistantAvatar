@@ -566,18 +566,22 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     EXPECT_TRUE(users1.contains("alice"));
     EXPECT_EQ(users1.value("alice").toObject().value("preferred").toString(), "ありりん");
 
-    // 2. 他人による他人のニックネーム登録 (受け答え用に成功応答を返すが、保存（記憶）はされない)
+    // 2. 他人による他人のニックネーム登録 (保留リストに追加され、承認待ち状態になる)
     manager.on_requestAI("アリスを『ありちゃん』と呼んで", "bob");
     QString result2 = manager.handleNicknameUpdateRequest("alice", "ありちゃん");
-    EXPECT_TRUE(result2.startsWith("Success:"));
+    EXPECT_TRUE(result2.startsWith("Notification:"));
 
     QJsonObject data2 = manager.userNamesObj();
     QJsonArray pending2 = data2.value("pending_requests").toArray();
-    EXPECT_TRUE(pending2.isEmpty()); // 保留リストに記憶されていないこと
+    EXPECT_EQ(pending2.size(), 1);
+    QJsonObject reqObj2 = pending2.at(0).toObject();
+    EXPECT_EQ(reqObj2.value("requester").toString(), "bob");
+    EXPECT_EQ(reqObj2.value("target").toString(), "alice");
+    EXPECT_EQ(reqObj2.value("nickname").toString(), "ありちゃん");
 
     QJsonObject users2 = data2.value("users").toObject();
     EXPECT_TRUE(users2.contains("alice")); // ステップ1で登録されたまま残っていること
-    EXPECT_EQ(users2.value("alice").toObject().value("preferred").toString(), "ありりん"); // bobの要求は無視され、「ありりん」のままであること
+    EXPECT_EQ(users2.value("alice").toObject().value("preferred").toString(), "ありりん"); // bobの要求は保留中であり、「ありりん」のままであること
 
     // 3. 配信主による他人へのニックネーム登録 (自動登録)
     manager.on_requestAI("アリスを『アリスっち』と呼ぶことにする", "test_streamer");
