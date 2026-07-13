@@ -1249,7 +1249,21 @@ TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
     // 2. 擬似的に 429 エラーレスポンスを注入する
     manager.on_clientRequestFinished("Error status code 429", false);
 
-    // 3. イベントを監視する
+    // 3. 非同期の dummy の応答完了を待つ (dummyは2秒でタイムアウトするため最大3.5秒待つ)
+    for (int i = 0; i < 4; ++i) {
+        bool hasResponse = false;
+        for (int j = 0; j < eventSpy.size(); ++j) {
+            AppEvent ev = eventSpy.at(j).at(0).value<AppEvent>();
+            if (ev.type == EventType::AIResponseReceived) {
+                hasResponse = true;
+                break;
+            }
+        }
+        if (hasResponse) break;
+        eventSpy.wait(1000);
+    }
+
+    // 4. イベントを監視する
     bool hasResponse = false;
     for (int i = 0; i < eventSpy.size(); ++i) {
         AppEvent ev = eventSpy.at(i).at(0).value<AppEvent>();
