@@ -2074,12 +2074,23 @@ QString AIClientManager::fetchSchedules(const QString &category, const QDate &st
 }
 
 QString AIClientManager::getDiscordSchedulesContext() {
-    QDate today = QDate::currentDate();
+    QDateTime now = QDateTime::currentDateTime();
+    QDate today = now.date();
+
+    static const QStringList days = {"", "月", "火", "水", "木", "金", "土", "日"};
+    int dayOfWeek = now.date().dayOfWeek();
+    QString dayStr = (dayOfWeek >= 1 && dayOfWeek <= 7) ? days.at(dayOfWeek) : "";
+    QString nowStr = QString("%1(%2) %3")
+                        .arg(now.toString("yyyy-MM-dd"))
+                        .arg(dayStr)
+                        .arg(now.toString("HH:mm:ss"));
+
     // 今日から7日間のスケジュールを取得
     QString workSchedules = fetchSchedules("work", today, 7);
     QString streamSchedules = fetchSchedules("stream", today, 7);
 
-    QString context = "\n[システム指示: 以下は外部APIから取得したユーザーの最新スケジュールと作業・配信の進捗状況です。※日時はすべて日本標準時（JST）です。ユーザーから今後の予定やタスク、進捗状況について尋ねられた場合は、以下の情報をベースにして親切に回答してください。情報が存在しない（空である）場合は、予定が登録されていない旨を優しく伝えてください。]\n";
+    QString context = QString("\n[システム指示: 以下は外部APIから取得したユーザーの最新スケジュールと作業・配信の進捗状況です。※現在の日時は %1 です（日本標準時/JST）。ユーザーから今後の予定やタスク、進捗状況について尋ねられた場合は、この現在日時と以下のスケジュール情報をベースにして親切に回答してください。情報が存在しない（空である）場合は、予定が登録されていない旨を優しく伝えてください。]\n")
+                      .arg(nowStr);
     context += "【作業・タスク予定 (work)】\n";
     context += workSchedules.isEmpty() ? "登録されている作業予定はありません。\n" : workSchedules;
     context += "\n【配信・ストリーム予定 (stream)】\n";
