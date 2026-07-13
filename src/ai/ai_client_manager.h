@@ -64,6 +64,7 @@ private:
     QString m_cerebrasModel = "llama3.1-8b";
     QString m_mistralModel = "mistral-small-latest";
     QString m_tavilyApiKey;
+    QString m_taskFlowApiUrl;
     qint64 m_apiCallStartTimeMs = 0;
 
     QStringList workerPriorityOrder() const;

@@ -144,6 +144,7 @@ void AIClientManager::loadCredentials() {
             QString cerebrasKey = obj["cerebras_api_key"].toString();
             QString groqKey = obj["groq_api_key"].toString();
             m_tavilyApiKey = obj["tavily_api_key"].toString();
+            m_taskFlowApiUrl = obj["taskflow_api_url"].toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php").trimmed();
 
             m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
             m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
@@ -2069,7 +2070,7 @@ void AIClientManager::on_requestProviderStatus(const QString &providerId) {
 
 QString AIClientManager::fetchSchedules(const QString &category, const QDate &startDate, int days) {
     QNetworkAccessManager manager;
-    QString baseUrl = "https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php";
+    QString baseUrl = m_taskFlowApiUrl.isEmpty() ? "https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php" : m_taskFlowApiUrl;
     QUrl url(baseUrl);
     QUrlQuery query;
     query.addQueryItem("category", category);

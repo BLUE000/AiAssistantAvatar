@@ -133,6 +133,7 @@ private:
     QCheckBox *m_discordGreetingCheckbox = nullptr;
     QLineEdit *m_discordBotTokenEdit = nullptr;
     QLineEdit *m_discordChannelIdEdit = nullptr;
+    QLineEdit *m_taskFlowApiUrlEdit = nullptr;
     QLineEdit *m_bubbleShortEdit = nullptr;
     QLineEdit *m_bubbleLongEdit = nullptr;
     QLineEdit *m_obsPathEdit = nullptr;

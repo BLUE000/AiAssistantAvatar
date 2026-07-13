@@ -1101,10 +1101,14 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_discordChannelIdEdit = new QLineEdit(scrollContent);
     m_discordChannelIdEdit->setPlaceholderText("対象のテキストチャンネルIDを入力...");
 
+    m_taskFlowApiUrlEdit = new QLineEdit(scrollContent);
+    m_taskFlowApiUrlEdit->setPlaceholderText("TaskFlow APIのURLを入力...");
+
     discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
     discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
     discordLayout->addRow("チャンネル ID:", m_discordChannelIdEdit);
     discordLayout->addRow("起動時挨拶:", m_discordGreetingCheckbox);
+    discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
     mainLayout->addWidget(discordGroup);
 
     // 保存・適用ボタン
@@ -1401,6 +1405,9 @@ void AvatarWindow::loadSettingsToUI() {
             if (m_discordEnabledCheckbox) m_discordEnabledCheckbox->setChecked(obj.value("discord_enabled").toBool(false));
             if (m_discordBotTokenEdit) m_discordBotTokenEdit->setText(obj.value("discord_bot_token").toString());
             if (m_discordChannelIdEdit) m_discordChannelIdEdit->setText(obj.value("discord_channel_id").toString());
+            if (m_taskFlowApiUrlEdit) {
+                m_taskFlowApiUrlEdit->setText(obj.value("taskflow_api_url").toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php"));
+            }
 
             if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
             if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
@@ -1504,6 +1511,9 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["discord_enabled"] = m_discordEnabledCheckbox->isChecked();
     obj["discord_bot_token"] = m_discordBotTokenEdit->text().trimmed();
     obj["discord_channel_id"] = m_discordChannelIdEdit->text().trimmed();
+    if (m_taskFlowApiUrlEdit) {
+        obj["taskflow_api_url"] = m_taskFlowApiUrlEdit->text().trimmed();
+    }
 
     if (m_twitchGreetingCheckbox) {
         obj["twitch_greeting_enabled"] = m_twitchGreetingCheckbox->isChecked();
