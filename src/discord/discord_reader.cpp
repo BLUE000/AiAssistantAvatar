@@ -71,9 +71,7 @@ void DiscordReader::loadSettings() {
                 conf.id = obj.value("discord_channel_id").toString().trimmed();
                 bool fallbackGreet = obj.value("greeting_enabled").toBool(false);
                 conf.greetingEnabled = obj.value("discord_greeting_enabled").toBool(fallbackGreet);
-                if (!conf.id.isEmpty()) {
-                    m_channels.append(conf);
-                }
+                m_channels.append(conf);
             }
 
             m_wakeWord = obj.value("twitch_wakeword").toString().trimmed();
