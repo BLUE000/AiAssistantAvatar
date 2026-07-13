@@ -1395,9 +1395,12 @@ QString AIClientManager::handleNicknameUpdateRequest(const QString &target, cons
             .arg(nickTrimmed).arg(targetLower);
     }
     
-    // 2. 他者による設定の拒否（本人以外からの他者への指示は保存しない）
-    qDebug() << "AIClientManager: Rejected nickname request because requester is not the target user and not the streamer.";
-    return QString("Error: You can only set your own nickname. Changing nicknames for other users is prohibited.");
+    // 2. 他人による他人の設定ケース（受け答えはするが、保存（記憶）はしない）
+    qDebug() << "AIClientManager: Acknowledged nickname request for another user without saving. Requester:" << requester 
+             << "Target:" << targetLower << "Nickname:" << nickTrimmed;
+    // 保存は行わずに、成功をシミュレートするレスポンスをAIに返却する
+    return QString("Success: Temporarily acknowledged setting '%1' as the nickname for '%2'.")
+        .arg(nickTrimmed).arg(targetLower);
 }
 
 void AIClientManager::approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname) {
