@@ -1227,16 +1227,19 @@ TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
     AIClientManager manager;
     manager.setAIProvider("cerebras");
 
-    // 全クライアントの状態をリセットして available=true にする（CerebrasとDummyのみ）
-    ProviderStatus s1 = manager.tracker().statusOf("cerebras");
-    s1.available = true;
-    s1.rpmRemaining = 10;
-    manager.tracker().registerClient(s1);
+    // 全クライアントの available = false にし、dummy のみ available = true にする
+    for (const QString &provider : manager.tracker().registeredClientIds()) {
+        ProviderStatus s = manager.tracker().statusOf(provider);
+        s.available = (provider == "dummy");
+        s.rpmRemaining = (provider == "dummy") ? 10 : 0;
+        manager.tracker().registerClient(s);
+    }
 
-    ProviderStatus s2 = manager.tracker().statusOf("dummy");
-    s2.available = true;
-    s2.rpmRemaining = 10;
-    manager.tracker().registerClient(s2);
+    // テスト用に cerebras のみ available = true に一時的にする（これを最初に使わせるため）
+    ProviderStatus s_cerebras = manager.tracker().statusOf("cerebras");
+    s_cerebras.available = true;
+    s_cerebras.rpmRemaining = 10;
+    manager.tracker().registerClient(s_cerebras);
 
     QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
 
