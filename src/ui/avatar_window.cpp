@@ -1088,9 +1088,9 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     // 5. Discord 連携設定グループ
     QGroupBox *discordGroup = new QGroupBox("Discord 連携設定", scrollContent);
-    QFormLayout *discordLayout = new QFormLayout(discordGroup);
-    discordLayout->setContentsMargins(10, 10, 10, 10);
-    discordLayout->setSpacing(6);
+    m_discordLayout = new QFormLayout(discordGroup);
+    m_discordLayout->setContentsMargins(10, 10, 10, 10);
+    m_discordLayout->setSpacing(6);
     
     m_discordEnabledCheckbox = new QCheckBox("Discordボット連携を有効化", scrollContent);
     m_discordGreetingCheckbox = new QCheckBox("接続時にチャットで挨拶する", scrollContent);
@@ -1103,7 +1103,14 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     m_discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
     m_discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
-    // チャンネル設定はロード時に rebuildDiscordLayout で動的に生成される
+
+    // チャンネル設定用のコンテナウィジェットとレイアウトを配置
+    m_discordChannelsContainer = new QWidget(scrollContent);
+    m_discordChannelsLayout = new QVBoxLayout(m_discordChannelsContainer);
+    m_discordChannelsLayout->setContentsMargins(0, 0, 0, 0);
+    m_discordChannelsLayout->setSpacing(6);
+    m_discordLayout->addRow(m_discordChannelsContainer);
+
     m_discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
     mainLayout->addWidget(discordGroup);
 
@@ -2323,12 +2330,11 @@ void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
 }
 
 void AvatarWindow::rebuildDiscordLayout(int channelCount) {
-    if (!m_discordLayout) return;
+    if (!m_discordChannelsLayout) return;
 
     // 既存の動的コントロールを削除
     for (auto &setting : m_discordChannelSettings) {
         if (setting.channelIdEdit) {
-            m_discordLayout->removeWidget(setting.rowWidget);
             delete setting.channelIdEdit;
         }
         if (setting.greetingCheckbox) {
@@ -2340,37 +2346,33 @@ void AvatarWindow::rebuildDiscordLayout(int channelCount) {
     }
     m_discordChannelSettings.clear();
 
-    // 固定コントロールを一旦除外
-    m_discordLayout->removeWidget(m_discordEnabledCheckbox);
-    m_discordLayout->removeWidget(m_discordBotTokenEdit);
-    m_discordLayout->removeWidget(m_taskFlowApiUrlEdit);
-
-    // QFormLayoutの全行をクリア
+    // コンテナレイアウトの中身を完全にクリア
     QLayoutItem *child;
-    while ((child = m_discordLayout->takeAt(0)) != nullptr) {
+    while ((child = m_discordChannelsLayout->takeAt(0)) != nullptr) {
         delete child;
     }
 
-    // 再度固定コントロールを追加
-    m_discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
-    m_discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
-
     // チャンネル数分、動的コントロールを作成して追加
     for (int i = 0; i < channelCount; ++i) {
-        QWidget *rowWidget = new QWidget(this);
+        QWidget *rowWidget = new QWidget(m_discordChannelsContainer);
         QHBoxLayout *rowLayout = new QHBoxLayout(rowWidget);
         rowLayout->setContentsMargins(0, 0, 0, 0);
         rowLayout->setSpacing(10);
+
+        QLabel *label = new QLabel(QString("接続チャンネル %1:").arg(i + 1), rowWidget);
+        label->setFixedWidth(100); // フォームレイアウトのラベル幅と大体合わせる
+        label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
         QLineEdit *idEdit = new QLineEdit(rowWidget);
         idEdit->setPlaceholderText(QString("チャンネルID %1 を入力...").arg(i + 1));
         
         QCheckBox *greetCheck = new QCheckBox("起動時挨拶", rowWidget);
 
+        rowLayout->addWidget(label);
         rowLayout->addWidget(idEdit, 1);
         rowLayout->addWidget(greetCheck);
 
-        m_discordLayout->addRow(QString("接続チャンネル %1:").arg(i + 1), rowWidget);
+        m_discordChannelsLayout->addWidget(rowWidget);
 
         DiscordChannelSetting setting;
         setting.channelIdEdit = idEdit;
@@ -2378,6 +2380,4 @@ void AvatarWindow::rebuildDiscordLayout(int channelCount) {
         setting.rowWidget = rowWidget;
         m_discordChannelSettings.append(setting);
     }
-
-    m_discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
 }
