@@ -2037,8 +2037,22 @@ bool AIClientManager::selectAndPrepareClient() {
         
         AppEvent ev;
         ev.type = EventType::AIResponseReceived;
+        ev.source = "AIClientManager";
         ev.text = waitMsg;
+
+        // 要求元（Discord / Twitch）の返信先を設定
+        if (!m_currentDiscordChannelId.isEmpty()) {
+            ev.extraData["channel_id"] = m_currentDiscordChannelId;
+        } else if (!m_currentTwitchChannel.isEmpty()) {
+            ev.extraData["twitch_channel"] = m_currentTwitchChannel;
+        }
+
         emit notifyEvent(ev);
+
+        // クリア処理
+        m_currentDiscordChannelId.clear();
+        m_currentTwitchChannel.clear();
+
         return false;
     }
     m_currentClient = m_clientMap[workerId];
