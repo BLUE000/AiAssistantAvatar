@@ -134,6 +134,14 @@ private:
     QLineEdit *m_discordBotTokenEdit = nullptr;
     QLineEdit *m_discordChannelIdEdit = nullptr;
     QLineEdit *m_taskFlowApiUrlEdit = nullptr;
+    QFormLayout *m_discordLayout = nullptr;
+    
+    struct DiscordChannelSetting {
+        QLineEdit *channelIdEdit = nullptr;
+        QCheckBox *greetingCheckbox = nullptr;
+        QWidget *rowWidget = nullptr;
+    };
+    QList<DiscordChannelSetting> m_discordChannelSettings;
     QLineEdit *m_bubbleShortEdit = nullptr;
     QLineEdit *m_bubbleLongEdit = nullptr;
     QLineEdit *m_obsPathEdit = nullptr;
@@ -223,6 +231,7 @@ private:
     void updateKnowledgeTable();
     void loadSettingsToUI();
     void saveSettingsFromUI();
+    void rebuildDiscordLayout(int channelCount);
     void startWebSocketServer();
     void stopWebSocketServer();
     void broadcastToOBS(const QJsonObject &json);

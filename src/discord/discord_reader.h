@@ -5,6 +5,7 @@
 #include <QNetworkReply>
 #include <QTimer>
 #include <QJsonObject>
+#include <QSet>
 #include "../app_event.h"
 
 class DiscordReader : public QObject {
@@ -13,7 +14,13 @@ private:
     bool m_isRunning = false;
     bool m_enabled = false;
     QString m_botToken;
-    QString m_channelId;
+
+    struct ChannelConfig {
+        QString id;
+        bool greetingEnabled = false;
+    };
+    QList<ChannelConfig> m_channels;
+
     QWebSocket *m_webSocket = nullptr;
     QNetworkAccessManager *m_networkManager = nullptr;
     QTimer *m_heartbeatTimer = nullptr;
@@ -25,8 +32,7 @@ private:
     bool m_nameReactionEnabled = true;
     QString m_avatarName;
     bool m_shouldGreet = false;       // READY 受信後に挨拶するかフラグ
-    QString m_lastGreetedChannelId;   // 直前に挨拶したチャンネルID（二重挨拶防止）
-    bool m_greetingEnabled = false;   // local_settings.json の greeting_enabled が true の時のみ ON
+    QSet<QString> m_greetedChannels;  // 挨拶送信済みのチャンネルID一覧
     QString m_configPath;
 
     void loadSettings();
@@ -34,12 +40,18 @@ private:
     void sendHeartbeat();
     void identify();
     void parseGatewayMessage(const QString &message);
-    void sendGreeting();  // READY確認後に挨拶を発火
+    void sendGreetings();                     // 全対象チャンネルへ挨拶を送信
+    void sendChannelGreeting(const QString &channelId); // 指定チャンネルへ挨拶を送信
 
 public:
     explicit DiscordReader(QObject *parent = nullptr);
     ~DiscordReader();
-    bool isGreetingEnabled() const { return m_greetingEnabled; }
+    bool isGreetingEnabled() const {
+        for (const auto &ch : m_channels) {
+            if (ch.greetingEnabled) return true;
+        }
+        return false;
+    }
     void setConfigPath(const QString &path) { m_configPath = path; }
 
 signals:

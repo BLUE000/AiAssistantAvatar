@@ -1098,17 +1098,13 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_discordBotTokenEdit->setEchoMode(QLineEdit::Password);
     m_discordBotTokenEdit->setPlaceholderText("ボットのトークンを入力...");
 
-    m_discordChannelIdEdit = new QLineEdit(scrollContent);
-    m_discordChannelIdEdit->setPlaceholderText("対象のテキストチャンネルIDを入力...");
-
     m_taskFlowApiUrlEdit = new QLineEdit(scrollContent);
     m_taskFlowApiUrlEdit->setPlaceholderText("TaskFlow APIのURLを入力...");
 
-    discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
-    discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
-    discordLayout->addRow("チャンネル ID:", m_discordChannelIdEdit);
-    discordLayout->addRow("起動時挨拶:", m_discordGreetingCheckbox);
-    discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
+    m_discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
+    m_discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
+    // チャンネル設定はロード時に rebuildDiscordLayout で動的に生成される
+    m_discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
     mainLayout->addWidget(discordGroup);
 
     // 保存・適用ボタン
@@ -1402,23 +1398,41 @@ void AvatarWindow::loadSettingsToUI() {
             if (m_avatarNameEdit) m_avatarNameEdit->setText(m_avatarName);
             if (m_nameReactionCheckbox) m_nameReactionCheckbox->setChecked(m_nameReactionEnabled);
 
+            int channelCount = obj.value("discord_channel_count").toInt(1);
+            if (channelCount < 1) channelCount = 1;
+            
+            rebuildDiscordLayout(channelCount);
+
             if (m_discordEnabledCheckbox) m_discordEnabledCheckbox->setChecked(obj.value("discord_enabled").toBool(false));
             if (m_discordBotTokenEdit) m_discordBotTokenEdit->setText(obj.value("discord_bot_token").toString());
-            if (m_discordChannelIdEdit) m_discordChannelIdEdit->setText(obj.value("discord_channel_id").toString());
+
+            QJsonArray channelsArray = obj.value("discord_channels").toArray();
+            for (int i = 0; i < m_discordChannelSettings.size(); ++i) {
+                QString cid;
+                bool greet = false;
+                if (i < channelsArray.size()) {
+                    QJsonObject chObj = channelsArray.at(i).toObject();
+                    cid = chObj.value("channel_id").toString();
+                    greet = chObj.value("greeting_enabled").toBool(false);
+                } else if (i == 0) {
+                    cid = obj.value("discord_channel_id").toString();
+                    bool fallbackGreet = obj.value("greeting_enabled").toBool(false);
+                    greet = obj.value("discord_greeting_enabled").toBool(fallbackGreet);
+                }
+                if (m_discordChannelSettings[i].channelIdEdit) {
+                    m_discordChannelSettings[i].channelIdEdit->setText(cid);
+                }
+                if (m_discordChannelSettings[i].greetingCheckbox) {
+                    m_discordChannelSettings[i].greetingCheckbox->setChecked(greet);
+                }
+            }
+
             if (m_taskFlowApiUrlEdit) {
                 m_taskFlowApiUrlEdit->setText(obj.value("taskflow_api_url").toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php"));
             }
 
             if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
             if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
-
-            bool fallbackGreeting = obj.value("greeting_enabled").toBool(false);
-            if (m_twitchGreetingCheckbox) {
-                m_twitchGreetingCheckbox->setChecked(obj.value("twitch_greeting_enabled").toBool(fallbackGreeting));
-            }
-            if (m_discordGreetingCheckbox) {
-                m_discordGreetingCheckbox->setChecked(obj.value("discord_greeting_enabled").toBool(fallbackGreeting));
-            }
         }
     }
 }
@@ -1510,16 +1524,29 @@ void AvatarWindow::saveSettingsFromUI() {
 
     obj["discord_enabled"] = m_discordEnabledCheckbox->isChecked();
     obj["discord_bot_token"] = m_discordBotTokenEdit->text().trimmed();
-    obj["discord_channel_id"] = m_discordChannelIdEdit->text().trimmed();
-    if (m_taskFlowApiUrlEdit) {
-        obj["taskflow_api_url"] = m_taskFlowApiUrlEdit->text().trimmed();
+    
+    QJsonArray channelsArray;
+    int activeCount = m_discordChannelSettings.size();
+    obj["discord_channel_count"] = activeCount;
+
+    for (int i = 0; i < activeCount; ++i) {
+        QJsonObject chObj;
+        chObj["channel_id"] = m_discordChannelSettings[i].channelIdEdit->text().trimmed();
+        chObj["greeting_enabled"] = m_discordChannelSettings[i].greetingCheckbox->isChecked();
+        channelsArray.append(chObj);
+    }
+    obj["discord_channels"] = channelsArray;
+
+    if (activeCount > 0) {
+        obj["discord_channel_id"] = m_discordChannelSettings[0].channelIdEdit->text().trimmed();
+        obj["discord_greeting_enabled"] = m_discordChannelSettings[0].greetingCheckbox->isChecked();
+    } else {
+        obj["discord_channel_id"] = "";
+        obj["discord_greeting_enabled"] = false;
     }
 
-    if (m_twitchGreetingCheckbox) {
-        obj["twitch_greeting_enabled"] = m_twitchGreetingCheckbox->isChecked();
-    }
-    if (m_discordGreetingCheckbox) {
-        obj["discord_greeting_enabled"] = m_discordGreetingCheckbox->isChecked();
+    if (m_taskFlowApiUrlEdit) {
+        obj["taskflow_api_url"] = m_taskFlowApiUrlEdit->text().trimmed();
     }
     obj.remove("greeting_enabled");
 
@@ -2293,4 +2320,64 @@ void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
 
     QMessageBox::information(this, "成功", QString("%1 のモデル・スペック情報を取得し、UIへ自動設定しました。\n「保存して適用」を押すことで有効化されます。").arg(providerId));
     statusBar()->showMessage(QString("%1 の自動取得が完了しました。").arg(providerId), 3000);
+}
+
+void AvatarWindow::rebuildDiscordLayout(int channelCount) {
+    if (!m_discordLayout) return;
+
+    // 既存の動的コントロールを削除
+    for (auto &setting : m_discordChannelSettings) {
+        if (setting.channelIdEdit) {
+            m_discordLayout->removeWidget(setting.rowWidget);
+            delete setting.channelIdEdit;
+        }
+        if (setting.greetingCheckbox) {
+            delete setting.greetingCheckbox;
+        }
+        if (setting.rowWidget) {
+            delete setting.rowWidget;
+        }
+    }
+    m_discordChannelSettings.clear();
+
+    // 固定コントロールを一旦除外
+    m_discordLayout->removeWidget(m_discordEnabledCheckbox);
+    m_discordLayout->removeWidget(m_discordBotTokenEdit);
+    m_discordLayout->removeWidget(m_taskFlowApiUrlEdit);
+
+    // QFormLayoutの全行をクリア
+    QLayoutItem *child;
+    while ((child = m_discordLayout->takeAt(0)) != nullptr) {
+        delete child;
+    }
+
+    // 再度固定コントロールを追加
+    m_discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
+    m_discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
+
+    // チャンネル数分、動的コントロールを作成して追加
+    for (int i = 0; i < channelCount; ++i) {
+        QWidget *rowWidget = new QWidget(this);
+        QHBoxLayout *rowLayout = new QHBoxLayout(rowWidget);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(10);
+
+        QLineEdit *idEdit = new QLineEdit(rowWidget);
+        idEdit->setPlaceholderText(QString("チャンネルID %1 を入力...").arg(i + 1));
+        
+        QCheckBox *greetCheck = new QCheckBox("起動時挨拶", rowWidget);
+
+        rowLayout->addWidget(idEdit, 1);
+        rowLayout->addWidget(greetCheck);
+
+        m_discordLayout->addRow(QString("接続チャンネル %1:").arg(i + 1), rowWidget);
+
+        DiscordChannelSetting setting;
+        setting.channelIdEdit = idEdit;
+        setting.greetingCheckbox = greetCheck;
+        setting.rowWidget = rowWidget;
+        m_discordChannelSettings.append(setting);
+    }
+
+    m_discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
 }

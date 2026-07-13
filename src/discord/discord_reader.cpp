@@ -51,21 +51,42 @@ void DiscordReader::loadSettings() {
             QJsonObject obj = doc.object();
             m_enabled = obj.value("discord_enabled").toBool(false);
             m_botToken = obj.value("discord_bot_token").toString().trimmed();
-            m_channelId = obj.value("discord_channel_id").toString().trimmed();
+            
+            // 複数チャンネル設定の読み込み
+            m_channels.clear();
+            QJsonArray channelsArray = obj.value("discord_channels").toArray();
+            for (int i = 0; i < channelsArray.size(); ++i) {
+                QJsonObject chObj = channelsArray.at(i).toObject();
+                ChannelConfig conf;
+                conf.id = chObj.value("channel_id").toString().trimmed();
+                conf.greetingEnabled = chObj.value("greeting_enabled").toBool(false);
+                if (!conf.id.isEmpty()) {
+                    m_channels.append(conf);
+                }
+            }
+
+            // 後方互換フォールバック
+            if (m_channels.isEmpty()) {
+                ChannelConfig conf;
+                conf.id = obj.value("discord_channel_id").toString().trimmed();
+                bool fallbackGreet = obj.value("greeting_enabled").toBool(false);
+                conf.greetingEnabled = obj.value("discord_greeting_enabled").toBool(fallbackGreet);
+                if (!conf.id.isEmpty()) {
+                    m_channels.append(conf);
+                }
+            }
+
             m_wakeWord = obj.value("twitch_wakeword").toString().trimmed();
             m_wakeWordMode = obj.value("twitch_wakeword_mode").toString("contains").trimmed();
             m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
             m_avatarName = obj.value("avatar_name").toString().trimmed();
-            // discord_greeting_enabled が明示的に true の時のみ挨拶機能を有効化（デフォルト: OFF）
-            bool fallbackGreet = obj.value("greeting_enabled").toBool(false);
-            m_greetingEnabled = obj.value("discord_greeting_enabled").toBool(fallbackGreet);
         }
     }
 }
 
 void DiscordReader::on_startReading() {
     loadSettings();
-    if (!m_enabled || m_botToken.isEmpty() || m_channelId.isEmpty()) {
+    if (!m_enabled || m_botToken.isEmpty() || m_channels.isEmpty()) {
         qDebug() << "DiscordReader: Disabled or configuration incomplete.";
         return;
     }
@@ -80,14 +101,12 @@ void DiscordReader::on_stopReading() {
     m_isRunning = false;
     m_heartbeatTimer->stop();
 
-    // 不要な非同期切断イベントによる再接続ループの誤動作を防ぐため、一時的にシグナルを切断
     disconnect(m_webSocket, &QWebSocket::disconnected, this, &DiscordReader::onWebSocketDisconnected);
 
     if (m_webSocket->state() != QAbstractSocket::UnconnectedState) {
         m_webSocket->close();
     }
 
-    // 次回開始時のために再度シグナルを接続
     connect(m_webSocket, &QWebSocket::disconnected, this, &DiscordReader::onWebSocketDisconnected);
 
     qDebug() << "DiscordReader: Stopped.";
@@ -95,23 +114,38 @@ void DiscordReader::on_stopReading() {
 
 void DiscordReader::on_settingsUpdated() {
     qDebug() << "DiscordReader: Settings updated, reloading...";
-    QString prevChannelId = m_channelId;
+    
+    QSet<QString> prevChannelIds;
+    for (const auto &ch : m_channels) {
+        prevChannelIds.insert(ch.id);
+    }
+
     bool wasRunning = m_isRunning;
     on_stopReading();
     loadSettings();
-    // チャンネルIDが変更された場合のみ挨拶フラグを立てる
-    if (!m_channelId.isEmpty() && m_channelId != prevChannelId) {
-        qDebug() << "DiscordReader: Channel changed from" << prevChannelId << "to" << m_channelId << ". Greeting scheduled.";
+
+    bool channelListChanged = false;
+    for (const auto &ch : m_channels) {
+        if (!prevChannelIds.contains(ch.id)) {
+            channelListChanged = true;
+            m_greetedChannels.remove(ch.id); 
+        }
+    }
+
+    if (channelListChanged) {
+        qDebug() << "DiscordReader: Channels updated. Greeting scheduled for new channels.";
         m_shouldGreet = true;
     }
+
     if (wasRunning && m_enabled) {
         on_startReading();
     }
 }
 
 void DiscordReader::on_discordConnectRequested() {
-    qDebug() << "DiscordReader: /discord connect requested. Greeting scheduled.";
+    qDebug() << "DiscordReader: /discord connect requested. Greeting scheduled for all channels.";
     m_shouldGreet = true;
+    m_greetedChannels.clear();
     on_stopReading();
     if (m_enabled) {
         on_startReading();
@@ -121,13 +155,11 @@ void DiscordReader::on_discordConnectRequested() {
 void DiscordReader::connectToDiscord() {
     if (!m_isRunning) return;
 
-    // ガード：すでに接続処理中または接続完了している場合は何もしない
     if (m_webSocket->state() != QAbstractSocket::UnconnectedState) {
         qDebug() << "DiscordReader: Already connecting or connected. State:" << m_webSocket->state();
         return;
     }
 
-    // Discord Gateway URL (v10)
     QUrl url("wss://gateway.discord.gg/?v=10&encoding=json");
     qDebug() << "DiscordReader: Connecting to Gateway:" << url.toString();
     m_webSocket->open(url);
@@ -145,8 +177,6 @@ void DiscordReader::onWebSocketDisconnected() {
     
     if (!m_isRunning) return;
 
-    // 自動再接続 (5秒後)
-    // 重複したタイマー予約を防ぐため、UnconnectedStateの場合のみ予約を実行
     if (m_webSocket->state() == QAbstractSocket::UnconnectedState) {
         qDebug() << "DiscordReader: Reconnecting in 5 seconds...";
         QTimer::singleShot(5000, this, [this]() {
@@ -169,7 +199,6 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
     QJsonObject obj = doc.object();
     int op = obj.value("op").toInt(-1);
     
-    // シーケンス番号更新
     if (obj.contains("s") && !obj.value("s").isNull()) {
         m_lastSequence = obj.value("s").toInt();
     }
@@ -180,11 +209,9 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
             int intervalMs = dObj.value("heartbeat_interval").toInt(45000);
             qDebug() << "DiscordReader: Hello received. Heartbeat interval:" << intervalMs << "ms";
             
-            // 初回ハートビートはランダムウェイトを推奨されるが、ここでは即座に1回送りタイマーを回す
             sendHeartbeat();
             m_heartbeatTimer->start(intervalMs);
 
-            // 認証 (Identify) 送信
             identify();
             break;
         }
@@ -197,7 +224,7 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
             m_webSocket->close();
             break;
         }
-        case 0: { // Dispatch (READY, MESSAGE_CREATE, etc.)
+        case 0: { // Dispatch
             QString t = obj.value("t").toString();
             QJsonObject dObj = obj.value("d").toObject();
 
@@ -205,17 +232,23 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                 QJsonObject userObj = dObj.value("user").toObject();
                 m_botUserId = userObj.value("id").toString();
                 qDebug() << "DiscordReader: Bot is ready. Bot User ID:" << m_botUserId;
-                // READY 受信後に挨拶フラグが立っていれば挨拶発火
-                if (m_shouldGreet && m_lastGreetedChannelId != m_channelId) {
-                    qDebug() << "DiscordReader: READY received. Triggering greeting for channel" << m_channelId;
-                    QTimer::singleShot(1000, this, [this]() { sendGreeting(); }); // 1秒待ってから挨拶
+                if (m_shouldGreet) {
+                    qDebug() << "DiscordReader: READY received. Triggering greetings.";
+                    QTimer::singleShot(1000, this, [this]() { sendGreetings(); });
                 }
             }
             else if (t == "MESSAGE_CREATE") {
                 QString channelId = dObj.value("channel_id").toString();
                 
-                // 対象チャンネルかつ、ボット自身の発言でなければ処理
-                if (channelId == m_channelId) {
+                bool isTargetChannel = false;
+                for (const auto &ch : m_channels) {
+                    if (channelId == ch.id) {
+                        isTargetChannel = true;
+                        break;
+                    }
+                }
+                
+                if (isTargetChannel) {
                     QJsonObject authorObj = dObj.value("author").toObject();
                     QString authorId = authorObj.value("id").toString();
                     
@@ -227,7 +260,6 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                             bool isMatch = false;
                             QString cleanMessage = content;
 
-                            // 1. まずウェイクワードで判定
                             if (!m_wakeWord.isEmpty()) {
                                 if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
                                     if (content.startsWith(m_wakeWord)) {
@@ -244,7 +276,6 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                                 }
                             }
 
-                            // 2. ウェイクワードでマッチせず、名前で反応が有効な場合、アバター名で判定
                             if (!isMatch && m_nameReactionEnabled && !m_avatarName.isEmpty()) {
                                 if (content.contains(m_avatarName)) {
                                     isMatch = true;
@@ -304,11 +335,10 @@ void DiscordReader::identify() {
     if (m_webSocket->state() != QAbstractSocket::ConnectedState) return;
 
     QJsonObject iObj;
-    iObj["op"] = 2; // Identify
+    iObj["op"] = 2;
 
     QJsonObject dObj;
     dObj["token"] = m_botToken;
-    // intents: GUILD_MESSAGES (512) | MESSAGE_CONTENT (32768) = 33280
     dObj["intents"] = 33280;
 
     QJsonObject propObj;
@@ -367,30 +397,29 @@ void DiscordReader::onReplyFinished(QNetworkReply *reply) {
     reply->deleteLater();
 }
 
-void DiscordReader::sendGreeting() {
-    // discord_greeting_enabled が明示的に true でない限り発火しない
-    if (!m_greetingEnabled) {
-        qDebug() << "DiscordReader: Greeting skipped (discord_greeting_enabled is not set in local_settings.json).";
-        m_shouldGreet = false;
-        return;
-    }
-    if (m_channelId.isEmpty()) return;
+void DiscordReader::sendGreetings() {
     m_shouldGreet = false;
-    m_lastGreetedChannelId = m_channelId;
+    for (const auto &ch : m_channels) {
+        if (ch.greetingEnabled && !m_greetedChannels.contains(ch.id)) {
+            sendChannelGreeting(ch.id);
+            m_greetedChannels.insert(ch.id);
+        }
+    }
+}
 
-    // 挨拶プロンプトを DiscordMessageReceived として発火 → AI が自然な挨拶文を生成してチャンネルへ送信する
+void DiscordReader::sendChannelGreeting(const QString &channelId) {
     AppEvent event;
     event.type = EventType::DiscordMessageReceived;
     event.source = "DiscordReader";
     event.text   = "\uff08システム）Discordチャンネルに接続しました。メンバーに明るく挨拶してください。";
 
     QVariantMap meta;
-    meta["channel_id"]  = m_channelId;
+    meta["channel_id"]  = channelId;
     meta["username"]    = "__system_greeting__";
     meta["user_id"]     = "";
     meta["is_greeting"] = true;
     event.extraData = meta;
 
-    qDebug() << "DiscordReader: Emitting greeting event for channel" << m_channelId;
+    qDebug() << "DiscordReader: Emitting greeting event for channel" << channelId;
     emit notifyEvent(event);
 }
