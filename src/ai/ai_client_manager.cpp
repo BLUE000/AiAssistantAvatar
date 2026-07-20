@@ -1158,14 +1158,6 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             if (!m_shoutoutPrefix.isEmpty() && !filteredResponse.startsWith(m_shoutoutPrefix)) {
                 filteredResponse = m_shoutoutPrefix + " " + filteredResponse;
             }
-            if (m_shoutoutUseAnnounce && !filteredResponse.startsWith("/announce ")) {
-                QString color = m_shoutoutAnnounceColor;
-                if (color == "random") {
-                    static const QStringList colors = {"primary", "blue", "green", "orange", "purple"};
-                    color = colors.at(QRandomGenerator::global()->bounded(colors.size()));
-                }
-                filteredResponse = QString("/announce %1 %2").arg(color, filteredResponse);
-            }
         }
 
         event.text = filteredResponse;

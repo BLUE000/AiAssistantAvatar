@@ -648,9 +648,20 @@ void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &t
         emit notifyEvent(errEvent);
         return;
     }
+    QString sendText = text.trimmed();
+    if (sendText.startsWith("/announce ", Qt::CaseInsensitive)) {
+        int spaceIdx = sendText.indexOf(' ', 10);
+        if (spaceIdx != -1) {
+            sendText = sendText.mid(spaceIdx + 1).trimmed();
+        } else {
+            sendText = sendText.mid(10).trimmed();
+        }
+    }
+    if (sendText.isEmpty()) return;
+
     QString ch = channel.startsWith("#") ? channel : "#" + channel;
-    m_webSocket->sendTextMessage(QString("PRIVMSG %1 :%2").arg(ch, text));
-    qDebug() << "TwitchReader: Sent PRIVMSG to" << ch << ":" << text;
+    m_webSocket->sendTextMessage(QString("PRIVMSG %1 :%2").arg(ch, sendText));
+    qDebug() << "TwitchReader: Sent PRIVMSG to" << ch << ":" << sendText;
 }
 
 void TwitchReader::sendGreeting() {
