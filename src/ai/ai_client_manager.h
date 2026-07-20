@@ -133,6 +133,8 @@ private:
     QString m_shoutoutTone = "明るく元気な口調で！";
     QString m_shoutoutPrefix = "【レイド感謝】";
     QString m_lastShoutoutUser;
+    QString m_twitchChannel;
+    bool m_isShoutoutRequest = false;
 
     QList<PendingShoutout> m_shoutoutQueue;
     QTimer *m_shoutoutCooldownTimer = nullptr;

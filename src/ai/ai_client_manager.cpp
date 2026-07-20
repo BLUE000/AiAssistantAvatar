@@ -173,6 +173,7 @@ void AIClientManager::loadCredentials() {
             m_shoutoutTone = obj.value("shoutout_tone").toString("明るく元気な口調で！");
             m_shoutoutPrefix = obj.value("shoutout_prefix").toString("【レイド感謝】");
 
+            m_twitchChannel = obj["twitch_channel"].toString().trimmed();
             QString twitchToken = obj["twitch_oauth_token"].toString();
             QString twitchClientId = obj["twitch_client_id"].toString();
             if (m_helixClient) {
@@ -580,6 +581,34 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
     QString trimmedPrompt = prompt.trimmed();
     bool isDirectInput = user.isEmpty();
+
+    // 手動シャウトアウト・紹介要求の判定 ("/shoutout xxx", "/so xxx", "!so xxx", または "〇〇さんを紹介して" 等)
+    QString targetShoutoutUser;
+    if (trimmedPrompt.startsWith("/shoutout ", Qt::CaseInsensitive)) {
+        targetShoutoutUser = trimmedPrompt.mid(10).trimmed();
+    } else if (trimmedPrompt.startsWith("/so ", Qt::CaseInsensitive)) {
+        targetShoutoutUser = trimmedPrompt.mid(4).trimmed();
+    } else if (trimmedPrompt.startsWith("!so ", Qt::CaseInsensitive)) {
+        targetShoutoutUser = trimmedPrompt.mid(4).trimmed();
+    } else if (trimmedPrompt.startsWith("!shoutout ", Qt::CaseInsensitive)) {
+        targetShoutoutUser = trimmedPrompt.mid(10).trimmed();
+    } else if (m_shoutoutConversationEnabled) {
+        // 会話応答から「〇〇さんを紹介して」「〇〇を紹介して」「〇〇の紹介」等を抽出
+        QRegularExpression soRegex("([a-zA-Z0-9_]{3,25})(?:さん|ちゃん|くん|氏)?(?:を|の)?(?:紹介|SO|so|シャウトアウト)");
+        QRegularExpressionMatch soMatch = soRegex.match(trimmedPrompt);
+        if (soMatch.hasMatch()) {
+            targetShoutoutUser = soMatch.captured(1);
+        }
+    }
+
+    if (!targetShoutoutUser.isEmpty()) {
+        if (targetShoutoutUser.startsWith("@")) {
+            targetShoutoutUser = targetShoutoutUser.mid(1).trimmed();
+        }
+        qDebug() << "AIClientManager: Manual shoutout requested for user:" << targetShoutoutUser;
+        handleRaidShoutout(targetShoutoutUser);
+        return;
+    }
 
     // 1. スラッシュコマンド（半角）のネイティブ前処理
     if (isDirectInput && trimmedPrompt.startsWith("/")) {
@@ -1122,6 +1151,22 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         
         // 応答テキストにマスク（伏字）処理を適用
         QString filteredResponse = applyMask(responseText);
+
+        if (m_isShoutoutRequest) {
+            m_isShoutoutRequest = false;
+            if (!m_shoutoutPrefix.isEmpty() && !filteredResponse.startsWith(m_shoutoutPrefix)) {
+                filteredResponse = m_shoutoutPrefix + " " + filteredResponse;
+            }
+            if (m_shoutoutUseAnnounce && !filteredResponse.startsWith("/announce ")) {
+                QString color = m_shoutoutAnnounceColor;
+                if (color == "random") {
+                    static const QStringList colors = {"primary", "blue", "green", "orange", "purple"};
+                    color = colors.at(QRandomGenerator::global()->bounded(colors.size()));
+                }
+                filteredResponse = QString("/announce %1 %2").arg(color, filteredResponse);
+            }
+        }
+
         event.text = filteredResponse;
 
         // Discord / Twitch宛てであれば返信先情報を設定
@@ -2245,6 +2290,11 @@ void AIClientManager::handleRaidShoutout(const QString &username) {
          .arg(m_shoutoutTone);
 
         // クライアントで紹介文を生成
+        if (m_currentTwitchChannel.isEmpty()) {
+            m_currentTwitchChannel = m_twitchChannel;
+        }
+        m_isShoutoutRequest = true;
+
         if (m_currentClient) {
             m_currentClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
         } else if (m_dummyClient) {
