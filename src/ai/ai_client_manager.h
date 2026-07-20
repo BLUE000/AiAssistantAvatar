@@ -134,6 +134,7 @@ private:
     QString m_shoutoutPrefix = "【レイド感謝】";
     QString m_lastShoutoutUser;
     QString m_twitchChannel;
+    QString m_twitchUsername;
     bool m_isShoutoutRequest = false;
 
     QList<PendingShoutout> m_shoutoutQueue;

@@ -174,6 +174,7 @@ void AIClientManager::loadCredentials() {
             m_shoutoutPrefix = obj.value("shoutout_prefix").toString("【レイド感謝】");
 
             m_twitchChannel = obj["twitch_channel"].toString().trimmed();
+            m_twitchUsername = obj["twitch_username"].toString().trimmed();
             QString twitchToken = obj["twitch_oauth_token"].toString();
             QString twitchClientId = obj["twitch_client_id"].toString();
             if (m_helixClient) {
@@ -2301,8 +2302,10 @@ void AIClientManager::handleRaidShoutout(const QString &username) {
             m_dummyClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
         }
 
-        // Twitch公式 /shoutout コマンド処理
-        if (m_shoutoutUseCommand) {
+        // Twitch公式 /shoutout コマンド処理 (自分自身への /shoutout は Twitch 仕様上不可のためスキップ)
+        bool isSelf = (!m_twitchChannel.isEmpty() && username.toLower() == m_twitchChannel.toLower()) ||
+                     (!m_twitchUsername.isEmpty() && username.toLower() == m_twitchUsername.toLower());
+        if (m_shoutoutUseCommand && !isSelf) {
             if (m_shoutoutCooldownTimer && m_shoutoutCooldownTimer->isActive()) {
                 // クールタイム中のため待機キューに追加
                 PendingShoutout ps;
