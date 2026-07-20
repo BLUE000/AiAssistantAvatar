@@ -1,4 +1,5 @@
 #include "ai_client_manager.h"
+#include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
 #include "cerebras_ai_client.h"
 #include "groq_ai_client.h"
@@ -17,6 +18,7 @@
 #include <QJsonArray>
 #include <QDir>
 #include <QDateTime>
+#include <QRandomGenerator>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QTextStream>
@@ -30,10 +32,19 @@ AIClientManager::AIClientManager(QObject *parent)
     : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
     m_systemResponseManager = new SystemResponseManager(this);
+    m_helixClient = new TwitchHelixClient(this);
     m_currentResetStartTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     m_importTimeoutTimer = new QTimer(this);
     m_importTimeoutTimer->setSingleShot(true);
     connect(m_importTimeoutTimer, &QTimer::timeout, this, &AIClientManager::onImportTimeout);
+
+    m_shoutoutCooldownTimer = new QTimer(this);
+    m_shoutoutCooldownTimer->setSingleShot(true);
+    connect(m_shoutoutCooldownTimer, &QTimer::timeout, this, &AIClientManager::processNextShoutoutInQueue);
+
+    m_shoutoutUiTimer = new QTimer(this);
+    connect(m_shoutoutUiTimer, &QTimer::timeout, this, &AIClientManager::updateShoutoutUiStatus);
+    m_shoutoutUiTimer->start(1000);
 
     // AI クライアントの全インスタンス化
     m_mistralClient = new MistralAIClient(this);
@@ -149,6 +160,24 @@ void AIClientManager::loadCredentials() {
             m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
             m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
             m_mistralModel = obj["mistral_model"].toString("mistral-small-latest");
+
+            // F-22 レイド・自動紹介設定
+            m_raidAutoShoutoutEnabled = obj.value("raid_auto_shoutout_enabled").toBool(true);
+            m_shoutoutConversationEnabled = obj.value("shoutout_conversation_enabled").toBool(true);
+            m_shoutoutUseCommand = obj.value("shoutout_use_command").toBool(true);
+            m_shoutoutFollowMsgEnabled = obj.value("shoutout_follow_msg_enabled").toBool(true);
+            m_shoutoutFollowMsgTemplate = obj.value("shoutout_follow_msg_template").toString("ぜひ {name} さんをフォローしてね！");
+            m_shoutoutUseAnnounce = obj.value("shoutout_use_announce").toBool(true);
+            m_shoutoutAnnounceColor = obj.value("shoutout_announce_color").toString("random");
+            m_shoutoutLength = obj.value("shoutout_length").toString("standard");
+            m_shoutoutTone = obj.value("shoutout_tone").toString("明るく元気な口調で！");
+            m_shoutoutPrefix = obj.value("shoutout_prefix").toString("【レイド感謝】");
+
+            QString twitchToken = obj["twitch_oauth_token"].toString();
+            QString twitchClientId = obj["twitch_client_id"].toString();
+            if (m_helixClient) {
+                m_helixClient->setCredentials(twitchToken, twitchClientId);
+            }
 
             // 各クライアントにキーとモデルを設定
             m_mistralClient->setApiKey(mistralKey);
@@ -809,9 +838,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         finalPrompt = m_recalledContext + "\n\n" + finalPrompt;
     }
 
-    // スケジュール自動取得RAGの実行 (Discord, UI直接入力に対応、Twitchは除外)
-    bool isTwitch = user.startsWith("[Twitch");
-    if (!isTwitch) {
+    // スケジュール自動取得RAGの実行 (全入力ソース: Twitch, Discord, UI直接入力に対応)
+    {
         QString lowerPrompt = filteredPrompt.toLower();
         if (lowerPrompt.contains("予定") || lowerPrompt.contains("スケジュール") || 
             lowerPrompt.contains("タスク") || lowerPrompt.contains("状況") || 
@@ -2172,6 +2200,164 @@ QString AIClientManager::getDiscordSchedulesContext() {
     context += "\n";
 
     return context;
+}
+
+void AIClientManager::on_twitchRaidReceived(const QString &username) {
+    qDebug() << "AIClientManager: Received Twitch Raid event for user:" << username;
+    if (m_raidAutoShoutoutEnabled) {
+        handleRaidShoutout(username);
+    }
+}
+
+void AIClientManager::handleRaidShoutout(const QString &username) {
+    if (username.isEmpty()) return;
+
+    qDebug() << "AIClientManager: Handling raid shoutout for" << username;
+    if (!m_helixClient) return;
+
+    m_helixClient->fetchCreatorInfo(username, [this, username](const CreatorHelixInfo &info, bool success) {
+        QString displayName = success ? info.displayName : username;
+        QString bio = success ? info.description : "";
+        QString game = success ? info.gameName : "";
+        QString title = success ? info.title : "";
+        QString sns = success ? info.snsInfo : "";
+
+        // 紹介文生成用プロンプト構築
+        QString prompt = QString(
+            "あなたは配信アバターです。レイドしてくれたクリエイター「%1」さんの魅力を視聴者に紹介するコメントを作成してください。\n"
+            "【クリエイター情報】\n"
+            "- Twitch ID / 表示名: %2 / %1\n"
+            "- 自己紹介 (Bio): %3\n"
+            "- 直近の配信ゲーム/カテゴリ: %4\n"
+            "- 配信タイトル: %5\n"
+            "- 公式SNS/外部情報: %6\n\n"
+            "【出力条件】\n"
+            "- 長さ: %7\n"
+            "- トーン・口調: %8\n"
+            "- 感謝の気持ちを込めつつ、相手の配信を見に行きたくなるような明るい紹介文にしてください。"
+        ).arg(displayName)
+         .arg(username)
+         .arg(bio.isEmpty() ? "情報なし" : bio)
+         .arg(game.isEmpty() ? "ゲーム・カテゴリ情報なし" : game)
+         .arg(title.isEmpty() ? "配信タイトルなし" : title)
+         .arg(sns.isEmpty() ? "なし" : sns)
+         .arg(m_shoutoutLength)
+         .arg(m_shoutoutTone);
+
+        // クライアントで紹介文を生成
+        if (m_currentClient) {
+            m_currentClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
+        } else if (m_dummyClient) {
+            m_dummyClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
+        }
+
+        // Twitch公式 /shoutout コマンド処理
+        if (m_shoutoutUseCommand) {
+            if (m_shoutoutCooldownTimer && m_shoutoutCooldownTimer->isActive()) {
+                // クールタイム中のため待機キューに追加
+                PendingShoutout ps;
+                ps.username = username;
+                ps.displayName = displayName;
+                ps.requestTime = QDateTime::currentDateTime();
+                m_shoutoutQueue.append(ps);
+                qDebug() << "AIClientManager: Added shoutout to queue for" << username << "Queue size:" << m_shoutoutQueue.size();
+                updateShoutoutUiStatus();
+            } else {
+                // 即時送信
+                qDebug() << "AIClientManager: Sending immediate /shoutout command for" << username;
+                m_lastShoutoutUser = username;
+                AppEvent shoutoutEv;
+                shoutoutEv.type = EventType::DirectInputSubmitted;
+                shoutoutEv.text = "/shoutout " + username;
+                shoutoutEv.source = "ShoutoutModule";
+                emit notifyEvent(shoutoutEv);
+
+                if (m_shoutoutCooldownTimer) {
+                    m_shoutoutCooldownTimer->start(120000);
+                    m_shoutoutCooldownStartMs = QDateTime::currentMSecsSinceEpoch();
+                    updateShoutoutUiStatus();
+                }
+            }
+        }
+    });
+}
+
+void AIClientManager::processNextShoutoutInQueue() {
+    qDebug() << "AIClientManager: Shoutout cooldown expired.";
+    m_shoutoutCooldownStartMs = 0;
+
+    if (!m_shoutoutQueue.isEmpty()) {
+        PendingShoutout ps = m_shoutoutQueue.takeFirst();
+        qDebug() << "AIClientManager: Processing queued shoutout for" << ps.username;
+        m_lastShoutoutUser = ps.username;
+
+        AppEvent shoutoutEv;
+        shoutoutEv.type = EventType::DirectInputSubmitted;
+        shoutoutEv.text = "/shoutout " + ps.username;
+        shoutoutEv.source = "ShoutoutModule";
+        emit notifyEvent(shoutoutEv);
+
+        if (m_shoutoutCooldownTimer) {
+            m_shoutoutCooldownTimer->start(120000);
+            m_shoutoutCooldownStartMs = QDateTime::currentMSecsSinceEpoch();
+        }
+    }
+
+    updateShoutoutUiStatus();
+}
+
+void AIClientManager::updateShoutoutUiStatus() {
+    int remainingSec = 0;
+    if (m_shoutoutCooldownTimer && m_shoutoutCooldownTimer->isActive()) {
+        qint64 elapsedMs = QDateTime::currentMSecsSinceEpoch() - m_shoutoutCooldownStartMs;
+        remainingSec = qMax(0, (int)((120000 - elapsedMs) / 1000));
+    }
+
+    AppEvent cdEv;
+    cdEv.type = EventType::ShoutoutCooldownUpdated;
+    cdEv.source = "AIClientManager";
+    cdEv.text = QString::number(remainingSec);
+    emit notifyEvent(cdEv);
+
+    QStringList queueNames;
+    for (const PendingShoutout &ps : m_shoutoutQueue) {
+        queueNames.append(ps.displayName.isEmpty() ? ps.username : ps.displayName);
+    }
+
+    AppEvent qEv;
+    qEv.type = EventType::ShoutoutQueueUpdated;
+    qEv.source = "AIClientManager";
+    qEv.extraData["queueList"] = queueNames;
+    emit notifyEvent(qEv);
+}
+
+void AIClientManager::on_shoutoutSuccessReceived(const QString &username) {
+    QString name = username.isEmpty() ? m_lastShoutoutUser : username;
+    if (name.isEmpty()) return;
+
+    qDebug() << "AIClientManager: Received Shoutout Success for" << name;
+    if (m_shoutoutFollowMsgEnabled) {
+        QString followMsg = m_shoutoutFollowMsgTemplate;
+        followMsg.replace("{name}", name);
+        followMsg.replace("{display_name}", name);
+
+        qDebug() << "AIClientManager: Posting follow-up message:" << followMsg;
+
+        AppEvent ev;
+        ev.type = EventType::DirectInputSubmitted;
+        ev.source = "ShoutoutModule";
+        if (m_shoutoutUseAnnounce) {
+            QString color = m_shoutoutAnnounceColor;
+            if (color == "random") {
+                static const QStringList colors = {"primary", "blue", "green", "orange", "purple"};
+                color = colors.at(QRandomGenerator::global()->bounded(colors.size()));
+            }
+            ev.text = QString("/announce %1 %2").arg(color).arg(followMsg);
+        } else {
+            ev.text = followMsg;
+        }
+        emit notifyEvent(ev);
+    }
 }
 
 

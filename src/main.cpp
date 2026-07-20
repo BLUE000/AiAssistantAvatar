@@ -188,6 +188,10 @@ int main(int argc, char *argv[]) {
                      twitch, &TwitchReader::on_twitchConnectRequested, Qt::QueuedConnection);
     QObject::connect(core, &CoreModule::requestDiscordConnect,
                      discord, &DiscordReader::on_discordConnectRequested, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestTwitchRaid,
+                     ai, &AIClientManager::on_twitchRaidReceived, Qt::QueuedConnection);
+    QObject::connect(core, &CoreModule::requestShoutoutSuccess,
+                     ai, &AIClientManager::on_shoutoutSuccessReceived, Qt::QueuedConnection);
 
     // SubModules -> Core (イベント通知)
     QObject::connect(twitch, &TwitchReader::notifyEvent,

@@ -28,6 +28,7 @@
 #include <QTextBrowser>
 #include <QTabWidget>
 #include <QComboBox>
+#include <QListWidget>
 #include <QFormLayout>
 #include <QTableWidget>
 #include <QHeaderView>
@@ -159,6 +160,10 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     m_knowledgeTab = new QWidget(m_tabWidget);
     initKnowledgeTab(m_knowledgeTab);
     m_tabWidget->addTab(m_knowledgeTab, "ナレッジ");
+
+    m_shoutoutTab = new QWidget(m_tabWidget);
+    initShoutoutTab(m_shoutoutTab);
+    m_tabWidget->addTab(m_shoutoutTab, "レイド・紹介");
 
     mainLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
@@ -939,6 +944,33 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             statusBar()->showMessage("Twitch OAuth設定が更新され、保存・適用されました。");
             break;
 
+        case EventType::ShoutoutCooldownUpdated: {
+            int sec = event.text.toInt();
+            if (m_shoutoutCooldownLabel) {
+                if (sec > 0) {
+                    m_shoutoutCooldownLabel->setText(QString("クールタイム残り: %1秒").arg(sec));
+                } else {
+                    m_shoutoutCooldownLabel->setText("クールタイム: 準備完了");
+                }
+            }
+            break;
+        }
+
+        case EventType::ShoutoutQueueUpdated: {
+            if (m_shoutoutQueueListWidget) {
+                m_shoutoutQueueListWidget->clear();
+                QStringList queueList = event.extraData.value("queueList").toStringList();
+                int idx = 1;
+                for (const QString &name : queueList) {
+                    m_shoutoutQueueListWidget->addItem(QString("[%1番目] %2 (待機中)").arg(idx++).arg(name));
+                }
+                if (queueList.isEmpty()) {
+                    m_shoutoutQueueListWidget->addItem("（待機中のシャウトアウトはありません）");
+                }
+            }
+            break;
+        }
+
         default:
             break;
     }
@@ -1288,6 +1320,78 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     connect(m_modelsNetworkManager, &QNetworkAccessManager::finished, this, &AvatarWindow::onModelsReplyFinished);
 }
 
+void AvatarWindow::initShoutoutTab(QWidget *parent) {
+    QVBoxLayout *containerLayout = new QVBoxLayout(parent);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+
+    QScrollArea *scrollArea = new QScrollArea(parent);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+
+    QWidget *scrollContent = new QWidget(scrollArea);
+    QVBoxLayout *mainLayout = new QVBoxLayout(scrollContent);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(10);
+
+    QGroupBox *shoutoutGroup = new QGroupBox("レイド・クリエイター自動紹介設定", scrollContent);
+    QFormLayout *formLayout = new QFormLayout(shoutoutGroup);
+    formLayout->setContentsMargins(10, 10, 10, 10);
+    formLayout->setSpacing(8);
+
+    m_raidAutoShoutoutCheckBox = new QCheckBox("レイド受信時に自動で紹介する", scrollContent);
+    m_shoutoutConversationCheckBox = new QCheckBox("会話から「〇〇さんを紹介して」に反応する", scrollContent);
+    m_shoutoutUseCommandCheckBox = new QCheckBox("Twitch公式 /shoutout コマンドを送信する", scrollContent);
+    m_shoutoutFollowMsgEnabledCheckBox = new QCheckBox("/shoutout 成功時にフォロー呼びかけコメントを投稿する", scrollContent);
+    m_shoutoutFollowMsgTemplateEdit = new QLineEdit(scrollContent);
+    m_shoutoutFollowMsgTemplateEdit->setPlaceholderText("例: ぜひ {name} さんをフォローしてね！");
+
+    m_shoutoutUseAnnounceCheckBox = new QCheckBox("紹介コメントを /announce (枠付き) で投稿する", scrollContent);
+
+    m_shoutoutAnnounceColorCombo = new QComboBox(scrollContent);
+    m_shoutoutAnnounceColorCombo->addItems({"random", "primary", "blue", "green", "orange", "purple"});
+
+    m_shoutoutLengthCombo = new QComboBox(scrollContent);
+    m_shoutoutLengthCombo->addItems({"standard", "short", "detailed"});
+
+    m_shoutoutToneEdit = new QLineEdit(scrollContent);
+    m_shoutoutPrefixEdit = new QLineEdit(scrollContent);
+
+    formLayout->addRow("レイド自動紹介:", m_raidAutoShoutoutCheckBox);
+    formLayout->addRow("会話応答:", m_shoutoutConversationCheckBox);
+    formLayout->addRow("/shoutout 送信:", m_shoutoutUseCommandCheckBox);
+    formLayout->addRow("フォロー呼びかけ:", m_shoutoutFollowMsgEnabledCheckBox);
+    formLayout->addRow("呼びかけテンプレート:", m_shoutoutFollowMsgTemplateEdit);
+    formLayout->addRow("アナウンス投稿:", m_shoutoutUseAnnounceCheckBox);
+    formLayout->addRow("アナウンス色:", m_shoutoutAnnounceColorCombo);
+    formLayout->addRow("紹介文の長さ:", m_shoutoutLengthCombo);
+    formLayout->addRow("トーン・口調:", m_shoutoutToneEdit);
+    formLayout->addRow("プレフィックス:", m_shoutoutPrefixEdit);
+
+    mainLayout->addWidget(shoutoutGroup);
+
+    // 待機中キューグループ
+    QGroupBox *queueGroup = new QGroupBox(" /shoutout クールタイム送信待機リスト", scrollContent);
+    QVBoxLayout *queueLayout = new QVBoxLayout(queueGroup);
+    
+    m_shoutoutCooldownLabel = new QLabel("クールタイム: 準備完了", scrollContent);
+    m_shoutoutQueueListWidget = new QListWidget(scrollContent);
+    m_shoutoutQueueListWidget->addItem("（待機中のシャウトアウトはありません）");
+
+    queueLayout->addWidget(m_shoutoutCooldownLabel);
+    queueLayout->addWidget(m_shoutoutQueueListWidget);
+
+    mainLayout->addWidget(queueGroup);
+
+    // 保存ボタン
+    QPushButton *btnSave = new QPushButton("設定を保存して適用", scrollContent);
+    btnSave->setFixedHeight(32);
+    connect(btnSave, &QPushButton::clicked, this, &AvatarWindow::onSaveSettingsClicked);
+    mainLayout->addWidget(btnSave);
+
+    scrollArea->setWidget(scrollContent);
+    containerLayout->addWidget(scrollArea);
+}
+
 void AvatarWindow::loadSettingsToUI() {
     QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
     if (!QFile::exists(configPath)) {
@@ -1439,6 +1543,24 @@ void AvatarWindow::loadSettingsToUI() {
 
             if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
             if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
+
+            if (m_raidAutoShoutoutCheckBox) m_raidAutoShoutoutCheckBox->setChecked(obj.value("raid_auto_shoutout_enabled").toBool(true));
+            if (m_shoutoutConversationCheckBox) m_shoutoutConversationCheckBox->setChecked(obj.value("shoutout_conversation_enabled").toBool(true));
+            if (m_shoutoutUseCommandCheckBox) m_shoutoutUseCommandCheckBox->setChecked(obj.value("shoutout_use_command").toBool(true));
+            if (m_shoutoutFollowMsgEnabledCheckBox) m_shoutoutFollowMsgEnabledCheckBox->setChecked(obj.value("shoutout_follow_msg_enabled").toBool(true));
+            if (m_shoutoutFollowMsgTemplateEdit) m_shoutoutFollowMsgTemplateEdit->setText(obj.value("shoutout_follow_msg_template").toString("ぜひ {name} さんをフォローしてね！"));
+            if (m_shoutoutUseAnnounceCheckBox) m_shoutoutUseAnnounceCheckBox->setChecked(obj.value("shoutout_use_announce").toBool(true));
+
+            if (m_shoutoutAnnounceColorCombo) {
+                int idx = m_shoutoutAnnounceColorCombo->findText(obj.value("shoutout_announce_color").toString("random"));
+                if (idx >= 0) m_shoutoutAnnounceColorCombo->setCurrentIndex(idx);
+            }
+            if (m_shoutoutLengthCombo) {
+                int idx = m_shoutoutLengthCombo->findText(obj.value("shoutout_length").toString("standard"));
+                if (idx >= 0) m_shoutoutLengthCombo->setCurrentIndex(idx);
+            }
+            if (m_shoutoutToneEdit) m_shoutoutToneEdit->setText(obj.value("shoutout_tone").toString("明るく元気な口調で！"));
+            if (m_shoutoutPrefixEdit) m_shoutoutPrefixEdit->setText(obj.value("shoutout_prefix").toString("【レイド感謝】"));
         }
     }
 }
@@ -1566,6 +1688,17 @@ void AvatarWindow::saveSettingsFromUI() {
 
     obj["bubble_display_short_sec"] = m_bubbleDisplayShortSec;
     obj["bubble_display_long_sec"] = m_bubbleDisplayLongSec;
+
+    if (m_raidAutoShoutoutCheckBox) obj["raid_auto_shoutout_enabled"] = m_raidAutoShoutoutCheckBox->isChecked();
+    if (m_shoutoutConversationCheckBox) obj["shoutout_conversation_enabled"] = m_shoutoutConversationCheckBox->isChecked();
+    if (m_shoutoutUseCommandCheckBox) obj["shoutout_use_command"] = m_shoutoutUseCommandCheckBox->isChecked();
+    if (m_shoutoutFollowMsgEnabledCheckBox) obj["shoutout_follow_msg_enabled"] = m_shoutoutFollowMsgEnabledCheckBox->isChecked();
+    if (m_shoutoutFollowMsgTemplateEdit) obj["shoutout_follow_msg_template"] = m_shoutoutFollowMsgTemplateEdit->text().trimmed();
+    if (m_shoutoutUseAnnounceCheckBox) obj["shoutout_use_announce"] = m_shoutoutUseAnnounceCheckBox->isChecked();
+    if (m_shoutoutAnnounceColorCombo) obj["shoutout_announce_color"] = m_shoutoutAnnounceColorCombo->currentText();
+    if (m_shoutoutLengthCombo) obj["shoutout_length"] = m_shoutoutLengthCombo->currentText();
+    if (m_shoutoutToneEdit) obj["shoutout_tone"] = m_shoutoutToneEdit->text().trimmed();
+    if (m_shoutoutPrefixEdit) obj["shoutout_prefix"] = m_shoutoutPrefixEdit->text().trimmed();
 
     QJsonDocument newDoc(obj);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {

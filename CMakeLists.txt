@@ -42,6 +42,7 @@ set(SOURCES
     src/stt/whisper_engine.cpp
     src/stt/sapi_engine.cpp
     src/ai/ai_client_manager.cpp
+    src/ai/twitch_helix_client.cpp
     src/ai/iai_client.cpp
     src/ai/mistral_ai_client.cpp
     src/ai/cerebras_ai_client.cpp

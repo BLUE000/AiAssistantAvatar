@@ -1378,3 +1378,25 @@ TEST(SystemResponseTest, TestVersionAndAIAutoReply) {
     // cleanup
     QDir("log").removeRecursively();
 }
+
+TEST_F(AIClientTest, ShoutoutSuccessFollowMessageTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // /shoutout 成功イベントを受信
+    manager.on_shoutoutSuccessReceived("TestRaider");
+
+    // 直後にフォロー呼びかけメッセージの DirectInputSubmitted イベントが発行されること
+    bool foundFollowMsg = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent event = eventSpy.at(i).at(0).value<AppEvent>();
+        if (event.type == EventType::DirectInputSubmitted && event.text.contains("TestRaider")) {
+            foundFollowMsg = true;
+            EXPECT_TRUE(event.text.contains("ぜひ TestRaider さんをフォローしてね！"));
+            break;
+        }
+    }
+    EXPECT_TRUE(foundFollowMsg);
+}

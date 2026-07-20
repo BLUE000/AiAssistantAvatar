@@ -114,6 +114,35 @@ private:
     QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
     QString getDiscordSchedulesContext();
 
+    // --- F-22 レイド・クリエイター自動紹介メンバ ---
+    struct PendingShoutout {
+        QString username;
+        QString displayName;
+        QDateTime requestTime;
+    };
+
+    class TwitchHelixClient *m_helixClient = nullptr;
+    bool m_raidAutoShoutoutEnabled = true;
+    bool m_shoutoutConversationEnabled = true;
+    bool m_shoutoutUseCommand = true;
+    bool m_shoutoutFollowMsgEnabled = true;
+    QString m_shoutoutFollowMsgTemplate = "ぜひ {name} さんをフォローしてね！";
+    bool m_shoutoutUseAnnounce = true;
+    QString m_shoutoutAnnounceColor = "random";
+    QString m_shoutoutLength = "standard";
+    QString m_shoutoutTone = "明るく元気な口調で！";
+    QString m_shoutoutPrefix = "【レイド感謝】";
+    QString m_lastShoutoutUser;
+
+    QList<PendingShoutout> m_shoutoutQueue;
+    QTimer *m_shoutoutCooldownTimer = nullptr;
+    QTimer *m_shoutoutUiTimer = nullptr;
+    qint64 m_shoutoutCooldownStartMs = 0;
+
+    void handleRaidShoutout(const QString &username);
+    void processNextShoutoutInQueue();
+    void updateShoutoutUiStatus();
+
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
@@ -150,6 +179,8 @@ signals:
 
 public slots:
     void on_requestAI(const QString &prompt, const QString &user = "");
+    void on_twitchRaidReceived(const QString &username);
+    void on_shoutoutSuccessReceived(const QString &username);
     void on_clientRequestFinished(const QString &responseText, bool success);
     void resetSession(bool isManual); // セッションリセット機能
     bool importSessionBackup(const QString &filePath);

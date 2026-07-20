@@ -13,7 +13,11 @@ enum class EventType {
     ErrorOccurred,            // エラー発生
     SettingsUpdated,          // 設定更新
     TwitchConnectRequested,   // /twitch connect コマンド（挨拶付き再接続）
-    DiscordConnectRequested    // /discord connect コマンド（挨拶付き再接続）
+    DiscordConnectRequested,  // /discord connect コマンド（挨拶付き再接続）
+    TwitchRaidReceived,       // Twitchレイド受信
+    ShoutoutCooldownUpdated,  // シャウトアウトクールタイム残り秒数更新
+    ShoutoutQueueUpdated,     // シャウトアウト送信待機中キューリスト更新
+    ShoutoutSuccessReceived   // /shoutout コマンド成功通知受信
 };
 
 struct AppEvent {

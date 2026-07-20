@@ -1,0 +1,101 @@
+#include "twitch_helix_client.h"
+#include <QUrl>
+#include <QUrlQuery>
+#include <QNetworkRequest>
+#include <QDebug>
+
+TwitchHelixClient::TwitchHelixClient(QObject *parent)
+    : QObject(parent), m_networkManager(new QNetworkAccessManager(this)) {}
+
+void TwitchHelixClient::setCredentials(const QString &oauthToken, const QString &clientId) {
+    m_oauthToken = oauthToken;
+    m_clientId = clientId;
+}
+
+QString TwitchHelixClient::extractSnsInfo(const QString &bio) const {
+    if (bio.isEmpty()) return "";
+    
+    QStringList foundUrls;
+    QRegularExpression regex(QStringLiteral("https?:\\/\\/(www\\.)?(twitter\\.com|x\\.com|youtube\\.com|youtu\\.be)\\/[a-zA-Z0-9_.-]+"));
+    QRegularExpressionMatchIterator i = regex.globalMatch(bio);
+    while (i.hasNext()) {
+        QRegularExpressionMatch match = i.next();
+        foundUrls.append(match.captured(0));
+    }
+    
+    return foundUrls.join(", ");
+}
+
+void TwitchHelixClient::fetchCreatorInfo(const QString &username, std::function<void(const CreatorHelixInfo &info, bool success)> callback) {
+    if (username.isEmpty() || m_clientId.isEmpty()) {
+        qWarning() << "TwitchHelixClient: Missing username or Client ID.";
+        if (callback) callback(CreatorHelixInfo(), false);
+        return;
+    }
+
+    // 1. GET /helix/users
+    QUrl userUrl("https://api.twitch.tv/helix/users");
+    QUrlQuery userQuery;
+    userQuery.addQueryItem("login", username.toLower());
+    userUrl.setQuery(userQuery);
+
+    QNetworkRequest userReq(userUrl);
+    userReq.setRawHeader("Client-ID", m_clientId.toUtf8());
+    if (!m_oauthToken.isEmpty()) {
+        userReq.setRawHeader("Authorization", ("Bearer " + m_oauthToken).toUtf8());
+    }
+
+    QNetworkReply *userReply = m_networkManager->get(userReq);
+    connect(userReply, &QNetworkReply::finished, this, [this, userReply, callback]() {
+        userReply->deleteLater();
+        if (userReply->error() != QNetworkReply::NoError) {
+            qWarning() << "TwitchHelixClient: Users API error:" << userReply->errorString();
+            if (callback) callback(CreatorHelixInfo(), false);
+            return;
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(userReply->readAll());
+        QJsonObject obj = doc.object();
+        QJsonArray data = obj["data"].toArray();
+        if (data.isEmpty()) {
+            qWarning() << "TwitchHelixClient: User not found.";
+            if (callback) callback(CreatorHelixInfo(), false);
+            return;
+        }
+
+        QJsonObject userObj = data.at(0).toObject();
+        CreatorHelixInfo info;
+        info.userId = userObj["id"].toString();
+        info.login = userObj["login"].toString();
+        info.displayName = userObj["display_name"].toString();
+        info.description = userObj["description"].toString();
+        info.snsInfo = extractSnsInfo(info.description);
+
+        // 2. GET /helix/channels
+        QUrl channelUrl("https://api.twitch.tv/helix/channels");
+        QUrlQuery channelQuery;
+        channelQuery.addQueryItem("broadcaster_id", info.userId);
+        channelUrl.setQuery(channelQuery);
+
+        QNetworkRequest channelReq(channelUrl);
+        channelReq.setRawHeader("Client-ID", m_clientId.toUtf8());
+        if (!m_oauthToken.isEmpty()) {
+            channelReq.setRawHeader("Authorization", ("Bearer " + m_oauthToken).toUtf8());
+        }
+
+        QNetworkReply *channelReply = m_networkManager->get(channelReq);
+        connect(channelReply, &QNetworkReply::finished, this, [this, channelReply, info, callback]() mutable {
+            channelReply->deleteLater();
+            if (channelReply->error() == QNetworkReply::NoError) {
+                QJsonDocument cDoc = QJsonDocument::fromJson(channelReply->readAll());
+                QJsonArray cData = cDoc.object()["data"].toArray();
+                if (!cData.isEmpty()) {
+                    QJsonObject cObj = cData.at(0).toObject();
+                    info.gameName = cObj["game_name"].toString();
+                    info.title = cObj["title"].toString();
+                }
+            }
+            if (callback) callback(info, true);
+        });
+    });
+}

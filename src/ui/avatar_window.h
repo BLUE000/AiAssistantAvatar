@@ -94,6 +94,21 @@ private:
     QTableWidget *m_knowledgeTable = nullptr;
     QPushButton *m_deleteKnowledgeButton = nullptr;
     QJsonObject m_cachedKnowledgeData;
+
+    // レイド・紹介タブ用UI (F-22)
+    QWidget *m_shoutoutTab = nullptr;
+    class QCheckBox *m_raidAutoShoutoutCheckBox = nullptr;
+    class QCheckBox *m_shoutoutConversationCheckBox = nullptr;
+    class QCheckBox *m_shoutoutUseCommandCheckBox = nullptr;
+    class QCheckBox *m_shoutoutFollowMsgEnabledCheckBox = nullptr;
+    class QLineEdit *m_shoutoutFollowMsgTemplateEdit = nullptr;
+    class QCheckBox *m_shoutoutUseAnnounceCheckBox = nullptr;
+    class QComboBox *m_shoutoutAnnounceColorCombo = nullptr;
+    class QComboBox *m_shoutoutLengthCombo = nullptr;
+    class QLineEdit *m_shoutoutToneEdit = nullptr;
+    class QLineEdit *m_shoutoutPrefixEdit = nullptr;
+    class QLabel *m_shoutoutCooldownLabel = nullptr;
+    class QListWidget *m_shoutoutQueueListWidget = nullptr;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
     QLineEdit *m_twitchClientIdEdit = nullptr;
@@ -163,6 +178,7 @@ private:
 
     void enqueueRequest(const QString &text, const QString &user = "");
     void processNextRequest();
+    void initShoutoutTab(QWidget *parent);
 
     QString m_twitchOAuthToken;
     QString m_twitchUsername;

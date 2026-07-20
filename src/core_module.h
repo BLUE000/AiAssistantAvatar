@@ -28,6 +28,8 @@ signals:
     void requestKnowledgeMetadata();
     void requestTwitchConnect();   // /twitch connect コマンド → TwitchReader へ挨拶付き再接続
     void requestDiscordConnect();  // /discord connect コマンド → DiscordReader へ挨拶付き再接続
+    void requestTwitchRaid(const QString &username);
+    void requestShoutoutSuccess(const QString &username);
 
 public slots:
     // 他モジュール（Twitch, STT, AI）からのイベントを受け取るスロット

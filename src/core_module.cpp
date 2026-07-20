@@ -60,6 +60,18 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             emit notifyEventToUI(event);
             break;
         }
+        case EventType::TwitchRaidReceived: {
+            qDebug() << "CoreModule: Routing TwitchRaidReceived to AIClientManager. Raider:" << event.text;
+            emit requestTwitchRaid(event.text);
+            emit notifyEventToUI(event);
+            break;
+        }
+        case EventType::ShoutoutSuccessReceived: {
+            qDebug() << "CoreModule: Routing ShoutoutSuccessReceived to AIClientManager. Target:" << event.text;
+            emit requestShoutoutSuccess(event.text);
+            emit notifyEventToUI(event);
+            break;
+        }
         default:
             // その他はUIに通知中継
             emit notifyEventToUI(event);

@@ -269,8 +269,9 @@ void TwitchReader::doConnectToTwitch() {
 }
 
 void TwitchReader::onWebSocketConnected() {
-    qDebug() << "TwitchReader: WebSocket connected. Authenticating...";
+    qDebug() << "TwitchReader: WebSocket connected. Requesting capabilities and authenticating...";
 
+    m_webSocket->sendTextMessage("CAP REQ :twitch.tv/tags twitch.tv/commands");
     m_webSocket->sendTextMessage("PASS oauth:" + m_oauthToken);
     // 認証済みトークンがある場合はBotアカウント名（m_botName）で接続、なければ匿名
     QString nick = (!m_oauthToken.isEmpty())
@@ -305,6 +306,67 @@ void TwitchReader::onTextMessageReceived(const QString &message) {
 
         if (line.startsWith("PING")) {
             m_webSocket->sendTextMessage("PONG :tmi.twitch.tv");
+            continue;
+        }
+
+        // USERNOTICE (raid) イベントパース
+        if (line.contains("USERNOTICE") && line.contains("msg-id=raid")) {
+            QString raiderUser;
+            int viewerCount = 0;
+
+            // msg-param-displayName または msg-param-login の抽出
+            QRegularExpression nameRegex("msg-param-displayName=([^; ]+)");
+            QRegularExpressionMatch nameMatch = nameRegex.match(line);
+            if (nameMatch.hasMatch()) {
+                raiderUser = nameMatch.captured(1);
+            } else {
+                QRegularExpression loginRegex("msg-param-login=([^; ]+)");
+                QRegularExpressionMatch loginMatch = loginRegex.match(line);
+                if (loginMatch.hasMatch()) {
+                    raiderUser = loginMatch.captured(1);
+                }
+            }
+
+            QRegularExpression countRegex("msg-param-viewerCount=([0-9]+)");
+            QRegularExpressionMatch countMatch = countRegex.match(line);
+            if (countMatch.hasMatch()) {
+                viewerCount = countMatch.captured(1).toInt();
+            }
+
+            if (!raiderUser.isEmpty()) {
+                qDebug() << "TwitchReader: Raid detected from user:" << raiderUser << "viewers:" << viewerCount;
+                AppEvent raidEv;
+                raidEv.type = EventType::TwitchRaidReceived;
+                raidEv.source = "TwitchReader";
+                raidEv.text = raiderUser;
+                raidEv.extraData["viewerCount"] = viewerCount;
+                emit notifyEvent(raidEv);
+            }
+            continue;
+        }
+
+        // NOTICE / USERNOTICE (shoutout_success) イベントパース
+        if ((line.contains("NOTICE") || line.contains("USERNOTICE")) && line.contains("msg-id=shoutout_success")) {
+            QString targetUser;
+            QRegularExpression targetRegex("msg-param-targetUserDisplayName=([^; ]+)");
+            QRegularExpressionMatch targetMatch = targetRegex.match(line);
+            if (targetMatch.hasMatch()) {
+                targetUser = targetMatch.captured(1);
+            } else {
+                QRegularExpression targetLoginRegex("msg-param-targetUserLogin=([^; ]+)");
+                QRegularExpressionMatch targetLoginMatch = targetLoginRegex.match(line);
+                if (targetLoginMatch.hasMatch()) {
+                    targetUser = targetLoginMatch.captured(1);
+                }
+            }
+
+            qDebug() << "TwitchReader: Detected /shoutout success for target user:" << targetUser;
+
+            AppEvent shoutoutSuccessEv;
+            shoutoutSuccessEv.type = EventType::ShoutoutSuccessReceived;
+            shoutoutSuccessEv.source = "TwitchReader";
+            shoutoutSuccessEv.text = targetUser;
+            emit notifyEvent(shoutoutSuccessEv);
             continue;
         }
 
