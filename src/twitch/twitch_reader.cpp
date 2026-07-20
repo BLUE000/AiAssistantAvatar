@@ -68,6 +68,9 @@ void TwitchReader::loadSettings() {
         QJsonObject obj = doc.object();
         m_clientId = obj.value("twitch_client_id").toString().trimmed();
         m_oauthToken = obj.value("twitch_oauth_token").toString().trimmed();
+        if (m_oauthToken.startsWith("oauth:", Qt::CaseInsensitive)) {
+            m_oauthToken = m_oauthToken.mid(6).trimmed();
+        }
         m_channel = obj.value("twitch_channel").toString().trimmed();
         m_botName = obj.value("twitch_username").toString().trimmed();
         m_authPort = obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT);
@@ -122,7 +125,7 @@ void TwitchReader::startOAuthServer() {
                               "?client_id=%1"
                               "&redirect_uri=http://localhost:%2/"
                               "&response_type=token"
-                              "&scope=chat:read+chat:edit"
+                              "&scope=chat:read+chat:edit+moderator:manage:announcements+moderator:manage:shoutouts"
                               "&force_verify=true")
                       .arg(m_clientId)
                       .arg(m_authPort);
@@ -156,7 +159,10 @@ void TwitchReader::handleNewConnection() {
         if (path.startsWith("/token")) {
             // JavaScriptでフラグメントから抽出されたアクセストークンを受け取るエンドポイント
             if (query.hasQueryItem("access_token")) {
-                QString token = query.queryItemValue("access_token");
+                QString token = query.queryItemValue("access_token").trimmed();
+                if (token.startsWith("oauth:", Qt::CaseInsensitive)) {
+                    token = token.mid(6).trimmed();
+                }
                 qDebug() << "TwitchReader: Successfully received Access Token via redirect:" << token;
 
                 QByteArray html = "HTTP/1.1 200 OK\r\n"
@@ -272,12 +278,21 @@ void TwitchReader::onWebSocketConnected() {
     qDebug() << "TwitchReader: WebSocket connected. Requesting capabilities and authenticating...";
 
     m_webSocket->sendTextMessage("CAP REQ :twitch.tv/tags twitch.tv/commands");
-    m_webSocket->sendTextMessage("PASS oauth:" + m_oauthToken);
-    // 認証済みトークンがある場合はBotアカウント名（m_botName）で接続、なければ匿名
-    QString nick = (!m_oauthToken.isEmpty())
-        ? (!m_botName.isEmpty() ? m_botName.toLower() : m_channel.toLower())
-        : QStringLiteral("justinfan12345");
-    m_webSocket->sendTextMessage("NICK " + nick);
+    
+    QString cleanToken = m_oauthToken.trimmed();
+    if (cleanToken.startsWith("oauth:", Qt::CaseInsensitive)) {
+        cleanToken = cleanToken.mid(6).trimmed();
+    }
+
+    if (!cleanToken.isEmpty()) {
+        m_webSocket->sendTextMessage("PASS oauth:" + cleanToken);
+        QString nick = !m_botName.isEmpty() ? m_botName.toLower() : m_channel.toLower();
+        m_webSocket->sendTextMessage("NICK " + nick);
+        qDebug() << "TwitchReader: Authenticated as user:" << nick;
+    } else {
+        m_webSocket->sendTextMessage("NICK justinfan12345");
+        qDebug() << "TwitchReader: Connected in Anonymous Mode (read-only).";
+    }
     
     QString channelLower = m_channel.toLower();
     if (!channelLower.startsWith("#")) {
@@ -621,7 +636,16 @@ void TwitchReader::on_twitchReauthRequested() {
 
 void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &text) {
     if (!m_webSocket || m_webSocket->state() != QAbstractSocket::ConnectedState) {
-        qWarning() << "TwitchReader: Cannot send message, not connected.";
+        qWarning() << "TwitchReader: Cannot send message, WebSocket is not connected.";
+        return;
+    }
+    if (m_oauthToken.trimmed().isEmpty()) {
+        qWarning() << "TwitchReader: Cannot send message to Twitch channel" << channel << ". Anonymous mode is active (OAuth Token is missing). Please authenticate via Twitch settings.";
+        AppEvent errEvent;
+        errEvent.type = EventType::ErrorOccurred;
+        errEvent.source = "TwitchReader";
+        errEvent.text = "Twitch 認証トークンが設定されていないため、チャットメッセージを投稿できません。設定画面から Twitch 認証を行ってください。";
+        emit notifyEvent(errEvent);
         return;
     }
     QString ch = channel.startsWith("#") ? channel : "#" + channel;

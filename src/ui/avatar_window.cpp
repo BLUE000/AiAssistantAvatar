@@ -1639,8 +1639,21 @@ void AvatarWindow::saveSettingsFromUI() {
     curLimObj["cost"] = m_limitCostEdit->text().trimmed().toDouble();
     limitsObj[curLimProvider] = curLimObj;
     obj["provider_limits"] = limitsObj;
-    obj["twitch_oauth_token"] = m_twitchOAuthToken;
-    obj["twitch_username"] = m_twitchUsername;
+    if (!m_twitchOAuthToken.isEmpty()) {
+        obj["twitch_oauth_token"] = m_twitchOAuthToken;
+    } else if (obj.contains("twitch_oauth_token") && !obj.value("twitch_oauth_token").toString().isEmpty()) {
+        m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
+    } else {
+        obj["twitch_oauth_token"] = "";
+    }
+
+    if (!m_twitchUsername.isEmpty()) {
+        obj["twitch_username"] = m_twitchUsername;
+    } else if (obj.contains("twitch_username") && !obj.value("twitch_username").toString().isEmpty()) {
+        m_twitchUsername = obj.value("twitch_username").toString();
+    } else {
+        obj["twitch_username"] = "";
+    }
     obj["webhook_url"] = m_webhookUrl;
     obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
