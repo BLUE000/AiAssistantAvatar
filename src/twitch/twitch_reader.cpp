@@ -394,8 +394,8 @@ void TwitchReader::onTextMessageReceived(const QString &message) {
             continue;
         }
 
-        // IRC メッセージパーサー
-        QRegularExpression regex("^:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$");
+        // IRC メッセージパーサー (Tags付きメッセージ "@tags :user!..." および Tagsなし ":user!..." 両対応)
+        QRegularExpression regex("^(?:@\\S+ )?:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$");
         QRegularExpressionMatch match = regex.match(line);
         if (match.hasMatch()) {
             QString user = match.captured(1);
