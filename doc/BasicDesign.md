@@ -1285,6 +1285,11 @@ sequenceDiagram
             Manager->>UI: 7d. UI(キュー一覧)へ待機中ユーザーと残り時間を同期通知
         end
     end
+
+    opt /shoutout 成功検知 ＆ フォロー呼びかけ (有効時)
+        Twitch-->>Manager: 8a. /shoutout 成功 NOTICE (msg-id=shoutout_success)
+        Manager->>Twitch: 8b. 「ぜひ {name} さんをフォローしてね！」等のフォロー呼びかけコメントを投稿
+    end
 ```
 
 ```

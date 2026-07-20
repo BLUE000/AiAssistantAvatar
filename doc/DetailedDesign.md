@@ -1579,3 +1579,23 @@ public:
    - 戻り値が空文字列でない場合：
      - 通常のAIリクエスト処理（履歴追加やAPIリクエスト）をすべてバイパスする。
      - 戻り値のテキストを格納した `AppEvent`（`type = EventType::AIResponseReceived`）を発火（`emit notifyEvent`）し、メソッドを即座に `return` する。
+
+## 7. レイド・クリエイター自動紹介機能詳細設計 (F-22)
+
+Twitchレイド（Raid）受信時、またはコマンド/自然言語での要求発生時に相手クリエイター情報を非同期で収集し、AIによる紹介テキスト生成・投稿・`/shoutout` コマンド制御・GUI表示を行う設計の詳細。
+
+### 7.1 設定仕様 (`local_settings.json`)
+- `raid_auto_shoutout_enabled` (bool, デフォルト: true): レイド受信時の自動紹介ON/OFF
+- `shoutout_conversation_enabled` (bool, デフォルト: true): 会話検知("〇〇さん紹介して"等)による紹介ON/OFF
+- `shoutout_use_command` (bool, デフォルト: true): `/shoutout` コマンド送信機能のON/OFF
+- `shoutout_follow_msg_enabled` (bool, デフォルト: true): `/shoutout` 成功時フォロー呼びかけ投稿のON/OFF
+- `shoutout_follow_msg_template` (string, デフォルト: `"ぜひ {name} さんをフォローしてね！"`): フォロー呼びかけテンプレートテキスト
+- `shoutout_use_announce` (bool, デフォルト: true): `/announce` 色付き枠投稿のON/OFF
+- `shoutout_announce_color` (string, デフォルト: `"random"`): アナウンスカラー ("primary", "blue", "green", "orange", "purple", "random")
+- `shoutout_length` (string, デフォルト: `"standard"`): 紹介文の長さ ("short", "standard", "detailed")
+- `shoutout_tone` (string, デフォルト: `"明るく元気な口調で！"`): 紹介のトーン・口調
+- `shoutout_prefix` (string, デフォルト: `"【レイド感謝】"`): 紹介文の頭につけるプレフィックス
+
+### 7.2 `/shoutout` 成功時フォロー呼びかけ処理詳細
+- `TwitchReader` は Twitch チャット IRC の `NOTICE` / `USERNOTICE` メッセージから `msg-id=shoutout_success` を検知した際、`EventType::ShoutoutSuccessReceived` を発火する。
+- `AIClientManager` は本イベントを受信した際、`shoutout_follow_msg_enabled` が `true` であれば、`shoutout_follow_msg_template` 内の `{name}` を対象ユーザーの表示名に置換し、`/announce` または通常チャットメッセージとして自動追加投稿を行う。

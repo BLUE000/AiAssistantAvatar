@@ -230,4 +230,5 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RAID-04** | `AIClientManager::sendShoutoutMessage` | `shoutout_use_announce = true`, `shoutout_announce_color = "random"` で紹介コメント送信処理を呼ぶ。 | `/announce [blue|green|orange|purple]` のランダム指定付きでチャット投稿コマンドが生成・送信されること。 |
 | **UT-RAID-05** | `AIClientManager::handleRaidShoutout` | `shoutout_use_command = true`, クールタイム外の状態でレイドを受信する。 | 1. `/shoutout [ユーザー名]` コマンドがチャットへ送信されること。<br>2. 120 秒のタイマー `m_shoutoutCooldownTimer` が開始すること。 |
 | **UT-RAID-06** | `AIClientManager::handleRaidShoutout` | `/shoutout` クールタイム（120秒以内）中に連続してレイド/紹介要求が発生する。 | 1. AIによる紹介文のチャット投稿（/announce含む）・アバター吹き出し・TTSイベント通知は即時実行されること。<br>2. `/shoutout` コマンドが待機キュー (`m_shoutoutQueue`) に追加されること。<br>3. UIにキュー一覧更新通知 (`ShoutoutQueueUpdated`) が届き、待機中ユーザーと残り秒数が表示されること。<br>4. 120秒経過時のタイマータイムアウト時にキュー先頭の `/shoutout` が自動遅延送信されること。 |
+| **UT-RAID-07** | `AIClientManager::on_shoutoutSuccessReceived` | Twitch から `/shoutout` 成功 NOTICE (`msg-id=shoutout_success`) を受信し、`shoutout_follow_msg_enabled = true` の状態。 | テンプレート `{name}` が置換されたフォロー呼びかけコメント（例: `"ぜひ RaiderUser さんをフォローしてね！"`）がチャットへ追加投稿されること。 |
 
