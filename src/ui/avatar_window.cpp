@@ -1093,7 +1093,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_discordLayout->setSpacing(6);
     
     m_discordEnabledCheckbox = new QCheckBox("Discordボット連携を有効化", scrollContent);
-    m_discordGreetingCheckbox = new QCheckBox("接続時にチャットで挨拶する", scrollContent);
     m_discordBotTokenEdit = new QLineEdit(scrollContent);
     m_discordBotTokenEdit->setEchoMode(QLineEdit::Password);
     m_discordBotTokenEdit->setPlaceholderText("ボットのトークンを入力...");
