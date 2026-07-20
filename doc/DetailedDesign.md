@@ -1212,48 +1212,59 @@ public:
 private slots:
     void on_networkReplyFinished(QNetworkReply *reply);
     void on_searchFinished(const QString &resultText, bool success);
-};
-```
+## 7. 繝ｬ繧､繝峨・繧ｯ繝ｪ繧ｨ繧､繧ｿ繝ｼ閾ｪ蜍慕ｴｹ莉区ｩ溯・隧ｳ邏ｰ險ｭ險・(F-22)
 
-#### B. APIエンドポイントとモデル一覧
+### 7.1 險ｭ螳夂ｮ｡逅・ｻ墓ｧ・(local_settings.json 縺ｮ諡｡蠑ｵ)
+local_settings.json 縺ｫ莉･荳九・險ｭ螳夐・岼繧定ｿｽ蜉縺励∬ｵｷ蜍墓凾縺ｫ AIClientManager 縺翫ｈ縺ｳ AvatarWindow 縺ｫ隱ｭ縺ｿ霎ｼ繧薙〒驕ｩ逕ｨ縺吶ｋ縲・
+| 險ｭ螳壹く繝ｼ | 蝙・| 繝・ヵ繧ｩ繝ｫ繝亥､ | 隱ｬ譏・|
+|---|---|---|---|
+| "raid_auto_shoutout_enabled" | ool | 	rue | Twitch繝ｬ繧､繝牙女菫｡譎ゅ・閾ｪ蜍慕ｴｹ莉区ｩ溯・縺ｮ譛牙柑/辟｡蜉ｹ |
+| "shoutout_conversation_enabled"| ool | 	rue | 閾ｪ辟ｶ險隱槭・蟇ｾ隧ｱ・井ｾ具ｼ壹後・・＆繧薙ｒ邏ｹ莉九＠縺ｦ縲搾ｼ峨↓繧医ｋ逋ｺ蜍輔・譛牙柑/辟｡蜉ｹ |
+| "shoutout_use_command" | ool | 	rue | Twitch蜈ｬ蠑・/shoutout [username] 繧ｳ繝槭Φ繝芽・蜍墓兜遞ｿ縺ｮ譛牙柑/辟｡蜉ｹ |
+| "shoutout_use_announce" | ool | 	rue | 繧｢繝翫え繝ｳ繧ｹ譫 (/announce) 縺ｧ縺ｮ繝√Ε繝・ヨ謚慕ｨｿ縺ｮ譛牙柑/辟｡蜉ｹ |
+| "shoutout_announce_color" | string | "random" | 繧｢繝翫え繝ｳ繧ｹ繧ｫ繝ｩ繝ｼ ("normal", "blue", "green", "orange", "purple", "random") |
+| "shoutout_length" | string | "standard" | 邏ｹ莉区枚縺ｮ髟ｷ縺輔ｒ謖・ｮ・("short": 1縲・譁・ "standard": 2縲・譁・ "detailed": 3縲・譁・ |
+| "shoutout_tone" | string | "譏弱ｋ縺丞・豌励↑蜿｣隱ｿ縺ｧ・・ | AI縺檎ｴｹ莉区枚繧剃ｽ懈・縺吶ｋ髫帙・蜿｣隱ｿ繝ｻ繝医・繝ｳ縺ｮ繝励Ο繝ｳ繝励ヨ謖・ｮ・|
+| "shoutout_prefix" | string | "縲舌Ξ繧､繝画─隰昴・ | 繝√Ε繝・ヨ謚慕ｨｿ譎ゅ↓譁・ｭ縺ｫ莉倅ｸ弱☆繧九・繝ｬ繝輔ぅ繝・け繧ｹ |
 
-| 用途 | エンドポイント |
-| :--- | :--- |
-| Chat Completions | `https://api.groq.com/openai/v1/chat/completions` |
-| モデル一覧（自動取得用） | `https://api.groq.com/openai/v1/models` |
+### 7.2 UI 險ｭ險・(AvatarWindow)
+- **縲後Ξ繧､繝峨・邏ｹ莉九阪ち繝・(m_shoutoutTab)**:
+  - QTabWidget 縺ｫ譁ｰ隕上ち繝悶後Ξ繧､繝峨・邏ｹ莉九阪ｒ霑ｽ蜉縺吶ｋ縲・  - **繧ｰ繝ｫ繝ｼ繝励・繝・け繧ｹ 1: 閾ｪ蜍慕ｴｹ莉九・蜍穂ｽ懆ｨｭ螳・*
+    - m_raidAutoShoutoutCheckBox: 縲卦witch繝ｬ繧､繝牙女菫｡譎ゅ↓閾ｪ蜍輔〒邏ｹ莉九☆繧九・    - m_shoutoutConversationCheckBox: 縲御ｼ夊ｩｱ繝ｻ繝√Ε繝・ヨ縺ｧ縺ｮ邏ｹ莉玖ｦ∵ｱゑｼ医弱・・＆繧薙ｒ邏ｹ莉九＠縺ｦ縲冗ｭ会ｼ峨↓蜿榊ｿ懊☆繧九・    - m_shoutoutUseCommandCheckBox: 縲卦witch蜈ｬ蠑・/shoutout 繧ｳ繝槭Φ繝峨ｒ繝√Ε繝・ヨ縺ｫ謚慕ｨｿ縺吶ｋ縲・  - **繧ｰ繝ｫ繝ｼ繝励・繝・け繧ｹ 2: 謚慕ｨｿ繧ｹ繧ｿ繧､繝ｫ繝ｻ繝医・繝ｳ險ｭ螳・*
+    - m_shoutoutUseAnnounceCheckBox: 縲後い繝翫え繝ｳ繧ｹ譫 (/announce) 縺ｧ濶ｲ莉倥″陦ｨ遉ｺ縺吶ｋ縲・    - m_shoutoutAnnounceColorCombo: 繧ｫ繝ｩ繝ｼ驕ｸ謚・(騾壼ｸｸ / 髱・/ 邱・/ 繧ｪ繝ｬ繝ｳ繧ｸ / 邏ｫ / 繝ｩ繝ｳ繝繝)
+    - m_shoutoutLengthCombo: 邏ｹ莉区枚縺ｮ髟ｷ縺・(遏ｭ繧・/ 讓呎ｺ・/ 縺励▲縺九ｊ)
+    - m_shoutoutToneEdit: 隱槫ｰｾ繝ｻ繝医・繝ｳ謖・､ｺ (QLineEdit)
+    - m_shoutoutPrefixEdit: 繝励Ξ繝輔ぅ繝・け繧ｹ譁・ｭ怜・ (QLineEdit)
+  - **繧ｰ繝ｫ繝ｼ繝励・繝・け繧ｹ 3: 繧ｯ繝ｼ繝ｫ繧ｿ繧､繝繧ｹ繝・・繧ｿ繧ｹ**
+    - m_shoutoutCooldownLabel: /shoutout 繧ｳ繝槭Φ繝峨・繧ｯ繝ｼ繝ｫ繧ｿ繧､繝谿九ｊ遘呈焚繧定｡ｨ遉ｺ・医後け繝ｼ繝ｫ繧ｿ繧､繝: 貅門ｙ螳御ｺ・阪∪縺溘・縲後け繝ｼ繝ｫ繧ｿ繧､繝谿九ｊ: 45遘偵搾ｼ・    - UI逕ｨ繧ｿ繧､繝槭・ m_cooldownUiTimer (1遘貞捉譛・ 縺ｧ谿九ｊ遘呈焚繧偵き繧ｦ繝ｳ繝医ム繧ｦ繝ｳ謠冗判縲・
+### 7.3 Twitch Helix API 騾｣謳ｺ & 繝ｦ繝ｼ繧ｶ繝ｼ諠・ｱ蜿門ｾ嶺ｻ墓ｧ・- **蜿嶺ｿ｡繧､繝吶Φ繝亥・逅・(TwitchReader)**:
+  - Twitch 謗･邯壽凾縺ｫ CAP REQ :twitch.tv/tags twitch.tv/commands 繧定ｦ∵ｱゅ・  - 繝ｬ繧､繝牙女菫｡譎ゅ！RC USERNOTICE 縺ｮ msg-id=raid 繧ｿ繧ｰ縺九ｉ msg-param-displayName (縺ｾ縺溘・ login) 繧貞叙蠕励＠縲～AppEvent(EventType::TwitchRaidReceived, payload) 繧帝夂衍縲・- **Helix API 縺ｫ繧医ｋ蜈ｬ髢区ュ蝣ｱ蜿門ｾ・(AIClientManager / TwitchHelixClient)**:
+  1. GET https://api.twitch.tv/helix/users?login={username}
+     - 繝ｦ繝ｼ繧ｶ繝ｼID (id)縲∬・蟾ｱ邏ｹ莉区枚 (description) 繧貞叙蠕励・  2. GET https://api.twitch.tv/helix/channels?broadcaster_id={id}
+     - 逶ｴ霑代・驟堺ｿ｡繧ｫ繝・ざ繝ｪ繝ｻ繧ｲ繝ｼ繝蜷・(game_name)縲・・菫｡繧ｿ繧､繝医Ν (	itle) 繧貞叙蠕励・  3. **蜷悟錐蛻･莠ｺ豺ｷ蜈･髦ｲ豁｢繝ｻURL迚ｹ螳夊ｧ｣譫・*:
+     - description (Bio) 蜀・°繧画ｭ｣隕剰｡ｨ迴ｾ https?:\/\/(www\.)?(twitter\.com|x\.com|youtube\.com|youtu\.be)\/[a-zA-Z0-9_.-]+ 縺ｧ蜈ｬ蠑輯NS繝ｻYouTube繝√Ε繝ｳ繝阪ΝURL繧呈歓蜃ｺ縲・     - 荳咲｢ｺ螳溘↑Web繧ｭ繝ｼ繝ｯ繝ｼ繝画､懃ｴ｢縺ｯ陦後ｏ縺壹∵歓蜃ｺ縺輔ｌ縺溷・蠑酋RL縺ｮ讎りｦ√・繧ｿ繧､繝医Ν縺ｮ縺ｿ繧定ｧ｣譫舌＠縺ｦ繧ｯ繝ｪ繧ｨ繧､繧ｿ繝ｼ縺ｮ螻樊ｧ諠・ｱ繧堤ｲｾ蠎ｦ鬮倥￥陬懷ｮ後☆繧九・
+### 7.4 AI繝励Ο繝ｳ繝励ヨ逕滓・ & 繧ｷ繝｣繧ｦ繝医い繧ｦ繝域枚逕滓・繝ｭ繧ｸ繝・け
+- **繧ｷ繧ｹ繝・Β謖・､ｺ繝励Ο繝ｳ繝励ヨ讒区・**:
+  AI繧ｯ繝ｩ繧､繧｢繝ｳ繝医∈縺ｮ繝励Ο繝ｳ繝励ヨ萓具ｼ・  `
+  縺ゅ↑縺溘・驟堺ｿ｡繧｢繝舌ち繝ｼ縺ｧ縺吶ゅΞ繧､繝峨＠縺ｦ縺上ｌ縺溘け繝ｪ繧ｨ繧､繧ｿ繝ｼ縲鶏display_name}縲阪＆繧薙・鬲・鴨繧定ｦ冶・閠・↓邏ｹ莉九☆繧九さ繝｡繝ｳ繝医ｒ菴懈・縺励※縺上□縺輔＞縲・  縲舌け繝ｪ繧ｨ繧､繧ｿ繝ｼ諠・ｱ縲・  - Twitch ID / 陦ｨ遉ｺ蜷・ {username} / {display_name}
+  - 閾ｪ蟾ｱ邏ｹ莉・(Bio): {bio}
+  - 逶ｴ霑代・驟堺ｿ｡繧ｲ繝ｼ繝/繧ｫ繝・ざ繝ｪ: {game_name}
+  - 驟堺ｿ｡繧ｿ繧､繝医Ν: {title}
+  - 蜈ｬ蠑輯NS/螟夜Κ諠・ｱ: {sns_info}
 
-| モデルID | 推奨用途 | RPM | RPD | TPM |
-| :--- | :--- | ---: | ---: | ---: |
-| `llama-3.1-8b-instant` | Manager AI（推奨） | 30 | 14,400 | 131,072 |
-| `llama-3.3-70b-versatile` | Worker AI（高精度） | 30 | 14,400 | 6,000 |
-| `gemma2-9b-it` | Worker AI（バランス） | 30 | 14,400 | 15,000 |
+  縲仙・蜉帶擅莉ｶ縲・  - 髟ｷ縺・ {shoutout_length} (short: 50譁・ｭ礼ｨ句ｺｦ, standard: 100譁・ｭ礼ｨ句ｺｦ, detailed: 150譁・ｭ礼ｨ句ｺｦ)
+  - 繝医・繝ｳ繝ｻ蜿｣隱ｿ: {shoutout_tone}
+  - 諢溯ｬ昴・豌玲戟縺｡繧定ｾｼ繧√▽縺､縲∫嶌謇九・驟堺ｿ｡繧定ｦ九↓陦後″縺溘￥縺ｪ繧九ｈ縺・↑譏弱ｋ縺・ｴｹ莉区枚縺ｫ縺励※縺上□縺輔＞縲・  `
 
-#### C. レスポンスヘッダー解析
+### 7.5 繝√Ε繝・ヨ謚慕ｨｿ & /shoutout 繧ｳ繝槭Φ繝・/ 繧ｯ繝ｼ繝ｫ繧ｿ繧､繝蛻ｶ蠕｡
+- **繝√Ε繝・ヨ謚慕ｨｿ莉墓ｧ・*:
+  - 逕滓・縺輔ｌ縺溽ｴｹ莉九さ繝｡繝ｳ繝医↓ shoutout_prefix 繧剃ｻ倅ｸ弱・  - shoutout_use_announce 縺梧怏蜉ｹ縺ｪ蝣ｴ蜷茨ｼ・    - 繧ｫ繝ｩ繝ｼ縺・"random" 縺ｮ蝣ｴ蜷医・ ["blue", "green", "orange", "purple"] 縺九ｉ繝ｩ繝ｳ繝繝驕ｸ蜃ｺ縲・    - TwitchReader 邨檎罰縺ｧ /announce {color} {prefix} {generated_text} 繧帝∽ｿ｡縲・  - shoutout_use_announce 縺檎┌蜉ｹ縺ｪ蝣ｴ蜷医・騾壼ｸｸ繝√Ε繝・ヨ譁・→縺励※騾∽ｿ｡縲・- **/shoutout 繧ｳ繝槭Φ繝牙宛蠕｡ & 繧ｯ繝ｼ繝ｫ繧ｿ繧､繝邂｡逅・*:
+  - shoutout_use_command 縺梧怏蜉ｹ縺九▽縲∝燕蝗槭・ /shoutout 逋ｺ陦後°繧・120 遘剃ｻ･荳顔ｵ碁℃縺励※縺・ｋ蝣ｴ蜷茨ｼ・    - TwitchReader 邨檎罰縺ｧ /shoutout {username} 繧帝∽ｿ｡縲・    - 120 遘偵・繧ｿ繧､繝槭・ m_shoutoutCooldownTimer 繧帝幕蟋九・  - 120 遘偵・繧ｯ繝ｼ繝ｫ繧ｿ繧､繝荳ｭ縺ｫ騾｣邯壹＠縺ｦ繝ｬ繧､繝・邏ｹ莉九′逋ｺ逕溘＠縺溷ｴ蜷茨ｼ・    - Twitch蜈ｬ蠑・/shoutout 繧ｳ繝槭Φ繝峨・騾∽ｿ｡縺ｯ繧ｹ繧ｭ繝・・・医お繝ｩ繝ｼ蝗樣∩・峨・    - AI縺ｫ繧医ｋ邏ｹ莉区枚遶縺ｮ繝√Ε繝・ヨ謚慕ｨｿ・・announce蜷ｫ繧・峨♀繧医・繧｢繝舌ち繝ｼ縺ｮ蜷ｹ縺榊・縺苓｡ｨ遉ｺ繝ｻTTS隱ｭ縺ｿ荳翫￡縺ｯ騾壼ｸｸ騾壹ｊ螳溯｡後・    - UI (m_shoutoutCooldownLabel) 縺ｫ谿九ｊ繧ｯ繝ｼ繝ｫ繧ｿ繧､繝繧定｡ｨ遉ｺ縲・
+### 7.6 繧ｯ繝ｩ繧ｹ讒矩 & 繧､繝吶Φ繝磯壻ｿ｡莉墓ｧ・(AppEvent)
+- **譁ｰ隕上う繝吶Φ繝医ち繧､繝・*:
+  - EventType::TwitchRaidReceived: Twitch縺九ｉ縺ｮ繝ｬ繧､繝画､懃衍騾夂衍 (payload 縺ｫ繝ｦ繝ｼ繧ｶ繝ｼ蜷阪∬ｦ冶・閠・焚繧呈ｼ邏・
+  - EventType::ShoutoutCooldownUpdated: 繧ｯ繝ｼ繝ｫ繧ｿ繧､繝谿九ｊ遘呈焚縺ｮ譖ｴ譁ｰ騾夂衍 (payload 縺ｫ谿九ｊ遘呈焚 int 繧呈ｼ邏・
 
-毎 API コール完了時に `on_networkReplyFinished` 内で以下を解析し、`RateLimitTracker::updateFromReply()` を呼び出す:
-
-```cpp
-void parseRateLimitHeaders(QNetworkReply *reply, const QString &clientId) {
-    auto get = [&](const QByteArray &key) {
-        return reply->rawHeader(key).trimmed();
-    };
-    // 例: "x-ratelimit-remaining-requests" → rpmRemaining
-    // 例: "x-ratelimit-reset-requests"     → nextResetAt (ISO8601 or seconds)
-}
-```
-
-#### D. defaultStatus() 返却値
-
-```cpp
-ProviderStatus GroqAIClient::defaultStatus() const {
-    ProviderStatus s;
-    s.provider      = "groq";
-    s.available     = true;
-    s.rpmMax        = 30;
-    s.rpmRemaining  = 30;
-    s.rpdMax        = 14400;
-    s.rpdRemaining  = 14400;
-    s.tpmMax        = 131072;
     s.tpmRemaining  = 131072;
     s.contextWindow = 131072;
     s.toolCall      = true;

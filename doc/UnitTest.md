@@ -216,4 +216,18 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | :--- | :--- | :--- | :--- |
 | **UT-SCHED-01** | `AIClientManager::fetchSchedules` | ローカルに保存したテスト用の擬似 JSON レスポンスファイル（`schedules_response.json`）をロードして復号処理を実行。 | `TransCipher` によりタイトル `"joPsj/8IBE..."` が `"【非公開】WebHook用HTML"` などの正しい日本語文字列に復号されること。 |
 | **UT-SCHED-02** | `AIClientManager::on_requestAI` | Discord 経由（`"[Discord:123] streamer"`）または UI直接入力（`""`）で「予定教えて」と入力する。 | トリガーが検知され、システムプロンプト（`additionalSystemPrompt`）の末尾にスケジュール連携コンテキストが自動でインジェクションされること。 |
-| **UT-SCHED-03** | `AIClientManager::on_requestAI` | Twitch 経由（`"[Twitch] streamer"`）で「予定教えて」と入力する、または予定に関連しない問いかけを行う。 | トリガーが検知されず、システムプロンプトにスケジュール連携コンテキストがインジェクションされないこと。 |
+| **UT-SCHED-03** | `AIClientManager::on_requestAI` | Twitch 経由（`"[Twitch] streamer"`）でウェイクワード等を含み「予定教えて」と入力する。 | 全入力ソース対応によりトリガーが検知され、Twitch コメント入力時であってもスケジュール API から最新データを取得しシステムプロンプトにインジェクションされること。 |
+
+---
+
+### 3.12 レイド・クリエイター自動紹介機能 (F-22) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-RAID-01** | `TwitchReader::on_messageReceived` | Twitch IRC から `USERNOTICE` (`msg-id=raid`, `msg-param-displayName=RaiderUser`) を受信する。 | `AppEvent(EventType::TwitchRaidReceived)` が発火し、`RaiderUser` のユーザー名・表示名が格納されて通知されること。 |
+| **UT-RAID-02** | `AIClientManager::handleRaidShoutout` | レイド受信イベントが発生し、`TwitchHelixClient` のモックレスポンス（Bio: "ゲーム配信者", Game: "Minecraft", Title: "建築配信"）をセット。 | 1. Twitch Helix API から情報を正しく取得・パースすること。<br>2. クリエイター情報を含んだ紹介文生成プロンプトが組み立てられ、AIクライアントに送信されること。 |
+| **UT-RAID-03** | `AIClientManager::parseBioUrls` | Bio テキスト `"公式Twitter: https://twitter.com/example_user 不正URL: http://unknown.site"` を入力して解析実行。 | 公式 Twitter/X / YouTube などの公開URLのみが抽出され、不確実なキーワード検索を行わずに情報が補完されること。 |
+| **UT-RAID-04** | `AIClientManager::sendShoutoutMessage` | `shoutout_use_announce = true`, `shoutout_announce_color = "random"` で紹介コメント送信処理を呼ぶ。 | `/announce [blue|green|orange|purple]` のランダム指定付きでチャット投稿コマンドが生成・送信されること。 |
+| **UT-RAID-05** | `AIClientManager::handleRaidShoutout` | `shoutout_use_command = true`, クールタイム外の状態でレイドを受信する。 | 1. `/shoutout [ユーザー名]` コマンドがチャットへ送信されること。<br>2. 120 秒のタイマー `m_shoutoutCooldownTimer` が開始すること。 |
+| **UT-RAID-06** | `AIClientManager::handleRaidShoutout` | `/shoutout` クールタイム（120秒以内）中に連続してレイド/紹介要求が発生する。 | 1. AIによる紹介文のチャット投稿（/announce含む）・アバター吹き出し・TTSイベント通知は即時実行されること。<br>2. `/shoutout` コマンドが待機キュー (`m_shoutoutQueue`) に追加されること。<br>3. UIにキュー一覧更新通知 (`ShoutoutQueueUpdated`) が届き、待機中ユーザーと残り秒数が表示されること。<br>4. 120秒経過時のタイマータイムアウト時にキュー先頭の `/shoutout` が自動遅延送信されること。 |
+

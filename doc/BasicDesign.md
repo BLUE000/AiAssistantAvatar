@@ -1204,21 +1204,21 @@ sequenceDiagram
 
 ## 10. 外部スケジュール API 連携機能設計
 
-Discord、またはUIチャット（直接入力・音声入力）経由での対話において（Twitchコメントは除く）、ユーザーから予定やタスク進捗に関する発言があった際、外部 API からスケジュール情報を自動取得し、RAG（検索拡張生成）技術を用いて AI のシステムプロンプトにコンテキストとして注入します。
+Twitchコメント、Discord、およびUIチャット（直接入力・音声入力）経由での対話において、ユーザーから予定やタスク進捗に関する発言があった際、外部 API からスケジュール情報を自動取得し、RAG（検索拡張生成）技術を用いて AI のシステムプロンプトにコンテキストとして注入します。
 
 ### 10.1 連携構成と処理フロー
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Discord as Discordボット
+    participant Input as Twitch/Discord/UI
     participant Manager as AIClientManager
     participant API as 外部スケジュールAPI
     participant TC as TransCipher (復号エンジン)
     participant LLM as 各AIクライアント
 
-    Discord->>Manager: 1. チャット受信 (例:「今後の予定教えて」)
-    Note over Manager: Discord発かつトリガーワード（予定、進捗等）が含まれるか検証
+    Input->>Manager: 1. チャット受信 (例:「今後の予定教えて」)
+    Note over Manager: トリガーキーワード（予定、進捗等）が含まれるか検証
     
     rect rgb(240, 240, 240)
         Note over Manager: キーワード検知時のみAPI連携処理を実行
@@ -1232,11 +1232,60 @@ sequenceDiagram
     
     Manager->>LLM: 6. APIリクエスト (会話履歴 + 注入されたシステム指示)
     LLM-->>Manager: 7. 最新の予定データに基づいた自然な回答を生成
-    Manager->>Discord: 8. 回答メッセージ返信
+    Manager->>Input: 8. 回答メッセージ返信
 ```
 
 ### 10.2 復号とデータ形式
 - **難読化解除キー**: `TRANSCIPHER_SECRET_KEY` に設定された `"test_secret_key_12345"`
 - **データ形式**: API から返される Base64 文字列をバイナリデータ（QByteArray）にデコードし、`CipherEngine::decrypt` メソッドによって元の UTF-8 文字列に復号します。
+
+
+## 11. レイド・クリエイター自動紹介機能設計 (F-22)
+
+Twitchでのレイド受信時、または「〇〇さんを紹介して」などの手動/会話指定を受け、相手の公式プロフィール（Bioや公式SNS/YouTube概要）を安全に収集してAIが紹介文を生成・投稿する機能の設計です。
+
+### 11.1 処理フローとシーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Twitch as TwitchReader
+    participant Manager as AIClientManager
+    participant Helix as Twitch Helix API
+    participant LLM as AIクライアント
+    participant UI as AvatarWindow (GUI)
+
+    alt レイド自動検知
+        Twitch->>Manager: 1. USERNOTICE (raid) イベント通知 (送られた配信者名)
+    else コマンド / 会話発動
+        Twitch->>Manager: 1. コマンド(!so) / 会話「〇〇さんを紹介して」検知
+    end
+
+    rect rgb(240, 240, 240)
+        Note over Manager: 相手クリエイターの情報取得 (同名別人混入防止)
+        Manager->>Helix: 2. GET /users (Bio取得) & GET /channels (配信タイトル/ゲーム名取得)
+        Helix-->>Manager: 3. Bio & 配信カテゴリ情報を返却
+        Note over Manager: Bio内から公式 Twitter(X) / YouTube URLを抽出しピンポイント解析
+    end
+
+    Manager->>LLM: 4. クリエイター情報 + トーン/長さ指示で紹介文生成要求
+    LLM-->>Manager: 5. 魅力的な紹介文（Shoutoutコメント）を返却
+
+    par チャット投稿 ＆ 音声/吹き出し表現
+        Manager->>Twitch: 6a. アナウンス指定色(通常/青/緑/橙/紫/ランダム)で /announce 送信
+        Manager->>UI: 6b. アバター吹き出し描画 ＆ TTS発声イベント通知
+    end
+
+    opt /shoutout コマンド連携 (有効時)
+        alt クールタイム外 (120秒経過済)
+            Manager->>Twitch: 7a. /shoutout [ユーザー名] を自動送信
+            Manager->>Manager: 7b. 120秒クールタイムタイマーを開始
+        else クールタイム中
+            Manager->>Manager: 7c. 待機キューに追加 ＆ クールタイム解除タイマー待機
+            Manager->>UI: 7d. UI(キュー一覧)へ待機中ユーザーと残り時間を同期通知
+        end
+    end
+```
+
 ```
 
