@@ -19,7 +19,11 @@ ObsHttpServer::ObsHttpServer(QObject *parent)
     }
 
     QDir rootDir(m_documentRoot);
-    m_documentRoot = rootDir.canonicalPath();
+    if (rootDir.exists("FishEatCatSkin")) {
+        m_documentRoot = rootDir.filePath("FishEatCatSkin");
+    } else {
+        m_documentRoot = rootDir.canonicalPath();
+    }
     qDebug() << "ObsHttpServer: Document root set to:" << m_documentRoot;
 }
 
@@ -61,6 +65,15 @@ bool ObsHttpServer::isListening() const {
 
 quint16 ObsHttpServer::serverPort() const {
     return m_server ? m_server->serverPort() : 0;
+}
+
+void ObsHttpServer::setDocumentRoot(const QString &path) {
+    if (path.isEmpty()) return;
+    QDir dir(path);
+    if (dir.exists()) {
+        m_documentRoot = dir.canonicalPath();
+        qDebug() << "ObsHttpServer: Updated Document root to:" << m_documentRoot;
+    }
 }
 
 void ObsHttpServer::handleNewConnection() {
@@ -118,24 +131,48 @@ void ObsHttpServer::handleRequest(QTcpSocket *socket, const QString &requestStr)
     }
 
     // ドキュメントルートと結合して絶対正規化パスを取得
-    QDir rootDir(m_documentRoot);
     QString relativePath = decodedPath;
     if (relativePath.startsWith("/")) {
         relativePath = relativePath.mid(1);
     }
     
+    // 1. アクティブなドキュメントルート (選択中スキンディレクトリ) から探索
+    QDir rootDir(m_documentRoot);
     QString targetFilePath = rootDir.filePath(relativePath);
     QFileInfo fileInfo(targetFilePath);
-    QString canonicalPath = fileInfo.canonicalFilePath();
 
-    // ファイルが存在しない、または親ディレクトリにトラバースしているかの厳密なチェック
+    // 2. 存在しない場合、親ディレクトリ (pic ディレクトリ直下) や別スキンでフォールバック探索
     if (!fileInfo.exists() || !fileInfo.isFile()) {
-        sendErrorResponse(socket, 404, "Not Found", "File not found");
-        return;
+        QDir parentPicDir(rootDir);
+        if (parentPicDir.dirName() != "pic") {
+            parentPicDir.cdUp();
+        }
+
+        // (A) pic/ ディレクトリ直下で探索
+        QString fallbackPath = parentPicDir.filePath(relativePath);
+        QFileInfo fallbackInfo(fallbackPath);
+        if (fallbackInfo.exists() && fallbackInfo.isFile()) {
+            fileInfo = fallbackInfo;
+        } else {
+            // (B) pic/ 配下の全サブディレクトリ（全スキンフォルダ）を探索
+            QFileInfoList subDirs = parentPicDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QFileInfo &subDir : subDirs) {
+                QDir skinDir(subDir.absoluteFilePath());
+                QString skinFilePath = skinDir.filePath(relativePath);
+                QFileInfo skinFileInfo(skinFilePath);
+                if (skinFileInfo.exists() && skinFileInfo.isFile()) {
+                    fileInfo = skinFileInfo;
+                    break;
+                }
+            }
+        }
     }
 
-    if (!canonicalPath.startsWith(m_documentRoot)) {
-        sendErrorResponse(socket, 403, "Forbidden", "Access denied");
+    QString canonicalPath = fileInfo.canonicalFilePath();
+
+    // ファイルが存在しない場合の厳密なチェック
+    if (!fileInfo.exists() || !fileInfo.isFile()) {
+        sendErrorResponse(socket, 404, "Not Found", "File not found");
         return;
     }
 

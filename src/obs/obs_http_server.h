@@ -22,6 +22,7 @@ public:
     void stop();
     bool isListening() const;
     quint16 serverPort() const;
+    void setDocumentRoot(const QString &path);
 
 private slots:
     void handleNewConnection();
