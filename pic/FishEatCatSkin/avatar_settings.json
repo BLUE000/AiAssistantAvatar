@@ -19,10 +19,10 @@
         },
         "right": {
             "mode": "sequence",
-            "frame_interval_ms": 250,
+            "frame_interval_ms": 150,
             "sequences": [
-                ["Right01.png", "Right02.png", "Right03.png", "Right04.png", "Right05.png"],
-                ["Right05.png", "Right04.png", "Right03.png", "Right02.png", "Right01.png"]
+                ["Right01.png", "Right02.png", "Right03.png", "Right04.png", "Right01.png"],
+                ["Right01.png", "Right02.png", "Right03.png", "Right04.png", "Right05.png", "Right05.png", "Right05.png", "Right05.png", "Right01.png"]
             ],
             "anchorX": 100,
             "anchorY": 100,
@@ -31,10 +31,10 @@
         },
         "left": {
             "mode": "sequence",
-            "frame_interval_ms": 250,
+            "frame_interval_ms": 150,
             "sequences": [
-                ["Left01.png", "Left02.png", "Left03.png", "Left04.png", "Left05.png"],
-                ["Left05.png", "Left04.png", "Left03.png", "Left02.png", "Left01.png"]
+                ["Left05.png", "Left01.png", "Left02.png", "Left03.png", "Left05.png"],
+                ["Left05.png", "Left01.png", "Left02.png", "Left03.png", "Left04.png", "Left04.png", "Left04.png", "Left04.png", "Left05.png"]
             ],
             "anchorX": 100,
             "anchorY": 100,

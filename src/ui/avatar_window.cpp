@@ -2639,7 +2639,7 @@ void AvatarWindow::loadSkin(const QString &skinName) {
                         }
                     }
                 }
-                s.frameIntervalMs = obj["frame_interval_ms"].toInt(s.mode == ImageDisplayMode::Random ? 3500 : 250);
+                s.frameIntervalMs = obj["frame_interval_ms"].toInt(s.mode == ImageDisplayMode::Random ? 3500 : 150);
                 s.durationMs = obj["duration_ms"].toInt(1000);
                 s.anchorX = obj["anchorX"].toInt(100);
                 s.anchorY = obj["anchorY"].toInt(100);
