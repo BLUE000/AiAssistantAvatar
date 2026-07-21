@@ -2740,14 +2740,29 @@ void AvatarWindow::triggerState(const QString &stateName) {
         }
         m_stateTimer->start(m_skinConfig.speaking.durationMs);
     } else {
+        auto hasContent = [](const SkinImageSetting &s) {
+            return !s.singleFile.isEmpty() || !s.files.isEmpty() || !s.sequences.isEmpty();
+        };
+
         static const QVector<QString> directions = {"front", "back", "right", "left"};
         int idx = QRandomGenerator::global()->bounded(directions.size());
         QString dir = directions.at(idx);
 
-        if (dir == "back" && !m_skinConfig.idleBack.singleFile.isEmpty()) applyImageSetting(m_skinConfig.idleBack);
-        else if (dir == "right" && !m_skinConfig.idleRight.singleFile.isEmpty()) applyImageSetting(m_skinConfig.idleRight);
-        else if (dir == "left" && !m_skinConfig.idleLeft.singleFile.isEmpty()) applyImageSetting(m_skinConfig.idleLeft);
-        else applyImageSetting(m_skinConfig.idleFront);
+        if (dir == "back" && hasContent(m_skinConfig.idleBack)) applyImageSetting(m_skinConfig.idleBack);
+        else if (dir == "right" && hasContent(m_skinConfig.idleRight)) applyImageSetting(m_skinConfig.idleRight);
+        else if (dir == "left" && hasContent(m_skinConfig.idleLeft)) applyImageSetting(m_skinConfig.idleLeft);
+        else if (hasContent(m_skinConfig.idleFront)) applyImageSetting(m_skinConfig.idleFront);
+
+        if (!m_idleTimer) {
+            m_idleTimer = new QTimer(this);
+            connect(m_idleTimer, &QTimer::timeout, this, [this]() {
+                if (m_avatarState == "idle") {
+                    triggerState("idle");
+                }
+            });
+        }
+        int interval = m_skinConfig.idleIntervalMs > 0 ? m_skinConfig.idleIntervalMs : 15000;
+        m_idleTimer->start(interval);
     }
 }
 

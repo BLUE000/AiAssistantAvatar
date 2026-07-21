@@ -212,6 +212,7 @@ private:
     AvatarSkinConfig m_skinConfig;
     QTimer *m_stateTimer = nullptr;
     QTimer *m_sequenceTimer = nullptr;
+    QTimer *m_idleTimer = nullptr;
     int m_sequenceFrameIndex = 0;
     SkinImageSetting m_currentActiveSetting;
 
