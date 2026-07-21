@@ -44,6 +44,8 @@ set(TEST_SOURCES
     ../src/search/duckduckgo_search_provider.cpp
     test_obs_http_server.cpp
     ../src/obs/obs_http_server.cpp
+    test_score_moderation.cpp
+    ../src/moderation/score_moderation_engine.cpp
 )
 
 add_executable(AiAssistantAvatarTest ${TEST_SOURCES})
@@ -71,4 +73,4 @@ target_link_libraries(AiAssistantAvatarTest PRIVATE
     TransCipher
 )
 
-add_test(NAME TwitchReaderTest COMMAND AiAssistantAvatarTest)
+add_test(NAME AiAssistantAvatarTest COMMAND AiAssistantAvatarTest WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

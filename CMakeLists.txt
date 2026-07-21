@@ -58,6 +58,7 @@ set(SOURCES
     src/search/duckduckgo_search_provider.cpp
     src/discord/discord_reader.cpp
     src/obs/obs_http_server.cpp
+    src/moderation/score_moderation_engine.cpp
 )
 
 add_executable(AiAssistantAvatar WIN32 ${SOURCES})

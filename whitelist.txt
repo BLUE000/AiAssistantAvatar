@@ -1,4 +1,25 @@
-# Test Whitelist
-wtf
-holy shit
-class
+# ===================================================
+# AiAssistantAvatar 文脈保護・安全キーワード設定
+# [単語/正規表現] , [文脈カテゴリ] , [減算スコア]
+# ===================================================
+
+# ゲームタイトル・ゲーム文脈 (game_context)
+Elin, game_context, 40
+RimWorld, game_context, 40
+Minecraft, game_context, 40
+GTA, game_context, 40
+Apex, game_context, 40
+VALORANT, game_context, 40
+ゲーム, game_context, 30
+ボス, game_context, 30
+クエスト, game_context, 30
+
+# 技術・用語文脈 (tech_context)
+kill process, tech_context, 50
+suicide burn, tech_context, 50
+class, tech_context, 40
+
+# 感情表現文脈 (emotion_context)
+死ぬほど, emotion_context, 40
+笑い死ぬ, emotion_context, 40
+ヤバい, emotion_context, 20

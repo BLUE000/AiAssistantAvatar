@@ -5,6 +5,7 @@
 #include "groq_ai_client.h"
 #include "dummy_ai_client.h"
 #include "system_response_manager.h"
+#include "../moderation/score_moderation_engine.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
 #include <QNetworkAccessManager>
@@ -130,6 +131,9 @@ void AIClientManager::loadCredentials() {
     if (!QFile::exists(configPath)) {
         configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
     }
+
+    ScoreModerationEngine::instance().loadBlacklist("blacklist.txt");
+    ScoreModerationEngine::instance().loadWhitelist("whitelist.txt");
 
     if (!QFile::exists(configPath)) {
         qWarning() << "AIClientManager: local_settings.json does not exist. Using empty settings. Tried path:" << configPath;
@@ -519,7 +523,23 @@ QStringList AIClientManager::managerPriorityOrder() const {
 }
 
 void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
-    qDebug() << "AIClientManager: Received request for prompt:" << prompt << "from user:" << user;
+    // --- F-26 多層スコアフィルタリング評価 ---
+    QStringList historyMsgs;
+    for (const auto &pair : m_chatHistory) {
+        historyMsgs.append(pair.second);
+    }
+    ModerationEvalResult modResult = ScoreModerationEngine::instance().evaluate(prompt, historyMsgs);
+    if (modResult.action == ModerationAction::BLOCK) {
+        qWarning() << "AIClientManager: Prompt blocked by ScoreModerationEngine. Total score:" << modResult.totalScore;
+        AppEvent blockEvent;
+        blockEvent.type = EventType::AIResponseReceived;
+        blockEvent.source = "AIClientManager";
+        blockEvent.text = "【安全保護フィルター】不適切または危険な要求が検出されたため、AI応答を中断しました。";
+        emit notifyEvent(blockEvent);
+        return;
+    }
+
+    QString processedPrompt = (modResult.action == ModerationAction::WARN) ? modResult.maskedText : prompt;
 
     // すでにリセット要約中、マージ処理中の場合はキューに入れる
     if (m_isResetting || m_isMergingSummaries) {

@@ -1656,3 +1656,20 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
   - GUI上で設定された項目から `QJsonObject` を組み立て、`QJsonDocument::toJson()` で `pic/[SkinName]/avatar_settings.json` に上書き書き出し。
 - **`avatar_obs.html` の生成**:
   - アプリ組み込みの標準テンプレート文字列を `pic/[SkinName]/avatar_obs.html` に出力作成。
+
+## 11. 多層スコア判定・文脈保護・中立検索連携フィルタリング詳細設計 (F-26)
+
+### 11.1 設定ファイル仕様
+- **`blacklist.txt` スキーマ**: `[単語または正規表現] , [カテゴリ] , [加算スコア]`
+  - 例: `覚醒剤, drug, 40`, `作り方を教えて, instruction, 50`, `殺人, violence, 30`
+- **`whitelist.txt` スキーマ**: `[単語または正規表現] , [補正カテゴリ] , [減算スコア]`
+  - 例: `Elin, game_context, 40`, `RimWorld, game_context, 40`, `死ぬほど, emotion_context, 40`
+
+### 11.2 モジュール設計 (`ScoreModerationEngine`)
+- **`ScoreResult evaluate(const QString &inputText, const QList<QString> &historyTexts)`**:
+  1. `blacklist.txt` をスキャンし、一致したカテゴリ・スコアを加算。`instruction` / `personal_info` フラグをチェック。
+  2. `whitelist.txt` をスキャンし、一致した文脈保護スコアを減算。
+  3. 直近会話履歴 `historyTexts`（過去3件以内かつ3分以内）から `history_context` の存在を検証。
+     - **Jailbreak Guard**: `instruction` または `personal_info` フラグが `true` の場合、`history_context` の減算適用をキャンセル（0固定）。
+  4. `最終スコア = (カテゴリスコア + 意図補正) - 文脈補正` を算出。
+  5. **中立ガイドラインインジェクション**: `politics` または `religion` が検出された場合、プロンプト追加指示文字列 `"【重要指導】政治・宗教・戦争等の繊細な話題が検出されました。特定の国家・勢力・立場・人物への一方的な応援や批判を厳禁とし、第三者的かつ客観的・中立的な立場を厳格に維持して平和的に回答してください。"` を `AIClientManager` にて動的インジェクション。

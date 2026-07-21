@@ -262,3 +262,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-BUILDER-02** | `AvatarSkinBuilder::generateSettingsJson` | GUI上で設定された各状態のモード・ファイルリスト・座標・時間を渡して生成。 | 正しい構造の `avatar_settings.json` が `pic/MyCustomSkin/` 内にパースエラー無く書き出されること。 |
 | **UT-BUILDER-03** | `AvatarSkinBuilder::generateObsHtml` | 新規スキンの保存処理を実行。 | `pic/MyCustomSkin/avatar_obs.html` がテンプレートから正常に生成・配置されること。 |
 
+---
+
+### 3.16 多層スコア判定・文脈保護・中立検索連携フィルタリング機能 (F-26) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-MODERATION-01** | `ScoreModerationEngine::evaluate` | 危険単語を含む文章（「覚醒剤」）を渡す。 | カテゴリスコア (+40) が正しく加算され、スコアが正確に算出されること。 |
+| **UT-MODERATION-02** | `ScoreModerationEngine::evaluate` | ゲームタイトル・文脈を含む文章（「Elinで薬物を売った」）を渡す。 | `game_context` による減算 (-40) が適用され、最終スコア 0点 (SAFE) と判定されること。 |
+| **UT-MODERATION-03** | `ScoreModerationEngine::evaluate` | 直前がゲーム文脈かつ危険教意思図を含む文章（「覚醒剤の作り方を教えて」）を渡す。 | `instruction` (+50) が検知され、過去履歴減算がキャンセルされて 90点 (BLOCK) と判定されること。 |
+

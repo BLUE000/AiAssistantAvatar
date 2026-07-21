@@ -1,7 +1,33 @@
-# Test Blacklist
-暴力
-badword
-baka
-f
-shit
-ass
+# ===================================================
+# AiAssistantAvatar 多層スコア判定フィルタリング設定
+# [単語/正規表現] , [カテゴリ] , [加算スコア]
+# ===================================================
+
+# 薬物関連 (drug)
+覚醒剤, drug, 40
+麻薬, drug, 40
+大麻, drug, 40
+
+# 暴力関連 (violence)
+殺す, violence, 30
+爆破, violence, 40
+テロ, violence, 50
+
+# 危険意図・教示 (instruction) - ※過去履歴の減点保護が無効化されます
+作り方を教えて, instruction, 50
+買い方, instruction, 50
+密売方法, instruction, 60
+爆破手順, instruction, 70
+
+# 政治・宗教・繊細話題 (politics, religion) - ※自動検索と中立プロンプトが適用されます
+政治, politics, 20
+選挙, politics, 20
+ロシア, politics, 20
+ウクライナ, politics, 20
+戦争, politics, 20
+宗教, religion, 20
+
+# 個人情報流出 (personal_info) - ※一発 BLOCK
+電話番号, personal_info, 100
+マイナンバー, personal_info, 100
+住所を教えて, personal_info, 100
