@@ -20,7 +20,10 @@
         "right": {
             "mode": "sequence",
             "frame_interval_ms": 250,
-            "files": ["Right01.png", "Right02.png", "Right03.png", "Right04.png", "Right05.png"],
+            "sequences": [
+                ["Right01.png", "Right02.png", "Right03.png", "Right04.png", "Right05.png"],
+                ["Right05.png", "Right04.png", "Right03.png", "Right02.png", "Right01.png"]
+            ],
             "anchorX": 100,
             "anchorY": 100,
             "transparentX": 0,
@@ -29,7 +32,10 @@
         "left": {
             "mode": "sequence",
             "frame_interval_ms": 250,
-            "files": ["Left01.png", "Left02.png", "Left03.png", "Left04.png", "Left05.png"],
+            "sequences": [
+                ["Left01.png", "Left02.png", "Left03.png", "Left04.png", "Left05.png"],
+                ["Left05.png", "Left04.png", "Left03.png", "Left02.png", "Left01.png"]
+            ],
             "anchorX": 100,
             "anchorY": 100,
             "transparentX": 0,
