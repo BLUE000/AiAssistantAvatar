@@ -1594,8 +1594,46 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
 - `shoutout_announce_color` (string, デフォルト: `"random"`): アナウンスカラー ("primary", "blue", "green", "orange", "purple", "random")
 - `shoutout_length` (string, デフォルト: `"standard"`): 紹介文の長さ ("short", "standard", "detailed")
 - `shoutout_tone` (string, デフォルト: `"明るく元気な口調で！"`): 紹介のトーン・口調
-- `shoutout_prefix` (string, デフォルト: `"【レイド感謝】"`): 紹介文の頭につけるプレフィックス
 
 ### 7.2 `/shoutout` 成功時フォロー呼びかけ処理詳細
 - `TwitchReader` は Twitch チャット IRC の `NOTICE` / `USERNOTICE` メッセージから `msg-id=shoutout_success` を検知した際、`EventType::ShoutoutSuccessReceived` を発火する。
 - `AIClientManager` は本イベントを受信した際、`shoutout_follow_msg_enabled` が `true` であれば、`shoutout_follow_msg_template` 内の `{name}` を対象ユーザーの表示名に置換し、`/announce` または通常チャットメッセージとして自動追加投稿を行う。
+
+## 8. アバタースキン切替詳細設計 (F-23)
+
+### 8.1 設定仕様 (`local_settings.json`)
+- `avatar_skin` (string, デフォルト: `"FishEatCatSkin"`): 選択されたスキンフォルダ名。
+
+### 8.2 UI制御 (`AvatarWindow`)
+- 「設定」タブ内に「アバタースキン (Skin):」 `QComboBox` (`m_comboAvatarSkin`) を配置。
+- 画面表示時、`QDir("pic")` の `entryList(QDir::Dirs | QDir::NoDotAndDotDot)` を実行し、存在するフォルダ名を `QComboBox` の選択肢に追加。
+- スキン変更検知時:
+  1. `local_settings.json` の `"avatar_skin"` に選択値を保存。
+  2. アバター描画エンジンの読み込みルートパスを `pic/[SkinName]` に更新。
+  3. `ObsHttpServer` の Document Root を `pic/[SkinName]` に更新し、OBSブラウザソースの表示スキンをアプリUIと完全同期・一括変更。
+
+## 9. アバター画像指定3モード ＆ 状態タイマー詳細設計 (F-24)
+
+### 9.1 `avatar_settings.json` 仕様構造
+```json
+{
+    "idle": {
+        "interval_ms": 15000,
+        "front": { "mode": "single", "file": "Front01.png", "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 },
+        "back":  { "mode": "random", "files": ["Back01.png", "Back02.png"], "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 },
+        "right": { "mode": "sequence", "frame_interval_ms": 100, "files": ["Right01.png", "Right02.png"], "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 },
+        "left":  { "mode": "single", "file": "Left01.png", "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 }
+    },
+    "listening": { "duration_ms": 500, "mode": "single", "file": "Front03.png", "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 },
+    "thinking":  { "duration_ms": 800, "mode": "single", "file": "Thinking01.png", "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 },
+    "speaking":  { "duration_ms": 2000, "mode": "sequence", "frame_interval_ms": 120, "files": ["Front01.png", "Front05.png"], "anchorX": 100, "anchorY": 100, "transparentX": 0, "transparentY": 0 }
+}
+```
+
+### 9.2 アニメーション＆タイマー再生ロジック
+- **`mode` 判定**:
+  - `single`: 単一画像ファイルを表示。
+  - `random`: 配列 `files` から `QRandomGenerator` で1枚をランダムに選出し表示。
+  - `sequence`: `QTimer` で `frame_interval_ms` ごとに `files` のインデックスを進めてパラパラアニメーション表示（ループ指定可）。
+- **タイマー制御**:
+  - イベント受信時（入力受領時 `Listening` / AI処理時 `Thinking` / 応答時 `Speaking`）に該当状態の `duration_ms` タイマーを起動し、タイマー完了時に自動的に `Idle`（Front/Back/Right/Left 抽選表示）へ復帰。

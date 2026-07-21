@@ -1290,7 +1290,41 @@ sequenceDiagram
         Twitch-->>Manager: 8a. /shoutout 成功 NOTICE (msg-id=shoutout_success)
         Manager->>Twitch: 8b. 「ぜひ {name} さんをフォローしてね！」等のフォロー呼びかけコメントを投稿
     end
+
+## 12. アバタースキン切替・ディレクトリ構成設計 (F-23)
+
+アバターのアセット管理およびスキンの完全同期切替機能の設計です。
+
+### 12.1 ディレクトリ構成
+
+```text
+pic/
+ └── [SkinName]/ (例: FishEatCatSkin)
+      ├── base.png, Front01.png... (アバター画像)
+      ├── avatar_settings.json (アニメーション設定)
+      └── avatar_obs.html (OBS表示用HTML)
 ```
 
-```
+### 12.2 アプリ本体とOBS配信画面の完全同期アーキテクチャ
+
+1. **設定管理 (`local_settings.json`)**:
+   - `"avatar_skin"` に選択されたスキンフォルダ名（デフォルト: `"FishEatCatSkin"`）を保持する。
+2. **UI (AvatarWindow)**:
+   - 設定タブにスキン選択 QComboBox を配置。`pic/` 直下のスキンフォルダ一覧を動的に取得・選択可能とする。
+3. **リロード制御**:
+   - スキン切替時、アバター描画エンジンのアセット読み込みパスおよび OBS HTTP サーバー (`ObsHttpServer`) の Document Root を `pic/[SkinName]` に一貫して変更する。
+   - これにより、アプリ本体の描画とOBS配信画面の双方が全く同じスキン画像・設定で100%統一表示される。
+## 13. アバター画像指定3モード ＆ 状態タイマー制御設計 (F-24)
+
+### 13.1 画像指定3モードのアーキテクチャ
+- **Single モード**: 単一画像指定。常に該当画像1枚を表示。
+- **Random モード**: 複数画像指定。リスト内から1枚をランダム抽選して表示。
+- **Sequence モード**: 複数画像指定。指定したコマ送り速度 (`frame_interval_ms`) で連続描画しアニメーション化。
+
+### 13.2 状態遷移および表示時間制御シーケンス
+1. ユーザー入力受信時 ➔ `Listening` 表示 (指定ミリ秒 `duration_ms`)
+2. AI処理・検索中 ➔ `Thinking` 表示 (指定ミリ秒 `duration_ms`)
+3. AI応答出力・音声発声中 ➔ `Speaking` 表示 (指定ミリ秒 `duration_ms`)
+4. 各タイマー完了 ➔ `Idle` 状態（Front/Back/Right/Left からランダム抽選表示）へ自動復帰。
+
 

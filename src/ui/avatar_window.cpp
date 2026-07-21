@@ -827,7 +827,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
     switch (event.type) {
         case EventType::VoiceInputStarted:
             pauseScheduler();
-            updateAvatarDisplay("listening");
+            triggerState("listening");
             statusBar()->showMessage("音声入力中... 話しかけてください");
             if (m_responseBrowser) {
                 m_responseBrowser->setMarkdown("*マイクの音声を聞いています...*");
@@ -852,13 +852,13 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             break;
 
         case EventType::AIRequestSent:
-            // UI駆動で処理するためここでは状態変更のみマイルドに行う
+            triggerState("thinking");
             statusBar()->showMessage("AIの返答を待っています...");
             break;
 
         case EventType::AIResponseReceived: {
             m_lastResponseText = event.text;
-            updateAvatarDisplay("speaking");
+            triggerState("speaking");
             statusBar()->showMessage("AIが応答中");
             if (m_responseBrowser) {
                 m_responseBrowser->setMarkdown(event.text);
@@ -1075,6 +1075,10 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     obsPathLayout->addWidget(btnCopyObsPath);
 
     obsLayout->addRow("OBS用ファイルパス:", obsPathWidget);
+
+    m_comboAvatarSkin = new QComboBox(scrollContent);
+    scanAvailableSkins();
+    obsLayout->addRow("アバタースキン (Skin):", m_comboAvatarSkin);
 
     mainLayout->addWidget(obsGroup);
 
@@ -1427,6 +1431,13 @@ void AvatarWindow::loadSettingsToUI() {
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
             if (m_wsPortEdit) m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT)));
+            QString skin = obj.value("avatar_skin").toString("FishEatCatSkin");
+            scanAvailableSkins();
+            if (m_comboAvatarSkin) {
+                int skinIdx = m_comboAvatarSkin->findData(skin);
+                if (skinIdx >= 0) m_comboAvatarSkin->setCurrentIndex(skinIdx);
+            }
+            loadSkin(skin);
             if (m_twitchChannelEdit) m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
             if (m_twitchClientIdEdit) m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
             if (m_twitchPortEdit) m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT)));
@@ -1597,6 +1608,11 @@ void AvatarWindow::saveSettingsFromUI() {
     m_webhookEnabled = m_webhookEnabledCheckbox->isChecked();
 
     obj["websocket_port"] = m_wsPortEdit->text().trimmed().toInt();
+    if (m_comboAvatarSkin) {
+        QString selectedSkin = m_comboAvatarSkin->currentData().toString();
+        obj["avatar_skin"] = selectedSkin;
+        loadSkin(selectedSkin);
+    }
     obj["twitch_channel"] = m_twitchChannelEdit->text().trimmed();
     obj["twitch_client_id"] = m_twitchClientIdEdit->text().trimmed();
     obj["twitch_port"] = m_twitchPortEdit->text().trimmed().toInt();
@@ -2525,4 +2541,202 @@ void AvatarWindow::rebuildDiscordLayout(int channelCount) {
         setting.rowWidget = rowWidget;
         m_discordChannelSettings.append(setting);
     }
+}
+
+void AvatarWindow::scanAvailableSkins() {
+    if (!m_comboAvatarSkin) return;
+    m_comboAvatarSkin->blockSignals(true);
+    m_comboAvatarSkin->clear();
+
+    QDir picDir("pic");
+    if (picDir.exists()) {
+        QStringList subDirs = picDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &subDir : subDirs) {
+            m_comboAvatarSkin->addItem(subDir, subDir);
+        }
+    }
+
+    if (m_comboAvatarSkin->count() == 0) {
+        m_comboAvatarSkin->addItem("FishEatCatSkin", "FishEatCatSkin");
+    }
+
+    int idx = m_comboAvatarSkin->findData(m_skinConfig.skinName);
+    if (idx != -1) {
+        m_comboAvatarSkin->setCurrentIndex(idx);
+    }
+    m_comboAvatarSkin->blockSignals(false);
+}
+
+void AvatarWindow::loadSkin(const QString &skinName) {
+    QString skin = skinName.isEmpty() ? "FishEatCatSkin" : skinName;
+    m_skinConfig.skinName = skin;
+    QString skinDir = "pic/" + skin;
+
+    if (!QDir(skinDir).exists()) {
+        skinDir = "pic";
+    }
+
+    QString configPath = skinDir + "/avatar_settings.json";
+    if (!QFile::exists(configPath)) {
+        qWarning() << "AvatarWindow: avatar_settings.json not found in" << skinDir;
+        return;
+    }
+
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray data = file.readAll();
+        file.close();
+
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isNull() && doc.isObject()) {
+            QJsonObject root = doc.object();
+
+            auto parseSetting = [](const QJsonObject &obj, const QString &dir) -> SkinImageSetting {
+                SkinImageSetting s;
+                QString modeStr = obj["mode"].toString("single").toLower();
+                if (modeStr == "random") {
+                    s.mode = ImageDisplayMode::Random;
+                } else if (modeStr == "sequence") {
+                    s.mode = ImageDisplayMode::Sequence;
+                } else {
+                    s.mode = ImageDisplayMode::Single;
+                }
+
+                s.singleFile = dir + "/" + obj["file"].toString();
+                if (obj.contains("files") && obj["files"].isArray()) {
+                    for (const QJsonValue &v : obj["files"].toArray()) {
+                        s.files.append(dir + "/" + v.toString());
+                    }
+                }
+                if (obj.contains("sequences") && obj["sequences"].isArray()) {
+                    for (const QJsonValue &seqVal : obj["sequences"].toArray()) {
+                        if (seqVal.isArray()) {
+                            QVector<QString> frames;
+                            for (const QJsonValue &v : seqVal.toArray()) {
+                                frames.append(dir + "/" + v.toString());
+                            }
+                            s.sequences.append(frames);
+                        }
+                    }
+                }
+                s.frameIntervalMs = obj["frame_interval_ms"].toInt(150);
+                s.durationMs = obj["duration_ms"].toInt(1000);
+                s.anchorX = obj["anchorX"].toInt(100);
+                s.anchorY = obj["anchorY"].toInt(100);
+                s.transparentX = obj["transparentX"].toInt(0);
+                s.transparentY = obj["transparentY"].toInt(0);
+                return s;
+            };
+
+            if (root.contains("idle") && root["idle"].isObject()) {
+                QJsonObject idleObj = root["idle"].toObject();
+                m_skinConfig.idleIntervalMs = idleObj["interval_ms"].toInt(15000);
+                if (idleObj.contains("front")) m_skinConfig.idleFront = parseSetting(idleObj["front"].toObject(), skinDir);
+                if (idleObj.contains("back")) m_skinConfig.idleBack = parseSetting(idleObj["back"].toObject(), skinDir);
+                if (idleObj.contains("right")) m_skinConfig.idleRight = parseSetting(idleObj["right"].toObject(), skinDir);
+                if (idleObj.contains("left")) m_skinConfig.idleLeft = parseSetting(idleObj["left"].toObject(), skinDir);
+            }
+            if (root.contains("listening")) m_skinConfig.listening = parseSetting(root["listening"].toObject(), skinDir);
+            if (root.contains("thinking")) m_skinConfig.thinking = parseSetting(root["thinking"].toObject(), skinDir);
+            if (root.contains("speaking")) m_skinConfig.speaking = parseSetting(root["speaking"].toObject(), skinDir);
+        }
+    }
+
+    qDebug() << "AvatarWindow: Loaded skin" << skin << "from" << skinDir;
+    triggerState("idle");
+}
+
+void AvatarWindow::loadAndSetPixmap(const QString &filePath, int anchorX, int anchorY, int transparentX, int transparentY) {
+    if (!QFile::exists(filePath)) {
+        return;
+    }
+    QPixmap px = applyTransparency(filePath, transparentX, transparentY);
+    m_avatarLabel->setFixedSize(px.size());
+    m_avatarLabel->setPixmap(px);
+    notifyAvatarChanged();
+}
+
+void AvatarWindow::applyImageSetting(const SkinImageSetting &setting) {
+    if (m_sequenceTimer) m_sequenceTimer->stop();
+    m_currentActiveSetting = setting;
+
+    if (setting.mode == ImageDisplayMode::Sequence) {
+        if (!setting.sequences.isEmpty()) {
+            int seqIdx = QRandomGenerator::global()->bounded(setting.sequences.size());
+            m_currentActiveSetting.files = setting.sequences.at(seqIdx);
+        }
+        if (!m_currentActiveSetting.files.isEmpty()) {
+            m_sequenceFrameIndex = 0;
+            if (!m_sequenceTimer) {
+                m_sequenceTimer = new QTimer(this);
+                connect(m_sequenceTimer, &QTimer::timeout, this, &AvatarWindow::onSequenceFrameTimeout);
+            }
+            m_sequenceTimer->start(setting.frameIntervalMs > 0 ? setting.frameIntervalMs : 150);
+            onSequenceFrameTimeout();
+            return;
+        }
+    }
+
+    if (setting.mode == ImageDisplayMode::Random && !setting.files.isEmpty()) {
+        int idx = QRandomGenerator::global()->bounded(setting.files.size());
+        QString filePath = setting.files.at(idx);
+        loadAndSetPixmap(filePath, setting.anchorX, setting.anchorY, setting.transparentX, setting.transparentY);
+    } else {
+        QString filePath = setting.singleFile.isEmpty() ? (!setting.files.isEmpty() ? setting.files.first() : "") : setting.singleFile;
+        loadAndSetPixmap(filePath, setting.anchorX, setting.anchorY, setting.transparentX, setting.transparentY);
+    }
+}
+
+void AvatarWindow::onSequenceFrameTimeout() {
+    if (m_currentActiveSetting.files.isEmpty()) return;
+    if (m_sequenceFrameIndex >= m_currentActiveSetting.files.size()) {
+        m_sequenceFrameIndex = 0;
+    }
+    QString filePath = m_currentActiveSetting.files.at(m_sequenceFrameIndex);
+    loadAndSetPixmap(filePath, m_currentActiveSetting.anchorX, m_currentActiveSetting.anchorY, m_currentActiveSetting.transparentX, m_currentActiveSetting.transparentY);
+    m_sequenceFrameIndex++;
+}
+
+void AvatarWindow::triggerState(const QString &stateName) {
+    m_currentState = stateName;
+    if (m_stateTimer) m_stateTimer->stop();
+
+    if (stateName == "listening") {
+        applyImageSetting(m_skinConfig.listening);
+        if (!m_stateTimer) {
+            m_stateTimer = new QTimer(this);
+            m_stateTimer->setSingleShot(true);
+            connect(m_stateTimer, &QTimer::timeout, this, &AvatarWindow::onStateDurationTimeout);
+        }
+        m_stateTimer->start(m_skinConfig.listening.durationMs);
+    } else if (stateName == "thinking") {
+        applyImageSetting(m_skinConfig.thinking);
+        if (!m_stateTimer) {
+            m_stateTimer = new QTimer(this);
+            m_stateTimer->setSingleShot(true);
+            connect(m_stateTimer, &QTimer::timeout, this, &AvatarWindow::onStateDurationTimeout);
+        }
+        m_stateTimer->start(m_skinConfig.thinking.durationMs);
+    } else if (stateName == "speaking") {
+        applyImageSetting(m_skinConfig.speaking);
+        if (!m_stateTimer) {
+            m_stateTimer = new QTimer(this);
+            m_stateTimer->setSingleShot(true);
+            connect(m_stateTimer, &QTimer::timeout, this, &AvatarWindow::onStateDurationTimeout);
+        }
+        m_stateTimer->start(m_skinConfig.speaking.durationMs);
+    } else {
+        static const QVector<QString> directions = {"front", "back", "right", "left"};
+        int idx = QRandomGenerator::global()->bounded(directions.size());
+        QString dir = directions.at(idx);
+
+        if (dir == "back" && !m_skinConfig.idleBack.singleFile.isEmpty()) applyImageSetting(m_skinConfig.idleBack);
+        else if (dir == "right" && !m_skinConfig.idleRight.singleFile.isEmpty()) applyImageSetting(m_skinConfig.idleRight);
+        else if (dir == "left" && !m_skinConfig.idleLeft.singleFile.isEmpty()) applyImageSetting(m_skinConfig.idleLeft);
+        else applyImageSetting(m_skinConfig.idleFront);
+    }
+}
+
+void AvatarWindow::onStateDurationTimeout() {
+    triggerState("idle");
 }

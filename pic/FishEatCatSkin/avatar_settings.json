@@ -1,0 +1,67 @@
+{
+    "idle": {
+        "interval_ms": 15000,
+        "front": {
+            "mode": "random",
+            "files": ["Front01.png", "Front02.png", "Front03.png", "Front04.png", "Front05.png"],
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0
+        },
+        "back": {
+            "mode": "random",
+            "files": ["Back01.png", "Back02.png", "Back03.png", "Back04.png"],
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0
+        },
+        "right": {
+            "mode": "sequence",
+            "frame_interval_ms": 150,
+            "files": ["Right01.png", "Right02.png", "Right03.png", "Right04.png", "Right05.png"],
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0
+        },
+        "left": {
+            "mode": "sequence",
+            "frame_interval_ms": 150,
+            "files": ["Left01.png", "Left02.png", "Left03.png", "Left04.png", "Left05.png"],
+            "anchorX": 100,
+            "anchorY": 100,
+            "transparentX": 0,
+            "transparentY": 0
+        }
+    },
+    "listening": {
+        "duration_ms": 600,
+        "mode": "single",
+        "file": "Front03.png",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    },
+    "thinking": {
+        "duration_ms": 800,
+        "mode": "single",
+        "file": "Thinking01.png",
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    },
+    "speaking": {
+        "duration_ms": 2500,
+        "mode": "sequence",
+        "frame_interval_ms": 120,
+        "files": ["Front01.png", "Front05.png"],
+        "anchorX": 100,
+        "anchorY": 100,
+        "transparentX": 0,
+        "transparentY": 0
+    }
+}

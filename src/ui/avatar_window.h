@@ -50,6 +50,37 @@ struct AnimationSequence {
     bool loop = true;
 };
 
+enum class ImageDisplayMode {
+    Single,
+    Random,
+    Sequence
+};
+
+struct SkinImageSetting {
+    ImageDisplayMode mode = ImageDisplayMode::Single;
+    QString singleFile;
+    QVector<QString> files;
+    QVector<QVector<QString>> sequences;
+    int frameIntervalMs = 150;
+    int durationMs = 1000;
+    int anchorX = 100;
+    int anchorY = 100;
+    int transparentX = 0;
+    int transparentY = 0;
+};
+
+struct AvatarSkinConfig {
+    QString skinName = "FishEatCatSkin";
+    int idleIntervalMs = 15000;
+    SkinImageSetting idleFront;
+    SkinImageSetting idleBack;
+    SkinImageSetting idleRight;
+    SkinImageSetting idleLeft;
+    SkinImageSetting listening;
+    SkinImageSetting thinking;
+    SkinImageSetting speaking;
+};
+
 // パターンスケジューラーの1エントリ
 struct PatternSchedulerEntry {
     QString type;       // "variant_group" または "animation"
@@ -175,6 +206,21 @@ private:
     bool m_nameReactionEnabled = true;
     QQueue<QPair<QString, QString>> m_aiRequestQueue;
     bool m_isProcessingAI = false;
+
+    QComboBox *m_comboAvatarSkin = nullptr;
+    AvatarSkinConfig m_skinConfig;
+    QTimer *m_stateTimer = nullptr;
+    QTimer *m_sequenceTimer = nullptr;
+    int m_sequenceFrameIndex = 0;
+    SkinImageSetting m_currentActiveSetting;
+
+    void scanAvailableSkins();
+    void loadSkin(const QString &skinName);
+    void applyImageSetting(const SkinImageSetting &setting);
+    void loadAndSetPixmap(const QString &filePath, int anchorX, int anchorY, int transparentX, int transparentY);
+    void triggerState(const QString &stateName);
+    void onStateDurationTimeout();
+    void onSequenceFrameTimeout();
 
     void enqueueRequest(const QString &text, const QString &user = "");
     void processNextRequest();

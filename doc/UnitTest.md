@@ -232,3 +232,23 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RAID-06** | `AIClientManager::handleRaidShoutout` | `/shoutout` クールタイム（120秒以内）中に連続してレイド/紹介要求が発生する。 | 1. AIによる紹介文のチャット投稿（/announce含む）・アバター吹き出し・TTSイベント通知は即時実行されること。<br>2. `/shoutout` コマンドが待機キュー (`m_shoutoutQueue`) に追加されること。<br>3. UIにキュー一覧更新通知 (`ShoutoutQueueUpdated`) が届き、待機中ユーザーと残り秒数が表示されること。<br>4. 120秒経過時のタイマータイムアウト時にキュー先頭の `/shoutout` が自動遅延送信されること。 |
 | **UT-RAID-07** | `AIClientManager::on_shoutoutSuccessReceived` | Twitch から `/shoutout` 成功 NOTICE (`msg-id=shoutout_success`) を受信し、`shoutout_follow_msg_enabled = true` の状態。 | テンプレート `{name}` が置換されたフォロー呼びかけコメント（例: `"ぜひ RaiderUser さんをフォローしてね！"`）がチャットへ追加投稿されること。 |
 
+---
+
+### 3.13 アバタースキン切替・ディレクトリ管理機能 (F-23) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-SKIN-01** | `AvatarWindow::scanSkins` | `pic/` 配下に `FishEatCatSkin/`, `CustomSkin/` ディレクトリが存在する状態でスキャンを実行。 | スキン選択 QComboBox (`m_comboAvatarSkin`) に両方のフォルダ名が選択肢として一覧取得・追加されること。 |
+| **UT-SKIN-02** | `AvatarWindow::on_skinChanged` | スキンを `FishEatCatSkin` に変更・保存する。 | 1. `local_settings.json` の `"avatar_skin"` が `"FishEatCatSkin"` で保存されること。<br>2. `ObsHttpServer` の Document Root が `pic/FishEatCatSkin/` に即座に一括更新されること。 |
+
+---
+
+### 3.14 アバター画像指定3モード ＆ 状態タイマー制御 (F-24) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-ANIM-01** | `AvatarSettingsParser::parse` | `"mode": "single"` の設定項目（位置・透過含む）を読み込む。 | 単一ファイル名、`anchorX/Y`, `transparentX/Y` が正確にパースされること。 |
+| **UT-ANIM-02** | `AvatarSettingsParser::parse` | `"mode": "random"` の設定項目を読み込む。 | 画像リスト `files` が取得され、抽選呼び出し時にリスト内から1枚がランダム選択されること。 |
+| **UT-ANIM-03** | `AvatarSettingsParser::parse` | `"mode": "sequence"` の設定項目（`frame_interval_ms: 100`）を読み込む。 | 画像フレーム配列およびコマ送り速度が正しくパース・保持されること。 |
+| **UT-ANIM-04** | `AvatarAnimationScheduler` | 入力受信/AI処理/AI応答イベントが発生する。 | `listening` ➔ `thinking` ➔ `speaking` の順にそれぞれの `duration_ms` タイマーが起動し、完了後に自動で `idle` 状態へ復帰すること。 |
+

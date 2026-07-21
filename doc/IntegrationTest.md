@@ -116,5 +116,21 @@
 | **IT-RAID-02** | 「レイド・紹介」設定GUI連携 | GUIの「レイド・紹介」タブから各種設定の変更・保存、および待機中キューリスト（`m_shoutoutQueueListWidget`）の描画確認を行う。 | 1. `local_settings.json` に新キー群が正しく保存されること。<br>2. 送信待ち中ユーザーおよび残り待機秒数がGUI上にリアルタイムで一覧表示されること。 | 結合テスト |
 | **IT-RAID-03** | `/shoutout` 成功時フォロー呼びかけ | Twitch IRC から `NOTICE` (`msg-id=shoutout_success`) を擬似発火させ、`shoutout_follow_msg_enabled = true` の状態で検証する。 | テンプレート内の `{name}` が置換されたフォロー呼びかけコメントがチャットに自動投稿されること。 | 自動テスト / 結合テスト |
 
+---
+
+### 2.11 アバタースキン切替・完全同期連携 (F-23)
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-SKIN-01** | スキン切替と表示の完全同期 | 設定タブでスキンを `FishEatCatSkin` に変更して保存する。 | 1. 本アプリUI画面のアバターアセット読み込みルートが `pic/FishEatCatSkin` に切り替わること。<br>2. `ObsHttpServer` の Document Root が `pic/FishEatCatSkin/` に同期更新され、OBSブラウザソース側でもUI画面と全く同じスキンが表示されること。 | 結合テスト |
+
+---
+
+### 2.12 アバター画像指定3モード ＆ 状態タイマー連携 (F-24)
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-ANIM-01** | アニメーション＆状態遷移シナリオ | ユーザーからテキストメッセージを送信し、応答完了までのアバター表示状態を推移させる。 | `listening` (指定 `duration_ms`) ➔ `thinking` (指定 `duration_ms`) ➔ `speaking` (指定 `duration_ms`) ➔ `idle` (Front/Back/Right/Left 抽選表示) とスムーズに状態遷移し、各モード (single/random/sequence) に応じた画像表示が行われること。 | 結合テスト |
+
 
 
