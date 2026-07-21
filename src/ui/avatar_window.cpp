@@ -1,4 +1,6 @@
 #include "avatar_window.h"
+#include "avatar_skin_builder_dialog.h"
+#include <QProcess>
 #include <QFile>
 #include <QGroupBox>
 #include <QScrollArea>
@@ -1076,9 +1078,21 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     obsLayout->addRow("OBS用ファイルパス:", obsPathWidget);
 
+    QWidget *skinWidget = new QWidget(scrollContent);
+    QHBoxLayout *skinLayout = new QHBoxLayout(skinWidget);
+    skinLayout->setContentsMargins(0, 0, 0, 0);
+    skinLayout->setSpacing(8);
+
     m_comboAvatarSkin = new QComboBox(scrollContent);
     scanAvailableSkins();
-    obsLayout->addRow("アバタースキン (Skin):", m_comboAvatarSkin);
+
+    m_btnSkinBuilder = new QPushButton("新規作成 / 編集...", scrollContent);
+    connect(m_btnSkinBuilder, &QPushButton::clicked, this, &AvatarWindow::onSkinBuilderClicked);
+
+    skinLayout->addWidget(m_comboAvatarSkin, 1);
+    skinLayout->addWidget(m_btnSkinBuilder);
+
+    obsLayout->addRow("アバタースキン (Skin):", skinWidget);
 
     mainLayout->addWidget(obsGroup);
 
@@ -2739,4 +2753,21 @@ void AvatarWindow::triggerState(const QString &stateName) {
 
 void AvatarWindow::onStateDurationTimeout() {
     triggerState("idle");
+}
+
+void AvatarWindow::onSkinBuilderClicked() {
+    QString currentSkin = m_comboAvatarSkin ? m_comboAvatarSkin->currentData().toString() : "";
+    QString exePath = QCoreApplication::applicationDirPath() + "/AvatarSkinBuilder.exe";
+    if (!QFile::exists(exePath)) {
+        exePath = "AvatarSkinBuilder.exe";
+    }
+
+    bool started = QProcess::startDetached(exePath, QStringList() << currentSkin);
+    if (!started) {
+        // フォールバック: ダイアログ起動
+        AvatarSkinBuilderDialog dialog(this, currentSkin);
+        if (dialog.exec() == QDialog::Accepted) {
+            scanAvailableSkins();
+        }
+    }
 }

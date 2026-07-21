@@ -1637,3 +1637,22 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
   - `sequence`: `QTimer` で `frame_interval_ms` ごとに `files` のインデックスを進めてパラパラアニメーション表示（ループ指定可）。
 - **タイマー制御**:
   - イベント受信時（入力受領時 `Listening` / AI処理時 `Thinking` / 応答時 `Speaking`）に該当状態の `duration_ms` タイマーを起動し、タイマー完了時に自動的に `Idle`（Front/Back/Right/Left 抽選表示）へ復帰。
+
+## 10. アバタースキン自動生成・GUI編集詳細設計 (F-25)
+
+### 10.1 GUI構成クラス (`AvatarSkinBuilderDialog`)
+- **UIレイアウト**:
+  - スキン名入力フィールド (`QLineEdit`)。
+  - 各状態タブ/セクション（`Idle-Front`, `Idle-Back`, `Idle-Right`, `Idle-Left`, `Listening`, `Thinking`, `Speaking`）。
+  - モード選択 (`QComboBox`: `single` / `random` / `sequence`)。
+  - 画像ファイル一覧リスト (`QListWidget` + 「追加」「削除」ボタン)。
+  - 各種パラメータ（`frame_interval_ms`, `duration_ms`, `anchorX`, `anchorY`, `transparentX`, `transparentY`）。
+  - リアルタイムプレビュー描画領域 (`QLabel` + 十字アンカー表示描画)。
+
+### 10.2 自動生成・ファイル入出力ロジック
+- **ファイルコピー**:
+  - 選択された外部画像を `QFile::copy` で `pic/[SkinName]/` ディレクトリ内へ適切なファイル名（例: `Front01.png`, `Listening.png` 等）で保存・配置。
+- **`avatar_settings.json` の書き出し**:
+  - GUI上で設定された項目から `QJsonObject` を組み立て、`QJsonDocument::toJson()` で `pic/[SkinName]/avatar_settings.json` に上書き書き出し。
+- **`avatar_obs.html` の生成**:
+  - アプリ組み込みの標準テンプレート文字列を `pic/[SkinName]/avatar_obs.html` に出力作成。

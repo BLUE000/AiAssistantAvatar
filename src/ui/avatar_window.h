@@ -208,6 +208,7 @@ private:
     bool m_isProcessingAI = false;
 
     QComboBox *m_comboAvatarSkin = nullptr;
+    QPushButton *m_btnSkinBuilder = nullptr;
     AvatarSkinConfig m_skinConfig;
     QTimer *m_stateTimer = nullptr;
     QTimer *m_sequenceTimer = nullptr;
@@ -221,6 +222,7 @@ private:
     void triggerState(const QString &stateName);
     void onStateDurationTimeout();
     void onSequenceFrameTimeout();
+    void onSkinBuilderClicked();
 
     void enqueueRequest(const QString &text, const QString &user = "");
     void processNextRequest();

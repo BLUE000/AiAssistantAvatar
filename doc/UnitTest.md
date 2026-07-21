@@ -252,3 +252,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-ANIM-03** | `AvatarSettingsParser::parse` | `"mode": "sequence"` の設定項目（`frame_interval_ms: 100`）を読み込む。 | 画像フレーム配列およびコマ送り速度が正しくパース・保持されること。 |
 | **UT-ANIM-04** | `AvatarAnimationScheduler` | 入力受信/AI処理/AI応答イベントが発生する。 | `listening` ➔ `thinking` ➔ `speaking` の順にそれぞれの `duration_ms` タイマーが起動し、完了後に自動で `idle` 状態へ復帰すること。 |
 
+---
+
+### 3.15 アバタースキン自動生成・GUI編集機能 (F-25) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-BUILDER-01** | `AvatarSkinBuilder::generateSkinDir` | 新規スキン名 `"MyCustomSkin"` を指定して保存処理を実行。 | `pic/MyCustomSkin/` ディレクトリが生成され、指定された画像ファイルが正常にコピー配置されること。 |
+| **UT-BUILDER-02** | `AvatarSkinBuilder::generateSettingsJson` | GUI上で設定された各状態のモード・ファイルリスト・座標・時間を渡して生成。 | 正しい構造の `avatar_settings.json` が `pic/MyCustomSkin/` 内にパースエラー無く書き出されること。 |
+| **UT-BUILDER-03** | `AvatarSkinBuilder::generateObsHtml` | 新規スキンの保存処理を実行。 | `pic/MyCustomSkin/avatar_obs.html` がテンプレートから正常に生成・配置されること。 |
+

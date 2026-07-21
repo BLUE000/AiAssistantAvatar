@@ -281,3 +281,18 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
   - `thinking`: AI処理/検索中に指定された表示時間 (`duration_ms`) 表示する。
   - `speaking`: AI応答出力/読み上げ時に指定された表示時間 (`duration_ms`) 表示する。
   - 各状態の表示時間が経過した後は、自動的に `idle` 状態へ遷移する。
+
+### F-25: アバタースキン自動生成・GUI編集ツール (AvatarSkinBuilder.exe)
+- **独立単体ツール (AvatarSkinBuilder.exe)**:
+  - 本アプリ (`AiAssistantAvatar.exe`) とは独立して単体で起動・動作するアバタースキン作成・編集用ツール (`AvatarSkinBuilder.exe`) を提供する。
+  - 本アプリの「設定」タブのボタンからも外部プロセスとして即座に起動可能とする。
+  - ユーザーが作成したいスキン名（例: `MyCustomSkin`）を入力し、各状態・方向（Front, Back, Right, Left, Listening, Thinking, Speaking）の画像ファイルを選択・割り当て可能なUI画面を提供する。
+  - 画像表示モード（単一 `single` / ランダム `random` / アニメーション `sequence`）、コマ送り速度 (`frame_interval_ms`)、および状態表示秒数 (`duration_ms`) を画面から直感的に設定可能とする。
+- **自動生成・アセット配置エンジン**:
+  - 「スキンを自動生成して保存」ボタン押下により、`pic/[SkinName]/` ディレクトリを自動作成し、指定された画像ファイルを同ディレクトリへ安全にコピー・配置する。
+  - 構造を満たす `avatar_settings.json` および OBS表示用の `avatar_obs.html` をテンプレ―トから自動生成・配置する。
+- **GUIプレビュー ＆ インタラクティブ調整**:
+  - 設定中のスキン画像をリアルタイムで画面上にプレビュー表示する。
+  - マウス操作または数値指定により、アバターのアンカー位置 (`anchorX`, `anchorY`) およびクロマキー透過基準ピクセル (`transparentX`, `transparentY`) をインタラクティブに微調整・即時反映可能とする。
+- **既存スキンのUI読み込み・編集・再保存**:
+  - 既存のスキン（`FishEatCatSkin` や自作スキン）の `avatar_settings.json` をUI上に読み込み、画像ファイルの差し替え、パラメータの変更、位置調整を行い、上書き保存または別名スキンとして保存可能とする。

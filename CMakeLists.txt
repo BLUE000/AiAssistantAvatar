@@ -36,6 +36,7 @@ set(SOURCES
     src/main.cpp
     src/core_module.cpp
     src/ui/avatar_window.cpp
+    src/ui/avatar_skin_builder_dialog.cpp
     src/twitch/twitch_reader.cpp
     src/stt/stt_manager.cpp
     src/stt/istt_engine.cpp
@@ -93,6 +94,15 @@ target_link_libraries(AiAssistantAvatar PRIVATE
 # TrustChain セットアップ (魔法の3行の適用)
 trustchain_setup_target(AiAssistantAvatar)
 target_link_libraries(AiAssistantAvatar PRIVATE trustchain)
+
+# 独立EXEツール: AvatarSkinBuilder
+set(SKIN_BUILDER_SOURCES
+    src/skin_builder_main.cpp
+    src/ui/avatar_skin_builder_dialog.cpp
+)
+add_executable(AvatarSkinBuilder WIN32 ${SKIN_BUILDER_SOURCES})
+target_include_directories(AvatarSkinBuilder PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(AvatarSkinBuilder PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 
 # テストビルドの有効化
 enable_testing()

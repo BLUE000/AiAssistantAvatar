@@ -132,5 +132,13 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-ANIM-01** | アニメーション＆状態遷移シナリオ | ユーザーからテキストメッセージを送信し、応答完了までのアバター表示状態を推移させる。 | `listening` (指定 `duration_ms`) ➔ `thinking` (指定 `duration_ms`) ➔ `speaking` (指定 `duration_ms`) ➔ `idle` (Front/Back/Right/Left 抽選表示) とスムーズに状態遷移し、各モード (single/random/sequence) に応じた画像表示が行われること。 | 結合テスト |
 
+---
+
+### 2.13 アバタースキン自動生成・GUI編集連携 (F-25)
+
+| 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
+| :--- | :--- | :--- | :--- | :--- |
+| **IT-BUILDER-01** | スキン自動生成とGUI設定連動 | 「アバタースキン作成・編集」ダイアログで新規スキン `"MyCustomSkin"` を作成・保存する。 | 1. `pic/MyCustomSkin/` ディレクトリ内に画像・`avatar_settings.json`・`avatar_obs.html` が全自動生成されること。<br>2. メインウィンドウのスキン選択 QComboBox に `"MyCustomSkin"` が即座に追加・選択可能になること。 | 結合テスト |
+
 
 
