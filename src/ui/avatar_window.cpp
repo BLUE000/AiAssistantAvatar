@@ -1908,39 +1908,36 @@ void AvatarWindow::broadcastToOBS(const QJsonObject &json) {
 }
 
 void AvatarWindow::notifyAvatarChanged() {
-    // 現在の画像ファイル名を取得
-    QString currentImgPath;
-    if (m_isFrontVariantMode) {
-        if (m_allVariantGroups.contains(m_activeVariantGroupName)) {
-            const auto &entries = m_allVariantGroups[m_activeVariantGroupName].entries;
-            if (m_currentFrontIndex >= 0 && m_currentFrontIndex < entries.size()) {
-                currentImgPath = entries[m_currentFrontIndex].filePath;
-            }
-        }
-    } else if (!m_currentAnimation.isEmpty() && m_animations.contains(m_currentAnimation)) {
-        const auto &frames = m_animations[m_currentAnimation].frames;
-        if (m_animFrameIndex >= 0 && m_animFrameIndex < frames.size()) {
-            currentImgPath = frames[m_animFrameIndex];
-        }
-    } else if (m_imageSettings.contains(m_currentState)) {
-        currentImgPath = m_imageSettings[m_currentState].filePath;
+    // 現在アクティブな SkinImageSetting (F-24) から表示中の画像ファイル名を取得
+    QString filename;
+    if (m_currentActiveSetting.mode == ImageDisplayMode::Single) {
+        filename = QFileInfo(m_currentActiveSetting.singleFile).fileName();
+    } else if (!m_currentActiveSetting.files.isEmpty()) {
+        int index = qBound(0, m_sequenceFrameIndex, m_currentActiveSetting.files.size() - 1);
+        filename = QFileInfo(m_currentActiveSetting.files.at(index)).fileName();
     }
 
-    QString filename = QFileInfo(currentImgPath).fileName();
-    
-    // 設定されているアンカー座標を取得
-    int anchorX = 100;
-    int anchorY = 100;
-    if (m_isFrontVariantMode && m_allVariantGroups.contains(m_activeVariantGroupName)) {
-        anchorX = m_allVariantGroups[m_activeVariantGroupName].anchorX;
-        anchorY = m_allVariantGroups[m_activeVariantGroupName].anchorY;
-    } else if (!m_currentAnimation.isEmpty() && m_animations.contains(m_currentAnimation)) {
-        anchorX = m_animations[m_currentAnimation].anchorX;
-        anchorY = m_animations[m_currentAnimation].anchorY;
-    } else if (m_imageSettings.contains(m_currentState)) {
-        anchorX = m_imageSettings[m_currentState].anchorX;
-        anchorY = m_imageSettings[m_currentState].anchorY;
+    // 旧変数からのフォールバック
+    if (filename.isEmpty()) {
+        if (m_isFrontVariantMode) {
+            if (m_allVariantGroups.contains(m_activeVariantGroupName)) {
+                const auto &entries = m_allVariantGroups[m_activeVariantGroupName].entries;
+                if (m_currentFrontIndex >= 0 && m_currentFrontIndex < entries.size()) {
+                    filename = QFileInfo(entries[m_currentFrontIndex].filePath).fileName();
+                }
+            }
+        } else if (!m_currentAnimation.isEmpty() && m_animations.contains(m_currentAnimation)) {
+            const auto &frames = m_animations[m_currentAnimation].frames;
+            if (m_animFrameIndex >= 0 && m_animFrameIndex < frames.size()) {
+                filename = QFileInfo(frames[m_animFrameIndex]).fileName();
+            }
+        } else if (m_imageSettings.contains(m_currentState)) {
+            filename = QFileInfo(m_imageSettings[m_currentState].filePath).fileName();
+        }
     }
+
+    int anchorX = m_currentActiveSetting.anchorX > 0 ? m_currentActiveSetting.anchorX : 100;
+    int anchorY = m_currentActiveSetting.anchorY > 0 ? m_currentActiveSetting.anchorY : 100;
 
     QJsonObject obj;
     obj["type"] = "AvatarChanged";
@@ -2728,6 +2725,7 @@ void AvatarWindow::onSequenceFrameTimeout() {
         m_sequenceFrameIndex++;
     }
     loadAndSetPixmap(filePath, m_currentActiveSetting.anchorX, m_currentActiveSetting.anchorY, m_currentActiveSetting.transparentX, m_currentActiveSetting.transparentY);
+    notifyAvatarChanged();
 }
 
 void AvatarWindow::triggerState(const QString &stateName) {

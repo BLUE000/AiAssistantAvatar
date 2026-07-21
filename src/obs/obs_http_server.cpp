@@ -183,7 +183,7 @@ void ObsHttpServer::handleRequest(QTcpSocket *socket, const QString &requestStr)
 #include <QBuffer>
 #include <QQueue>
 
-static QByteArray processImageTransparency(const QString &filePath) {
+static QByteArray processImageTransparency(const QString &filePath, int tx = 0, int ty = 0) {
     QImage image(filePath);
     if (image.isNull()) return QByteArray();
 
@@ -191,38 +191,36 @@ static QByteArray processImageTransparency(const QString &filePath) {
     int width  = image.width();
     int height = image.height();
 
-    // 背景色（緑クロマキー color(0,255,0)）の特定
-    QRgb targetColor = image.pixel(0, 0);
-    QList<QPoint> corners = {
-        QPoint(0, 0),
-        QPoint(width - 1, 0),
-        QPoint(0, height - 1),
-        QPoint(width - 1, height - 1)
-    };
-
-    for (const QPoint &c : corners) {
-        QRgb col = image.pixel(c);
-        if (qGreen(col) > qRed(col) && qGreen(col) > qBlue(col)) {
-            targetColor = col;
-            break;
-        }
+    if (tx < 0 || tx >= width || ty < 0 || ty >= height) {
+        tx = 0; ty = 0;
     }
+
+    // 指定座標 (tx, ty) のピクセル色を基準透過色として取得
+    QRgb targetColor = image.pixel(tx, ty);
 
     int tR = qRed(targetColor);
     int tG = qGreen(targetColor);
     int tB = qBlue(targetColor);
 
-    const int kTolerance = 50;
+    const int kTolerance = 40;
     auto isSimilar = [&](QRgb c) -> bool {
         return qAbs(qRed(c)   - tR) <= kTolerance &&
                qAbs(qGreen(c) - tG) <= kTolerance &&
                qAbs(qBlue(c)  - tB) <= kTolerance;
     };
 
+    QList<QPoint> seedPoints = {
+        QPoint(tx, ty),
+        QPoint(0, 0),
+        QPoint(width - 1, 0),
+        QPoint(0, height - 1),
+        QPoint(width - 1, height - 1)
+    };
+
     QQueue<QPoint> queue;
     QVector<QVector<bool>> visited(width, QVector<bool>(height, false));
 
-    for (const QPoint &pt : corners) {
+    for (const QPoint &pt : seedPoints) {
         if (isSimilar(image.pixel(pt))) {
             queue.enqueue(pt);
             visited[pt.x()][pt.y()] = true;
