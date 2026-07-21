@@ -2774,12 +2774,12 @@ void AvatarWindow::triggerState(const QString &stateName) {
         if (!m_idleTimer) {
             m_idleTimer = new QTimer(this);
             connect(m_idleTimer, &QTimer::timeout, this, [this]() {
-                if (m_avatarState == "idle") {
+                if (m_currentState == "idle") {
                     triggerState("idle");
                 }
             });
         }
-        int interval = m_skinConfig.idleIntervalMs > 0 ? m_skinConfig.idleIntervalMs : 15000;
+        int interval = (m_skinConfig.idleIntervalMs > 0 && m_skinConfig.idleIntervalMs != 15000) ? m_skinConfig.idleIntervalMs : 3500;
         m_idleTimer->start(interval);
     }
 }
