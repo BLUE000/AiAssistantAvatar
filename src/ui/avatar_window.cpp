@@ -2779,7 +2779,7 @@ void AvatarWindow::triggerState(const QString &stateName) {
                 }
             });
         }
-        int interval = (m_skinConfig.idleIntervalMs > 0 && m_skinConfig.idleIntervalMs != 15000) ? m_skinConfig.idleIntervalMs : 3500;
+        int interval = m_skinConfig.idleIntervalMs > 0 ? m_skinConfig.idleIntervalMs : 7500;
         m_idleTimer->start(interval);
     }
 }

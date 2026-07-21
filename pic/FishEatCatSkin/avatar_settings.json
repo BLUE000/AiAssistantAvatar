@@ -1,6 +1,6 @@
 {
     "idle": {
-        "interval_ms": 15000,
+        "interval_ms": 8000,
         "front": {
             "mode": "random",
             "files": ["Front01.png", "Front02.png", "Front03.png", "Front04.png", "Front05.png"],
