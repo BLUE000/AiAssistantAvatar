@@ -1,7 +1,0 @@
-# Test Blacklist
-暴力
-badword
-baka
-f
-shit
-ass
