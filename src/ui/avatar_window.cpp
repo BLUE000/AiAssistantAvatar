@@ -2616,10 +2616,14 @@ void AvatarWindow::loadSkin(const QString &skinName) {
                     s.mode = ImageDisplayMode::Single;
                 }
 
-                s.singleFile = dir + "/" + obj["file"].toString();
+                if (obj.contains("file") && !obj["file"].toString().trimmed().isEmpty()) {
+                    s.singleFile = dir + "/" + obj["file"].toString();
+                }
                 if (obj.contains("files") && obj["files"].isArray()) {
                     for (const QJsonValue &v : obj["files"].toArray()) {
-                        s.files.append(dir + "/" + v.toString());
+                        if (!v.toString().trimmed().isEmpty()) {
+                            s.files.append(dir + "/" + v.toString());
+                        }
                     }
                 }
                 if (obj.contains("sequences") && obj["sequences"].isArray()) {
@@ -2627,9 +2631,11 @@ void AvatarWindow::loadSkin(const QString &skinName) {
                         if (seqVal.isArray()) {
                             QVector<QString> frames;
                             for (const QJsonValue &v : seqVal.toArray()) {
-                                frames.append(dir + "/" + v.toString());
+                                if (!v.toString().trimmed().isEmpty()) {
+                                    frames.append(dir + "/" + v.toString());
+                                }
                             }
-                            s.sequences.append(frames);
+                            if (!frames.isEmpty()) s.sequences.append(frames);
                         }
                     }
                 }
@@ -2661,7 +2667,7 @@ void AvatarWindow::loadSkin(const QString &skinName) {
 }
 
 void AvatarWindow::loadAndSetPixmap(const QString &filePath, int anchorX, int anchorY, int transparentX, int transparentY) {
-    if (!QFile::exists(filePath)) {
+    if (filePath.isEmpty() || !QFile::exists(filePath)) {
         return;
     }
     QPixmap px = applyTransparency(filePath, transparentX, transparentY);
@@ -2692,23 +2698,35 @@ void AvatarWindow::applyImageSetting(const SkinImageSetting &setting) {
     }
 
     if (setting.mode == ImageDisplayMode::Random && !setting.files.isEmpty()) {
-        int idx = QRandomGenerator::global()->bounded(setting.files.size());
-        QString filePath = setting.files.at(idx);
-        loadAndSetPixmap(filePath, setting.anchorX, setting.anchorY, setting.transparentX, setting.transparentY);
-    } else {
-        QString filePath = setting.singleFile.isEmpty() ? (!setting.files.isEmpty() ? setting.files.first() : "") : setting.singleFile;
-        loadAndSetPixmap(filePath, setting.anchorX, setting.anchorY, setting.transparentX, setting.transparentY);
+        if (!m_sequenceTimer) {
+            m_sequenceTimer = new QTimer(this);
+            connect(m_sequenceTimer, &QTimer::timeout, this, &AvatarWindow::onSequenceFrameTimeout);
+        }
+        int interval = setting.frameIntervalMs > 0 ? setting.frameIntervalMs : 2000;
+        m_sequenceTimer->start(interval);
+        onSequenceFrameTimeout();
+        return;
     }
+
+    QString filePath = !setting.singleFile.isEmpty() ? setting.singleFile : (!setting.files.isEmpty() ? setting.files.first() : "");
+    loadAndSetPixmap(filePath, setting.anchorX, setting.anchorY, setting.transparentX, setting.transparentY);
 }
 
 void AvatarWindow::onSequenceFrameTimeout() {
     if (m_currentActiveSetting.files.isEmpty()) return;
-    if (m_sequenceFrameIndex >= m_currentActiveSetting.files.size()) {
-        m_sequenceFrameIndex = 0;
+
+    QString filePath;
+    if (m_currentActiveSetting.mode == ImageDisplayMode::Random) {
+        int idx = QRandomGenerator::global()->bounded(m_currentActiveSetting.files.size());
+        filePath = m_currentActiveSetting.files.at(idx);
+    } else {
+        if (m_sequenceFrameIndex >= m_currentActiveSetting.files.size()) {
+            m_sequenceFrameIndex = 0;
+        }
+        filePath = m_currentActiveSetting.files.at(m_sequenceFrameIndex);
+        m_sequenceFrameIndex++;
     }
-    QString filePath = m_currentActiveSetting.files.at(m_sequenceFrameIndex);
     loadAndSetPixmap(filePath, m_currentActiveSetting.anchorX, m_currentActiveSetting.anchorY, m_currentActiveSetting.transparentX, m_currentActiveSetting.transparentY);
-    m_sequenceFrameIndex++;
 }
 
 void AvatarWindow::triggerState(const QString &stateName) {
