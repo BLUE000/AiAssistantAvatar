@@ -2639,7 +2639,7 @@ void AvatarWindow::loadSkin(const QString &skinName) {
                         }
                     }
                 }
-                s.frameIntervalMs = obj["frame_interval_ms"].toInt(150);
+                s.frameIntervalMs = obj["frame_interval_ms"].toInt(s.mode == ImageDisplayMode::Random ? 3500 : 250);
                 s.durationMs = obj["duration_ms"].toInt(1000);
                 s.anchorX = obj["anchorX"].toInt(100);
                 s.anchorY = obj["anchorY"].toInt(100);
@@ -2650,7 +2650,7 @@ void AvatarWindow::loadSkin(const QString &skinName) {
 
             if (root.contains("idle") && root["idle"].isObject()) {
                 QJsonObject idleObj = root["idle"].toObject();
-                m_skinConfig.idleIntervalMs = idleObj["interval_ms"].toInt(15000);
+                m_skinConfig.idleIntervalMs = idleObj["interval_ms"].toInt(8000);
                 if (idleObj.contains("front")) m_skinConfig.idleFront = parseSetting(idleObj["front"].toObject(), skinDir);
                 if (idleObj.contains("back")) m_skinConfig.idleBack = parseSetting(idleObj["back"].toObject(), skinDir);
                 if (idleObj.contains("right")) m_skinConfig.idleRight = parseSetting(idleObj["right"].toObject(), skinDir);
@@ -2691,7 +2691,8 @@ void AvatarWindow::applyImageSetting(const SkinImageSetting &setting) {
                 m_sequenceTimer = new QTimer(this);
                 connect(m_sequenceTimer, &QTimer::timeout, this, &AvatarWindow::onSequenceFrameTimeout);
             }
-            m_sequenceTimer->start(setting.frameIntervalMs > 0 ? setting.frameIntervalMs : 150);
+            int interval = setting.frameIntervalMs > 0 ? setting.frameIntervalMs : 250;
+            m_sequenceTimer->start(interval);
             onSequenceFrameTimeout();
             return;
         }
@@ -2702,7 +2703,7 @@ void AvatarWindow::applyImageSetting(const SkinImageSetting &setting) {
             m_sequenceTimer = new QTimer(this);
             connect(m_sequenceTimer, &QTimer::timeout, this, &AvatarWindow::onSequenceFrameTimeout);
         }
-        int interval = setting.frameIntervalMs > 0 ? setting.frameIntervalMs : 2000;
+        int interval = setting.frameIntervalMs >= 1000 ? setting.frameIntervalMs : 3500;
         m_sequenceTimer->start(interval);
         onSequenceFrameTimeout();
         return;
