@@ -1,25 +1,67 @@
-# ===================================================
-# AiAssistantAvatar 文脈保護・安全キーワード設定
-# [単語/正規表現] , [文脈カテゴリ] , [減算スコア]
-# ===================================================
+# ==============================================================================
+# AiAssistantAvatar 文脈保護・安全キーワード設定 (ホワイトリスト)
+# 書式: [単語または正規表現] , [文脈カテゴリ] , [減算スコア]
+# カテゴリ一覧:
+#   - game_context   : ゲームタイトル・ゲーム用語・ゲーム文脈
+#   - tech_context   : IT・プログラミング・技術用語
+#   - emotion_context: 日常の感情表現・俗語・強調表現
+#   - travel_context : 観光・旅行・地理・文化
+#   - history_context: 歴史・学術・教育
+# ==============================================================================
 
-# ゲームタイトル・ゲーム文脈 (game_context)
+# 1. ゲームタイトル・ゲーム用語・ゲーム文脈 (game_context)
 Elin, game_context, 40
 RimWorld, game_context, 40
 Minecraft, game_context, 40
 GTA, game_context, 40
 Apex, game_context, 40
 VALORANT, game_context, 40
+Fortnite, game_context, 40
+Cyberpunk, game_context, 40
+PUBG, game_context, 40
+Palworld, game_context, 40
 ゲーム, game_context, 30
+実況, game_context, 30
+配信, game_context, 30
 ボス, game_context, 30
 クエスト, game_context, 30
+クラフト, game_context, 30
+ダンジョン, game_context, 30
+プレイスタイル, game_context, 30
+Kill数, game_context, 40
+キルストリーク, game_context, 40
 
-# 技術・用語文脈 (tech_context)
+# 2. 技術・IT・プログラミング用語 (tech_context)
 kill process, tech_context, 50
 suicide burn, tech_context, 50
 class, tech_context, 40
+execute, tech_context, 40
+terminate, tech_context, 40
+abort, tech_context, 40
 
-# 感情表現文脈 (emotion_context)
+# 3. 日常の感情表現・強調表現 (emotion_context)
 死ぬほど, emotion_context, 40
 笑い死ぬ, emotion_context, 40
 ヤバい, emotion_context, 20
+ウケる, emotion_context, 20
+最高, emotion_context, 20
+神ゲー, emotion_context, 30
+
+# 4. 観光・旅行・文化・地理 (travel_context)
+旅行, travel_context, 30
+観光, travel_context, 30
+行き方, travel_context, 30
+パスポート, travel_context, 30
+飛行機, travel_context, 30
+ホテル, travel_context, 30
+名物, travel_context, 30
+グルメ, travel_context, 30
+ディズニー, travel_context, 30
+
+# 5. 歴史・学術・教育 (history_context)
+歴史, history_context, 30
+世界史, history_context, 30
+日本史, history_context, 30
+文化, history_context, 30
+教科書, history_context, 30
+研究, history_context, 30

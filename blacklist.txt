@@ -1,33 +1,86 @@
-# ===================================================
-# AiAssistantAvatar 多層スコア判定フィルタリング設定
-# [単語/正規表現] , [カテゴリ] , [加算スコア]
-# ===================================================
+# ==============================================================================
+# AiAssistantAvatar 多層スコア判定フィルタリング設定 (ブラックリスト)
+# 書式: [単語または正規表現] , [カテゴリ] , [加算スコア]
+# カテゴリ一覧:
+#   - drug         : 薬物・違法物質
+#   - violence     : 暴力・流血・攻撃行為
+#   - sexual       : 性的・わいせつ表現
+#   - hate         : 差別・ヘイトスピーチ・中傷
+#   - self_harm    : 自傷・自殺
+#   - politics     : 政治・軍事・戦争・国際紛争・宗教 (中立検索モードが発動)
+#   - instruction  : 違法行為・危険行為の手順・作り方・買い方の教示 (※過去文脈保護が無効化)
+#   - personal_info: 個人情報流出 (※一発 BLOCK)
+# ==============================================================================
 
-# 薬物関連 (drug)
+# 1. 危険意図・教示 (instruction) ※脱獄防止ガード対象
+作り方を教えて, instruction, 50
+買い方を教えて, instruction, 50
+購入方法, instruction, 40
+入手方法, instruction, 40
+密売方法, instruction, 60
+調合方法, instruction, 60
+爆破手順, instruction, 70
+サイバー攻撃手法, instruction, 70
+ハッキング方法, instruction, 60
+
+# 2. 個人情報流出 (personal_info) ※一発 BLOCK
+電話番号, personal_info, 100
+マイナンバー, personal_info, 100
+クレジットカード番号, personal_info, 100
+住所を教えて, personal_info, 100
+本名を教えて, personal_info, 90
+
+# 3. 薬物・違法物質 (drug)
 覚醒剤, drug, 40
 麻薬, drug, 40
 大麻, drug, 40
+コカイン, drug, 40
+ヘロイン, drug, 40
+危険ドラッグ, drug, 40
+密売, drug, 40
+オーバードーズ, drug, 40
 
-# 暴力関連 (violence)
+# 4. 暴力・攻撃行為 (violence)
 殺す, violence, 30
+殺害, violence, 30
 爆破, violence, 40
+放火, violence, 40
 テロ, violence, 50
+殴打, violence, 30
+拷問, violence, 50
+リンチ, violence, 40
 
-# 危険意図・教示 (instruction) - ※過去履歴の減点保護が無効化されます
-作り方を教えて, instruction, 50
-買い方, instruction, 50
-密売方法, instruction, 60
-爆破手順, instruction, 70
+# 5. 自傷・自殺 (self_harm)
+自殺, self_harm, 60
+自傷, self_harm, 50
+リスカ, self_harm, 50
+首吊り, self_harm, 60
+自殺方法, self_harm, 70
 
-# 政治・宗教・繊細話題 (politics, religion) - ※自動検索と中立プロンプトが適用されます
-政治, politics, 20
-選挙, politics, 20
-ロシア, politics, 20
-ウクライナ, politics, 20
-戦争, politics, 20
+# 6. 差別・ヘイト (hate)
+ヘイトスピーチ, hate, 70
+死ね, hate, 50
+消えろ, hate, 40
+殺してやる, hate, 60
+
+# 7. 政治・軍事・戦争・国際紛争・宗教 (politics / religion) ※国名単体ではなく行為・事象ベース
+戦争, politics, 30
+開戦, politics, 30
+侵攻, politics, 30
+紛争, politics, 30
+軍事介入, politics, 30
+ミサイル発射, politics, 30
+安全保障, politics, 20
+経済制裁, politics, 20
+領土問題, politics, 20
+内戦, politics, 30
+クーデター, politics, 30
+政治, politics, 15
+政府, politics, 15
+選挙, politics, 15
+外交関係, politics, 15
+国際情勢, politics, 15
+どうなの, politics, 10
+現状は, politics, 10
 宗教, religion, 20
-
-# 個人情報流出 (personal_info) - ※一発 BLOCK
-電話番号, personal_info, 100
-マイナンバー, personal_info, 100
-住所を教えて, personal_info, 100
+改宗, religion, 20
