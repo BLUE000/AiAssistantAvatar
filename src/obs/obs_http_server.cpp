@@ -179,22 +179,106 @@ void ObsHttpServer::handleRequest(QTcpSocket *socket, const QString &requestStr)
     sendFileResponse(socket, canonicalPath);
 }
 
-void ObsHttpServer::sendFileResponse(QTcpSocket *socket, const QString &filePath) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        sendErrorResponse(socket, 500, "Internal Server Error", "Failed to open file");
-        return;
+#include <QImage>
+#include <QBuffer>
+#include <QQueue>
+
+static QByteArray processImageTransparency(const QString &filePath) {
+    QImage image(filePath);
+    if (image.isNull()) return QByteArray();
+
+    image = image.convertToFormat(QImage::Format_ARGB32);
+    int width  = image.width();
+    int height = image.height();
+
+    // 背景色（緑クロマキー color(0,255,0)）の特定
+    QRgb targetColor = image.pixel(0, 0);
+    QList<QPoint> corners = {
+        QPoint(0, 0),
+        QPoint(width - 1, 0),
+        QPoint(0, height - 1),
+        QPoint(width - 1, height - 1)
+    };
+
+    for (const QPoint &c : corners) {
+        QRgb col = image.pixel(c);
+        if (qGreen(col) > qRed(col) && qGreen(col) > qBlue(col)) {
+            targetColor = col;
+            break;
+        }
     }
 
-    QByteArray body = file.readAll();
-    file.close();
+    int tR = qRed(targetColor);
+    int tG = qGreen(targetColor);
+    int tB = qBlue(targetColor);
 
+    const int kTolerance = 50;
+    auto isSimilar = [&](QRgb c) -> bool {
+        return qAbs(qRed(c)   - tR) <= kTolerance &&
+               qAbs(qGreen(c) - tG) <= kTolerance &&
+               qAbs(qBlue(c)  - tB) <= kTolerance;
+    };
+
+    QQueue<QPoint> queue;
+    QVector<QVector<bool>> visited(width, QVector<bool>(height, false));
+
+    for (const QPoint &pt : corners) {
+        if (isSimilar(image.pixel(pt))) {
+            queue.enqueue(pt);
+            visited[pt.x()][pt.y()] = true;
+        }
+    }
+
+    static const int dx[] = { 1, -1, 0, 0 };
+    static const int dy[] = { 0, 0, 1, -1 };
+
+    while (!queue.isEmpty()) {
+        QPoint pt = queue.dequeue();
+        image.setPixel(pt, qRgba(0, 0, 0, 0));
+
+        for (int i = 0; i < 4; ++i) {
+            int nx = pt.x() + dx[i];
+            int ny = pt.y() + dy[i];
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                if (!visited[nx][ny]) {
+                    visited[nx][ny] = true;
+                    if (isSimilar(image.pixel(nx, ny))) {
+                        queue.enqueue(QPoint(nx, ny));
+                    }
+                }
+            }
+        }
+    }
+
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "PNG");
+    return bytes;
+}
+
+void ObsHttpServer::sendFileResponse(QTcpSocket *socket, const QString &filePath) {
     // MIMEタイプの決定
     QMimeDatabase mimeDb;
     QMimeType mime = mimeDb.mimeTypeForFile(filePath);
     QString contentType = mime.name();
     if (contentType.isEmpty()) {
         contentType = "application/octet-stream";
+    }
+
+    QByteArray body;
+    if (filePath.endsWith(".png", Qt::CaseInsensitive) || filePath.endsWith(".jpg", Qt::CaseInsensitive)) {
+        body = processImageTransparency(filePath);
+    }
+
+    if (body.isEmpty()) {
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            sendErrorResponse(socket, 500, "Internal Server Error", "Failed to open file");
+            return;
+        }
+        body = file.readAll();
+        file.close();
     }
 
     sendResponse(socket, 200, "OK", body, contentType);
