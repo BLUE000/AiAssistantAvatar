@@ -22,6 +22,11 @@
 爆破手順, instruction, 70
 サイバー攻撃手法, instruction, 70
 ハッキング方法, instruction, 60
+作り方, instruction, 50
+やり方, instruction, 50
+手順, instruction, 40
+チュートリアル, instruction, 40
+ガイド, instruction, 40
 
 # 2. 個人情報流出 (personal_info) ※一発 BLOCK
 電話番号, personal_info, 100
@@ -29,6 +34,11 @@
 クレジットカード番号, personal_info, 100
 住所を教えて, personal_info, 100
 本名を教えて, personal_info, 90
+メールアドレス, personal_info, 90
+パスワード, personal_info, 90
+銀行口座, personal_info, 100
+暗証番号, personal_info, 90
+SNSアカウント, personal_info, 80
 
 # 3. 薬物・違法物質 (drug)
 覚醒剤, drug, 40
@@ -39,6 +49,15 @@
 危険ドラッグ, drug, 40
 密売, drug, 40
 オーバードーズ, drug, 40
+マリファナ, drug, 40
+シナ, drug, 40
+コケ, drug, 40
+シャブ, drug, 40
+エクスタシー, drug, 40
+MDMA, drug, 40
+LSD, drug, 40
+キノコ, drug, 40
+トリップ, drug, 30
 
 # 4. 暴力・攻撃行為 (violence)
 殺す, violence, 30
@@ -49,6 +68,16 @@
 殴打, violence, 30
 拷問, violence, 50
 リンチ, violence, 40
+殴る, violence, 30
+襲う, violence, 30
+殺し, violence, 30
+爆弾, violence, 40
+銃, violence, 40
+ナイフ, violence, 30
+強盗, violence, 40
+誘拐, violence, 50
+レープ, violence, 50
+強姦, violence, 50
 
 # 5. 自傷・自殺 (self_harm)
 自殺, self_harm, 60
@@ -56,12 +85,25 @@
 リスカ, self_harm, 50
 首吊り, self_harm, 60
 自殺方法, self_harm, 70
+自ら命を絶つ, self_harm, 60
+命を捨てる, self_harm, 60
+死にたい, self_harm, 50
+生きるのが辛い, self_harm, 40
+リストカット, self_harm, 50
+手首を切る, self_harm, 60
 
 # 6. 差別・ヘイト (hate)
 ヘイトスピーチ, hate, 70
 死ね, hate, 50
 消えろ, hate, 40
 殺してやる, hate, 60
+クソ, hate, 30
+カス, hate, 30
+キチガイ, hate, 40
+バカ, hate, 20
+アホ, hate, 20
+死ねばいい, hate, 50
+いなくなれ, hate, 40
 
 # 7. 政治・軍事・戦争・国際紛争・宗教 (politics / religion) ※国名単体ではなく行為・事象ベース
 戦争, politics, 30
@@ -84,3 +126,60 @@
 現状は, politics, 10
 宗教, religion, 20
 改宗, religion, 20
+戦争を始める, politics, 40
+戦争を仕掛ける, politics, 40
+テロリスト, politics, 50
+過激派, politics, 40
+極右, politics, 30
+極左, politics, 30
+排除, religion, 30
+異端, religion, 30
+
+# 8. 卑猥・性的表現関連
+セックス, sexual_content, 50
+性行為, sexual_content, 50
+エッチ, sexual_content, 40
+H, sexual_content, 40
+AV, sexual_content, 40
+ポルノ, sexual_content, 50
+アダルト, sexual_content, 40
+風俗, sexual_content, 40
+売春, sexual_content, 50
+性器, sexual_content, 50
+オナニー, sexual_content, 40
+自慰, sexual_content, 40
+フェラ, sexual_content, 50
+クンニ, sexual_content, 50
+パイパン, sexual_content, 40
+チンポ, sexual_content, 50
+マンコ, sexual_content, 50
+ウンチ, sexual_content, 30
+シックスナイン, sexual_content, 50
+SM, sexual_content, 40
+Bondage, sexual_content, 40
+ロリ, sexual_content, 70
+ショタ, sexual_content, 70
+幼児ポルノ, sexual_content, 100
+児童ポルノ, sexual_content, 100
+強姦, sexual_content, 70
+レイプ, sexual_content, 70
+性的暴行, sexual_content, 70
+ハレンチ, sexual_content, 30
+エロ, sexual_content, 30
+エロい, sexual_content, 30
+裸, sexual_content, 30
+全裸, sexual_content, 40
+ノーパン, sexual_content, 40
+パンチラ, sexual_content, 30
+乳首, sexual_content, 40
+お尻, sexual_content, 30
+性感, sexual_content, 30
+性欲, sexual_content, 30
+精液, sexual_content, 40
+ザーメン, sexual_content, 40
+射精, sexual_content, 40
+オーガズム, sexual_content, 40
+イキ, sexual_content, 40
+ヤル, sexual_content, 50
+やる, sexual_content, 40
+しよう, sexual_content, 40

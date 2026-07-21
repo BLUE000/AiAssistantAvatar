@@ -30,6 +30,27 @@ Palworld, game_context, 40
 プレイスタイル, game_context, 30
 Kill数, game_context, 40
 キルストリーク, game_context, 40
+FF14, game_context, 40
+Final Fantasy, game_context, 40
+Dragon Quest, game_context, 40
+Pokémon, game_context, 40
+Animal Crossing, game_context, 40
+Splatoon, game_context, 40
+Zelda, game_context, 40
+Mario, game_context, 40
+Sonics, game_context, 40
+Dark Souls, game_context, 40
+Elden Ring, game_context, 40
+Starfield, game_context, 40
+Baldur's Gate, game_context, 40
+D&D, game_context, 40
+ダンジョンマスター, game_context, 30
+魔法, game_context, 30
+剣, game_context, 30
+盾, game_context, 30
+ボス戦, game_context, 30
+アダルトゲーム, game_context, 40
+エロゲー, game_context, 40
 
 # 2. 技術・IT・プログラミング用語 (tech_context)
 kill process, tech_context, 50
@@ -38,6 +59,15 @@ class, tech_context, 40
 execute, tech_context, 40
 terminate, tech_context, 40
 abort, tech_context, 40
+kill, tech_context, 50
+die, tech_context, 50
+crash, tech_context, 40
+error, tech_context, 30
+bug, tech_context, 30
+hack, tech_context, 40
+exploit, tech_context, 40
+script, tech_context, 30
+code, tech_context, 30
 
 # 3. 日常の感情表現・強調表現 (emotion_context)
 死ぬほど, emotion_context, 40
@@ -46,6 +76,15 @@ abort, tech_context, 40
 ウケる, emotion_context, 20
 最高, emotion_context, 20
 神ゲー, emotion_context, 30
+死ぬほど可愛い, emotion_context, 40
+死ぬほど美味しい, emotion_context, 40
+死ぬほど疲れた, emotion_context, 40
+殺すほど, emotion_context, 40
+爆笑, emotion_context, 20
+笑い過ぎ, emotion_context, 20
+ヤバすぎ, emotion_context, 20
+マジで, emotion_context, 20
+ウソでし, emotion_context, 20
 
 # 4. 観光・旅行・文化・地理 (travel_context)
 旅行, travel_context, 30
@@ -57,6 +96,11 @@ abort, tech_context, 40
 名物, travel_context, 30
 グルメ, travel_context, 30
 ディズニー, travel_context, 30
+寺, travel_context, 30
+神社, travel_context, 30
+お祭り, travel_context, 30
+伝統, travel_context, 30
+文化遺産, travel_context, 30
 
 # 5. 歴史・学術・教育 (history_context)
 歴史, history_context, 30
@@ -65,3 +109,16 @@ abort, tech_context, 40
 文化, history_context, 30
 教科書, history_context, 30
 研究, history_context, 30
+
+# 6. アニメ・漫画関連
+攻撃, anime_context, 40
+防御, anime_context, 40
+必殺技, anime_context, 40
+魔法少女, anime_context, 30
+戦闘, anime_context, 30
+敵, anime_context, 30
+味方, anime_context, 30
+レベルアップ, anime_context, 30
+経験値, anime_context, 30
+エッチなシーン, anime_context, 40
+Hシーン, anime_context, 40
