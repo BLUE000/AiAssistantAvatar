@@ -5,10 +5,12 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QDateTime>
 #include "../app_event.h"
 
 class TwitchReader : public QObject {
     Q_OBJECT
+    friend class TwitchReaderTest;
 private:
     bool m_isRunning = false;
     QString m_channel;
@@ -26,6 +28,8 @@ private:
     QNetworkAccessManager *m_networkManager = nullptr;
     QString m_configPath;
     QTimer *m_reconnectTimer = nullptr; // connectToTwitch() の debounce 用
+    QTimer *m_watchdogTimer = nullptr;  // サイレント切断探知用 Watchdog タイマー (60秒周期)
+    QDateTime m_lastDataReceivedTime;   // 最後に Twitch からデータを受信した時刻
     bool m_shouldGreet = false;          // 挨拶すべきチャンネル切替より後の初回 JOIN のみ true
     QString m_lastGreetedChannel;        // 直前に挨拶したチャンネル（二重挨拶防止）
     bool m_greetingEnabled = false;      // local_settings.json の greeting_enabled が true の時のみ ON
@@ -38,6 +42,7 @@ private:
     void connectToTwitch();       // debounce エントリ（外部から呼ぶ）
     void doConnectToTwitch();     // 実際の接続処理（タイマーから呼ばれる）
     void sendGreeting();          // JOIN確認後に挨拶を発火
+    void checkWatchdog();         // サイレント切断監視用タイマーコールバック
 
 public:
     explicit TwitchReader(QObject *parent = nullptr);

@@ -365,6 +365,22 @@ namespace AIRandomUtils {
 
 ---
 
+### 3.2.6 TwitchReader Watchdog (サイレント切断探知・自動再接続モジュール)
+
+Twitch IRC WebSocket コネクションの半開状態（サイレントドロップ）を常時監視・自己修復するタイマー機構。
+
+#### アルゴリズム詳細
+1. **タイムスタンプ更新**:
+   - `TwitchReader::onTextMessageReceived()` にて、Twitch サーバーからデータ（`PING`, `PRIVMSG`, `JOIN`, `001` 等）を受信するたびに `m_lastDataReceivedTime = QDateTime::currentDateTime()` を最新日時へ更新。
+2. **Watchdog 判定ルーチン (`checkWatchdog`)**:
+   - 60秒周期でタイマーを発火し、`m_isRunning == true` かつ `m_webSocket` インスタンスが存在する場合に実行。
+   - `m_lastDataReceivedTime.secsTo(QDateTime::currentDateTime()) >= 180` （3分以上無通信）の場合：
+     - `qWarning() << "TwitchReader Watchdog: No data received for over 180 seconds. Connection seems lost. Auto-reconnecting...";`
+     - 古い WebSocket オブジェクトのシグナルを切断して `deleteLater()`。
+     - `connectToTwitch()` を呼び出し、`wss://irc-ws.chat.twitch.tv:443` へ自動再接続・再認証・JOIN を実行。
+
+---
+
 #### B. 右側ペイン（QTextBrowser）の吹き出し風装飾仕様
 右側ペイン (`m_rightPanel`) はアバターの横に配置され、吹き出しのような外観にスタイルシートで装飾する。最新のAIの回答のみを表示する。
 

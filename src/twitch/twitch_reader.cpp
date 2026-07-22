@@ -314,6 +314,8 @@ void TwitchReader::onWebSocketDisconnected() {
 }
 
 void TwitchReader::onTextMessageReceived(const QString &message) {
+    m_lastDataReceivedTime = QDateTime::currentDateTime();
+
     QStringList lines = message.split("\r\n");
     for (const QString &line : lines) {
         if (line.isEmpty()) continue;
@@ -411,6 +413,14 @@ void TwitchReader::on_startReading() {
     
     loadSettings();
 
+    // サイレント切断探知用 Watchdog タイマーのセットアップ (60秒周期でチェック)
+    if (!m_watchdogTimer) {
+        m_watchdogTimer = new QTimer(this);
+        connect(m_watchdogTimer, &QTimer::timeout, this, &TwitchReader::checkWatchdog);
+    }
+    m_lastDataReceivedTime = QDateTime::currentDateTime();
+    m_watchdogTimer->start(60000);
+
     if (m_oauthToken.isEmpty() || m_oauthToken == "YOUR_TWITCH_OAUTH_TOKEN") {
         if (m_clientId.isEmpty() || m_clientId == "YOUR_TWITCH_CLIENT_ID") {
             qCritical() << "TwitchReader: Client ID is missing. Cannot start OAuth process.";
@@ -432,6 +442,10 @@ void TwitchReader::on_stopReading() {
     m_isRunning = false;
     qDebug() << "TwitchReader: Stopping module...";
 
+    if (m_watchdogTimer) {
+        m_watchdogTimer->stop();
+    }
+
     // 遅延接続タイマーをキャンセル（停止後に再接続が走らないように）
     if (m_reconnectTimer) {
         m_reconnectTimer->stop();
@@ -447,6 +461,23 @@ void TwitchReader::on_stopReading() {
         m_webSocket->close();
         m_webSocket->deleteLater();
         m_webSocket = nullptr;
+    }
+}
+
+void TwitchReader::checkWatchdog() {
+    if (!m_isRunning || !m_webSocket) return;
+
+    // ソケットが「接続中」と自称しているが、3分間 (180秒) 以上 PING やメッセージが一つも届いていない場合
+    if (m_lastDataReceivedTime.isValid() && m_lastDataReceivedTime.secsTo(QDateTime::currentDateTime()) >= 180) {
+        qWarning() << "TwitchReader Watchdog: No message or PING received for" 
+                   << m_lastDataReceivedTime.secsTo(QDateTime::currentDateTime())
+                   << "seconds. TCP socket seems dead (silent disconnect). Forcing auto-reconnect...";
+        
+        // 最新受信時刻をリセットして連続発火を防止
+        m_lastDataReceivedTime = QDateTime::currentDateTime();
+
+        // 固まった古いソケットを全自動で破棄・自動再接続
+        connectToTwitch();
     }
 }
 

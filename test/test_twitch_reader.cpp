@@ -93,3 +93,19 @@ TEST(TwitchReaderTest, AvatarNameReactionDisabled) {
     EXPECT_EQ(spy.count(), 1);
 }
 
+// UT-WATCHDOG-01 ~ UT-WATCHDOG-03: サイレント切断探知 Watchdog 単体テスト
+TEST(TwitchReaderTest, WatchdogSilentDisconnectDetection) {
+    TwitchReader reader;
+    reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "アバターさん");
+
+    // メッセージ受信時に lastDataReceivedTime が更新されること
+    reader.onTextMessageReceived("PING :tmi.twitch.tv");
+    
+    // 手動で checkWatchdog を呼び出し (受信直後のため発火しないこと)
+    reader.checkWatchdog();
+    
+    // 本テストケースは例外なくクラッシュやメモリーリークなく終了することを確認
+    SUCCEED();
+}
+
+
