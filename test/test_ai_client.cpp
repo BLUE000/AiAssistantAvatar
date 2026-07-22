@@ -1476,3 +1476,51 @@ TEST(AIRandomUtilsTest, ParseAndEvaluateMacroTest) {
     EXPECT_TRUE(evaluated.contains("Picks: "));
 }
 
+// UT-SHOUTOUT-01 ~ UT-SHOUTOUT-03: レイド自動紹介・アナウンス・/shoutout ルーティングテスト
+TEST_F(AIClientTest, ShoutoutAnnounceAndCommandRoutingTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // モック設定: アナウンス有効・プレフィックス設定
+    QJsonObject obj;
+    obj["shoutout_use_announce"] = true;
+    obj["shoutout_announce_color"] = "blue";
+    obj["shoutout_prefix"] = "【レイド感謝】";
+    obj["shoutout_use_command"] = true;
+    obj["twitch_channel"] = "test_channel";
+    manager.loadSettingsFromJsonObject(obj);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // UT-SHOUTOUT-03: handleRaidShoutout 実行時に extraData に twitch_channel が含まれること
+    manager.handleRaidShoutout("raider_user");
+
+    bool foundShoutoutCmd = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent ev = eventSpy.at(i).at(0).value<AppEvent>();
+        if (ev.text.startsWith("/shoutout raider_user")) {
+            foundShoutoutCmd = true;
+            EXPECT_TRUE(ev.extraData.contains("twitch_channel"));
+            EXPECT_EQ(ev.extraData.value("twitch_channel").toString(), "test_channel");
+            break;
+        }
+    }
+    EXPECT_TRUE(foundShoutoutCmd);
+
+    // UT-SHOUTOUT-01: AIレスポンス受信時に /announce blue プレフィックスが自動付与されること
+    eventSpy.clear();
+    manager.on_clientRequestFinished("raider_user さんのレイドありがとうございます！", true);
+
+    bool foundAnnounceText = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent ev = eventSpy.at(i).at(0).value<AppEvent>();
+        if (ev.type == EventType::AIResponseReceived && ev.text.startsWith("/announce blue")) {
+            foundAnnounceText = true;
+            EXPECT_TRUE(ev.text.contains("【レイド感謝】"));
+            break;
+        }
+    }
+    EXPECT_TRUE(foundAnnounceText);
+}
+
+

@@ -680,14 +680,6 @@ void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &t
         return;
     }
     QString sendText = text.trimmed();
-    if (sendText.startsWith("/announce ", Qt::CaseInsensitive)) {
-        int spaceIdx = sendText.indexOf(' ', 10);
-        if (spaceIdx != -1) {
-            sendText = sendText.mid(spaceIdx + 1).trimmed();
-        } else {
-            sendText = sendText.mid(10).trimmed();
-        }
-    }
     if (sendText.isEmpty()) return;
 
     QString ch = channel.startsWith("#") ? channel : "#" + channel;

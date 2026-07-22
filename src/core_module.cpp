@@ -29,15 +29,16 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             emit requestAI(event.text, encodedUser);
             break;
         }
-        case EventType::AIResponseReceived: {
-            // AI応答受信時、送信元プラットフォームへ返信しつつUIにも表示
+        case EventType::AIResponseReceived:
+        case EventType::DirectInputSubmitted: {
+            // AI応答受信時およびダイレクト入力時、送信元プラットフォームへ返信しつつUIにも表示
             if (event.extraData.contains("channel_id")) {
                 QString channelId = event.extraData.value("channel_id").toString();
-                qDebug() << "CoreModule: Routing AI response back to Discord. Channel:" << channelId;
+                qDebug() << "CoreModule: Routing response back to Discord. Channel:" << channelId;
                 emit requestDiscordSend(channelId, event.text);
             } else if (event.extraData.contains("twitch_channel")) {
                 QString twitchChannel = event.extraData.value("twitch_channel").toString();
-                qDebug() << "CoreModule: Routing AI response back to Twitch. Channel:" << twitchChannel;
+                qDebug() << "CoreModule: Routing response back to Twitch. Channel:" << twitchChannel;
                 emit requestTwitchSend(twitchChannel, event.text);
             }
             // Discord/Twitch/直接入力いずれの場合もUIに中継

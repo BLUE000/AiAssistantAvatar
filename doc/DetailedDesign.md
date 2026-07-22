@@ -381,6 +381,24 @@ Twitch IRC WebSocket コネクションの半開状態（サイレントドロ�
 
 ---
 
+### 3.2.8 レイドクリエイター自動紹介・シャウトアウト・アナウンスルーティング仕様
+
+レイド受信時にAI紹介文生成、`/announce` 枠付き投稿、Twitch公式 `/shoutout` コマンド、およびフォロー呼びかけコメントの送出を確実に制御するルーティング機構。
+
+#### アルゴリズム詳細
+1. **AI紹介文のアナウンス投稿 (`m_shoutoutUseAnnounce`)**:
+   - レイド紹介文生成応答（`m_isShoutoutRequest == true`）時、`m_shoutoutUseAnnounce` が有効な場合、プレフィックスとして `/announce <color>` （指定色または 5色からランダム）を自動付与する。
+2. **`TwitchReader` におけるコマンドそのまま送信**:
+   - `TwitchReader::on_requestTwitchSend()` は `/announce` や `/shoutout` 等のスラッシュコマンドプレフィックスを文字消去せず、そのまま Twitch IRC サーバーへ `PRIVMSG #channel :<command>` として送信する。
+3. **`/shoutout` イベントの確実なチャンネル宛てルーティング**:
+   - `handleRaidShoutout` および `processNextShoutoutInQueue` で発行する `shoutoutEv` に `extraData["twitch_channel"]` を付与。
+   - `CoreModule::on_notify_events` または `DirectInputSubmitted` / `AIResponseReceived` ルーティングにて `extraData` に `twitch_channel` が存在する場合、`requestTwitchSend` を確実に呼び出して Twitch チャットへコマンドを送信する。
+4. **Twitch公式シャウトアウト成功連動**:
+   - `TwitchReader` で `USERNOTICE` の `msg-id=shoutout_success` を検出した際、`ShoutoutSuccessReceived` イベントを発行。
+   - `AIClientManager::on_shoutoutSuccessReceived` にて「フォロー呼びかけ」コメント（`/announce` 設定連動）を Twitch へ投稿する。
+
+---
+
 ### 3.2.7 MarkdownTableEngine (マークダウン汎用データストレージ・抽出モジュール)
 
 `knowledge/` ディレクトリ配下に保管された階層ドキュメント構造からテーブルレコードをスキャン・抽出するデータエンジン。

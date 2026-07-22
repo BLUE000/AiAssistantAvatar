@@ -309,3 +309,14 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-TABLEDB-05** | `MarkdownTableEngine::parseAndEvaluate` | 文章 `"装備: TableSearch(Elin, 装備, 片手剣, 鉄の剣, 攻撃力)"` を評価。 | `"TableSearch(...)"` 部分が `"15"` に置換され、文章全体が正しく展開されること。 |
 | **UT-TABLEDB-06** | `MarkdownTableEngine::searchRelevantContext` | 自然文クエリ `"鉄の剣の必要素材を教えて"` を入力して検索。 | 該当するテーブルレコード行が抽出され、AIプロンプトインジェクション用コンテキスト文字列が自動生成されること。 |
 
+---
+
+### 3.20 レイド自動紹介・シャウトアウト・アナウンスルーティング単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-SHOUTOUT-01** | `AIClientManager::on_AIResponseReceived` | `m_isShoutoutRequest = true`, `m_shoutoutUseAnnounce = true` の状態で AIレスポンスを受信する。 | 応答テキストの先頭に `/announce <color>` プレフィックスが正常に自動付与されること。 |
+| **UT-SHOUTOUT-02** | `TwitchReader::on_requestTwitchSend` | `on_requestTwitchSend("channel", "/announce blue test message")` を呼び出す。 | `/announce` プレフィックスが文字消去されず、そのまま `PRIVMSG #channel :/announce blue test message` として送信されること。 |
+| **UT-SHOUTOUT-03** | `AIClientManager::handleRaidShoutout` | `handleRaidShoutout("targetuser")` を実行し、`/shoutout` イベントを生成する。 | 1. 発行されるイベントの `extraData` に `twitch_channel` が含まれること。<br>2. `CoreModule` 経由で `requestTwitchSend` へ確実にルーティングされること。 |
+
+

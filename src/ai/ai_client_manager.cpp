@@ -1190,6 +1190,14 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             if (!m_shoutoutPrefix.isEmpty() && !filteredResponse.startsWith(m_shoutoutPrefix)) {
                 filteredResponse = m_shoutoutPrefix + " " + filteredResponse;
             }
+            if (m_shoutoutUseAnnounce) {
+                QString color = m_shoutoutAnnounceColor;
+                if (color == "random") {
+                    static const QStringList colors = {"primary", "blue", "green", "orange", "purple"};
+                    color = colors.at(QRandomGenerator::global()->bounded(colors.size()));
+                }
+                filteredResponse = QString("/announce %1 %2").arg(color, filteredResponse);
+            }
         }
 
         event.text = filteredResponse;
@@ -2344,9 +2352,13 @@ void AIClientManager::handleRaidShoutout(const QString &username) {
                 qDebug() << "AIClientManager: Sending immediate /shoutout command for" << username;
                 m_lastShoutoutUser = username;
                 AppEvent shoutoutEv;
-                shoutoutEv.type = EventType::DirectInputSubmitted;
+                shoutoutEv.type = EventType::AIResponseReceived;
                 shoutoutEv.text = "/shoutout " + username;
                 shoutoutEv.source = "ShoutoutModule";
+                QString targetChannel = m_currentTwitchChannel.isEmpty() ? m_twitchChannel : m_currentTwitchChannel;
+                if (!targetChannel.isEmpty()) {
+                    shoutoutEv.extraData["twitch_channel"] = targetChannel;
+                }
                 emit notifyEvent(shoutoutEv);
 
                 if (m_shoutoutCooldownTimer) {
@@ -2369,9 +2381,13 @@ void AIClientManager::processNextShoutoutInQueue() {
         m_lastShoutoutUser = ps.username;
 
         AppEvent shoutoutEv;
-        shoutoutEv.type = EventType::DirectInputSubmitted;
+        shoutoutEv.type = EventType::AIResponseReceived;
         shoutoutEv.text = "/shoutout " + ps.username;
         shoutoutEv.source = "ShoutoutModule";
+        QString targetChannel = m_currentTwitchChannel.isEmpty() ? m_twitchChannel : m_currentTwitchChannel;
+        if (!targetChannel.isEmpty()) {
+            shoutoutEv.extraData["twitch_channel"] = targetChannel;
+        }
         emit notifyEvent(shoutoutEv);
 
         if (m_shoutoutCooldownTimer) {
@@ -2421,8 +2437,12 @@ void AIClientManager::on_shoutoutSuccessReceived(const QString &username) {
         qDebug() << "AIClientManager: Posting follow-up message:" << followMsg;
 
         AppEvent ev;
-        ev.type = EventType::DirectInputSubmitted;
+        ev.type = EventType::AIResponseReceived;
         ev.source = "ShoutoutModule";
+        QString targetChannel = m_currentTwitchChannel.isEmpty() ? m_twitchChannel : m_currentTwitchChannel;
+        if (!targetChannel.isEmpty()) {
+            ev.extraData["twitch_channel"] = targetChannel;
+        }
         if (m_shoutoutUseAnnounce) {
             QString color = m_shoutoutAnnounceColor;
             if (color == "random") {
