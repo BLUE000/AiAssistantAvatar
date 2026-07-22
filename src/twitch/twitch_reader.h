@@ -78,6 +78,5 @@ private slots:
     // QWebSocket用の接続イベントハンドラ
     void onWebSocketConnected();
     void onWebSocketDisconnected();
-    void onTextMessageReceived(const QString &message);
 };
 
