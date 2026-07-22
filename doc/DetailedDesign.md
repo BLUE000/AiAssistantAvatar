@@ -381,6 +381,69 @@ Twitch IRC WebSocket コネクションの半開状態（サイレントドロ�
 
 ---
 
+### 3.2.7 MarkdownTableEngine (マークダウン汎用データストレージ・抽出モジュール)
+
+`knowledge/` ディレクトリ配下に保管された階層ドキュメント構造からテーブルレコードをスキャン・抽出するデータエンジン。
+
+```cpp
+#pragma once
+#include <QString>
+#include <QList>
+#include <QMap>
+
+struct TableRecord {
+    QString group;                  // 情報グループ名 (例: "Elin")
+    QString category;               // カテゴリ名 (例: "装備")
+    QString tableName;              // テーブル名/ファイル名 (例: "片手剣")
+    QStringList headers;            // カラム名ヘッダーリスト (例: ["武器名", "攻撃力", "必要素材"])
+    QList<QMap<QString, QString>> rows; // データ行
+};
+
+class MarkdownTableEngine {
+public:
+    explicit MarkdownTableEngine(const QString &rootDir = "knowledge");
+
+    // 全ナレッジファイルのロード＆インデックス化
+    void reload();
+
+    // 特定のキー検索によるカラム値抽出
+    QString queryColumn(const QString &group, const QString &category, const QString &table, const QString &searchKey, const QString &targetColumn) const;
+
+    // 特定テーブルからのランダム1件指定カラム抽出
+    QString selectRandomColumn(const QString &group, const QString &category, const QString &table, const QString &targetColumn) const;
+
+    // テキスト内の "TableSearch(...)" や "TableSelectRandom(...)" マクロ式を自動評価・置換
+    QString parseAndEvaluate(const QString &text) const;
+
+    // 自然文クエリから関連データ行を自動検索してAIプロンプト注入用コンテキスト文字列を生成
+    QString searchRelevantContext(const QString &query) const;
+
+private:
+    QString m_rootDir;
+    QList<TableRecord> m_tables;
+
+    bool isPathSafe(const QString &path) const;
+    void scanDirectory(const QString &dirPath, const QString &currentGroup, const QString &currentCategory);
+    void parseMarkdownFile(const QString &filePath, const QString &group, const QString &category);
+};
+```
+
+#### ロジック・アルゴリズム詳細
+1. **サンドボックス境界チェック (`isPathSafe`)**:
+   - `QDir::cleanPath` および `QFileInfo(filePath).canonicalFilePath()` により絶対パスを評価。
+   - パスが `knowledge/` ルートディレクトリの配下に完全収まっているか検証し、`../` トラバーサルを防止。
+2. **テーブル解析 (`parseMarkdownFile`)**:
+   - 行読み込み時、`|` 文字で分割される行をテーブルとして認識。
+   - ハイフン行（`|:---|:---|`）の直前行を `headers` とし、直後以降の行をデータマップ `QMap<QString, QString>` へ格納。
+3. **クロステーブル・ランダム抽出 (`selectRandomColumn`)**:
+   - 合致する `TableRecord` の全 `rows` から `QRandomGenerator::global()->bounded(rows.size())` で1件抽出し、指定 `targetColumn` の値を返却。
+4. **マクロ式自動パース評価 (`parseAndEvaluate`)**:
+   - `TableSearch("グループ", "カテゴリ", "テーブル", "検索キー", "対象カラム")` 
+   - `TableSelectRandom("グループ", "カテゴリ", "テーブル", "対象カラム")`
+   - 上記パターンを正規表現で検出・評価し、返却文字列に一括置換。
+
+---
+
 #### B. 右側ペイン（QTextBrowser）の吹き出し風装飾仕様
 右側ペイン (`m_rightPanel`) はアバターの横に配置され、吹き出しのような外観にスタイルシートで装飾する。最新のAIの回答のみを表示する。
 

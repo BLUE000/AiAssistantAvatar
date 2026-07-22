@@ -1,4 +1,5 @@
 #include "ai_client_manager.h"
+#include "ai_random_utils.h"
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
 #include "cerebras_ai_client.h"
@@ -600,7 +601,10 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     // ニックネームファイルを再ロード
     loadUserNames();
 
-    QString trimmedPrompt = prompt.trimmed();
+    // F-27 / F-29: マクロ式評価およびナレッジテーブルデータ自動検索
+    QString trimmedPrompt = m_tableEngine.parseAndEvaluate(AIRandomUtils::parseAndEvaluate(prompt)).trimmed();
+    QString tableContext = m_tableEngine.searchRelevantContext(trimmedPrompt);
+
     bool isDirectInput = user.isEmpty();
 
     // 手動シャウトアウト・紹介要求の判定 ("/shoutout xxx", "/so xxx", "!so xxx", または "〇〇さんを紹介して" 等)
@@ -878,6 +882,14 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         scanStaticKnowledge(filteredPrompt, recalledStatic);
         if (!recalledStatic.isEmpty()) {
             finalPrompt = recalledStatic + "\n\n" + finalPrompt;
+        }
+    }
+
+    if (!tableContext.isEmpty()) {
+        if (!additionalSystemPrompt.isEmpty()) {
+            additionalSystemPrompt += tableContext;
+        } else {
+            additionalSystemPrompt = tableContext.trimmed();
         }
     }
 

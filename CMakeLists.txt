@@ -57,6 +57,7 @@ set(SOURCES
     src/search/search_manager.cpp
     src/search/tavily_search_provider.cpp
     src/search/duckduckgo_search_provider.cpp
+    src/search/markdown_table_engine.cpp
     src/discord/discord_reader.cpp
     src/obs/obs_http_server.cpp
     src/moderation/score_moderation_engine.cpp

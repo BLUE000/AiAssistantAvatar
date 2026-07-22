@@ -9,6 +9,7 @@
 #include "../app_event.h"
 #include "rate_limit_tracker.h"
 #include "ai_router.h"
+#include "../search/markdown_table_engine.h"
 
 enum class KnowledgeImportState {
     Idle,
@@ -56,6 +57,7 @@ private:
     QMap<QString, IAIClient*> m_clientMap;
     RateLimitTracker m_tracker;
     AIRouter m_router;
+    MarkdownTableEngine m_tableEngine;
 
     bool m_managerEnabled = false;
     QString m_managerProvider = "groq";

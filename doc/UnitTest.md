@@ -296,3 +296,16 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-WATCHDOG-02** | `TwitchReader::checkWatchdog` | 通信正常時（`m_lastDataReceivedTime` が 10 秒前）。 | Watchdog がスルーされ、自動再接続（`connectToTwitch`）が発火しないこと。 |
 | **UT-WATCHDOG-03** | `TwitchReader::checkWatchdog` | サイレント切断偽装（`m_lastDataReceivedTime` を 200 秒前に擬似設定）。 | 1. Watchdog により 180 秒超過の無通信・ゾンビ接続が探知されること。<br>2. 古い WebSocket インスタンスが安全に閉鎖・破棄され、`connectToTwitch()` によるバックグラウンド自動再接続が正常に発火すること。 |
 
+---
+
+### 3.19 マークダウン汎用データストレージ ＆ インデックス抽出 (F-29) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-TABLEDB-01** | `MarkdownTableEngine::scanDirectory` | テスト用フォルダ `test_knowledge/Elin/装備/片手剣.md` を生成して読み込む。 | 情報グループ `"Elin"`, カテゴリ `"装備"`, テーブル名 `"片手剣"` が正確に認識されインデックス化されること。 |
+| **UT-TABLEDB-02** | `MarkdownTableEngine::queryColumn` | `queryColumn("Elin", "装備", "片手剣", "鉄の剣", "必要素材")` を実行。 | 返却文字列が `"鉄鉱石x3, 木材x1"` と完全一致すること。 |
+| **UT-TABLEDB-03** | `MarkdownTableEngine::selectRandomColumn` | `selectRandomColumn("Elin", "装備", "片手剣", "武器名")` を複数回呼び出す。 | テーブル内のいずれかの武器名（例: `"鉄の剣"` や `"炎の小剣"`）がランダムに取得されること。 |
+| **UT-TABLEDB-04** | `MarkdownTableEngine::isPathSafe` | `isPathSafe("../../../windows/system32")` 等の相対パス抜け出しをテスト。 | 判定結果 `false` となり、`knowledge/` 外部へのアクセスが安全に遮断されること。 |
+| **UT-TABLEDB-05** | `MarkdownTableEngine::parseAndEvaluate` | 文章 `"装備: TableSearch(Elin, 装備, 片手剣, 鉄の剣, 攻撃力)"` を評価。 | `"TableSearch(...)"` 部分が `"15"` に置換され、文章全体が正しく展開されること。 |
+| **UT-TABLEDB-06** | `MarkdownTableEngine::searchRelevantContext` | 自然文クエリ `"鉄の剣の必要素材を教えて"` を入力して検索。 | 該当するテーブルレコード行が抽出され、AIプロンプトインジェクション用コンテキスト文字列が自動生成されること。 |
+

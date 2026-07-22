@@ -97,3 +97,56 @@ TEST(SearchManagerTest, DISABLED_RealDDGSearchTest) {
     EXPECT_FALSE(result.isEmpty());
 }
 
+#include "search/markdown_table_engine.h"
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
+
+// UT-TABLEDB-01 ~ UT-TABLEDB-06 単体テストスイート
+TEST(MarkdownTableEngineTest, FullTableDatabaseSuite) {
+    // 1. テスト用の擬似 knowledge ディレクトリ構成を作成
+    QString testDir = "test_knowledge";
+    QDir().mkpath(testDir + "/Elin/装備");
+    
+    QFile file(testDir + "/Elin/装備/片手剣.md");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out.setEncoding(QStringConverter::Utf8);
+        out << "# Elin 武器データ\n";
+        out << "| 武器名 | 攻撃力 | 必要素材 |\n";
+        out << "|:---|:---|:---|\n";
+        out << "| 鉄の剣 | 15 | 鉄鉱石x3, 木材x1 |\n";
+        out << "| 炎の小剣 | 35 | 炎の結晶x2, 鉄鉱石x5 |\n";
+        file.close();
+    }
+
+    // UT-TABLEDB-01: scanDirectory ＆ ロード検証
+    MarkdownTableEngine engine(testDir);
+    EXPECT_GE(engine.tableCount(), 1);
+
+    // UT-TABLEDB-02: queryColumn キー検索
+    QString material = engine.queryColumn("Elin", "装備", "片手剣", "鉄の剣", "必要素材");
+    EXPECT_EQ(material, "鉄鉱石x3, 木材x1");
+
+    // UT-TABLEDB-03: selectRandomColumn ランダム抽出
+    QString randWeapon = engine.selectRandomColumn("Elin", "装備", "片手剣", "武器名");
+    EXPECT_TRUE(randWeapon == "鉄の剣" || randWeapon == "炎の小剣");
+
+    // UT-TABLEDB-04: isPathSafe サンドボックス境界チェック
+    EXPECT_FALSE(engine.isPathSafe("../../../windows/system32"));
+
+    // UT-TABLEDB-05: parseAndEvaluate マクロ式置換
+    QString macroStr = "必要素材: TableSearch(\"Elin\", \"装備\", \"片手剣\", \"鉄の剣\", \"必要素材\")";
+    QString evalStr = engine.parseAndEvaluate(macroStr);
+    EXPECT_TRUE(evalStr.contains("鉄鉱石x3, 木材x1"));
+
+    // UT-TABLEDB-06: searchRelevantContext 自然文RAG検索
+    QString context = engine.searchRelevantContext("鉄の剣の必要素材を教えて");
+    EXPECT_TRUE(context.contains("ナレッジデータベース参照結果"));
+    EXPECT_TRUE(context.contains("鉄の剣"));
+
+    // 後始末
+    QDir(testDir).removeRecursively();
+}
+
+
