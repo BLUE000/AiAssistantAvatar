@@ -1,4 +1,5 @@
 #include "system_response_manager.h"
+#include "ai_random_utils.h"
 #include "version.h"
 #include <QRegularExpression>
 
@@ -12,22 +13,32 @@ SystemResponseManager::~SystemResponseManager()
 }
 
 QString SystemResponseManager::processPrompt(const QString &prompt, const QString &currentProvider, const QString &avatarName) {
-    QString trimmed = prompt.trimmed().toLower();
+    QString trimmed = prompt.trimmed();
     if (trimmed.isEmpty()) return "";
+
+    // 0. Random / RandomList 単体コマンドの判定
+    if (trimmed.startsWith("Random(", Qt::CaseInsensitive) || trimmed.startsWith("RandomList(", Qt::CaseInsensitive)) {
+        QString evaluated = AIRandomUtils::parseAndEvaluate(trimmed);
+        if (!evaluated.isEmpty() && evaluated != trimmed) {
+            return QString("ランダム結果: %1").arg(evaluated);
+        }
+    }
+
+    QString lowerTrimmed = trimmed.toLower();
 
     // アバター・システムへの言及ワードがあるか
     bool mentionsAvatar = false;
-    if (!avatarName.isEmpty() && trimmed.contains(avatarName.toLower())) {
+    if (!avatarName.isEmpty() && lowerTrimmed.contains(avatarName.toLower())) {
         mentionsAvatar = true;
     }
-    if (trimmed.contains("アバター") || trimmed.contains("あばたー") || trimmed.contains("avatar") ||
-        trimmed.contains("君") || trimmed.contains("あなた") || trimmed.contains("このアプリ") ||
-        trimmed.contains("このシステム") || trimmed.contains("このソフト") || trimmed.contains("本体")) {
+    if (lowerTrimmed.contains("アバター") || lowerTrimmed.contains("あばたー") || lowerTrimmed.contains("avatar") ||
+        lowerTrimmed.contains("君") || lowerTrimmed.contains("あなた") || lowerTrimmed.contains("このアプリ") ||
+        lowerTrimmed.contains("このシステム") || lowerTrimmed.contains("このソフト") || lowerTrimmed.contains("本体")) {
         mentionsAvatar = true;
     }
 
     // プレフィックスなしでの「version」「バージョン」単体一致も許容
-    bool isPlainVersionCmd = (trimmed == "version" || trimmed == "バージョン" || trimmed == "ばーじょん" || trimmed == "versioninfo");
+    bool isPlainVersionCmd = (lowerTrimmed == "version" || lowerTrimmed == "バージョン" || lowerTrimmed == "ばーじょん" || lowerTrimmed == "versioninfo");
 
     // 呼びかけも単体コマンドもなければ、自動応答しない（通常のAIに任せる）
     if (!mentionsAvatar && !isPlainVersionCmd) {
@@ -35,10 +46,10 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
     }
 
     // 1. バージョン情報の判定
-    if (trimmed.contains("version") || trimmed.contains("バージョン") || trimmed.contains("ばーじょん")) {
+    if (lowerTrimmed.contains("version") || lowerTrimmed.contains("バージョン") || lowerTrimmed.contains("ばーじょん")) {
         // 「〇〇のバージョン」という修飾語があるかチェック
         QRegularExpression modifierRegex("([a-zA-Z0-9_\\x{4e00}-\\x{9fa5}]+)の(バージョン|version)");
-        QRegularExpressionMatch match = modifierRegex.match(trimmed);
+        QRegularExpressionMatch match = modifierRegex.match(lowerTrimmed);
         
         bool isOwnVersion = true;
         if (match.hasMatch()) {
@@ -64,10 +75,10 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
     }
 
     // 2. 使用中AI情報の判定（アバターへの呼びかけが必須）
-    if (mentionsAvatar && (trimmed.contains("ai") || trimmed.contains("エーアイ") || trimmed.contains("モデル") || trimmed.contains("プロバイダ"))) {
+    if (mentionsAvatar && (lowerTrimmed.contains("ai") || lowerTrimmed.contains("エーアイ") || lowerTrimmed.contains("モデル") || lowerTrimmed.contains("プロバイダ"))) {
         // 「〇〇のai」という修飾語があるか
         QRegularExpression modifierRegex("([a-zA-Z0-9_\\x{4e00}-\\x{9fa5}]+)の(ai|エーアイ|モデル|プロバイダ)");
-        QRegularExpressionMatch match = modifierRegex.match(trimmed);
+        QRegularExpressionMatch match = modifierRegex.match(lowerTrimmed);
         
         bool isOwnAI = true;
         if (match.hasMatch()) {
@@ -86,14 +97,14 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
         }
 
         // 「使っている」「使用している」などの接続語があるか、あるいは「〇〇のAI」で自分自身のAIであることが確定しているか
-        bool hasUsageWord = (trimmed.contains("使っている") || trimmed.contains("使用している") || 
-                             trimmed.contains("動いている") || trimmed.contains("稼働している") || 
-                             trimmed.contains("動かしている") || trimmed.contains("のai") || 
-                             trimmed.contains("のモデル") || trimmed.contains("のプロバイダ"));
+        bool hasUsageWord = (lowerTrimmed.contains("使っている") || lowerTrimmed.contains("使用している") || 
+                             lowerTrimmed.contains("動いている") || lowerTrimmed.contains("稼働している") || 
+                             lowerTrimmed.contains("動かしている") || lowerTrimmed.contains("のai") || 
+                             lowerTrimmed.contains("のモデル") || lowerTrimmed.contains("のプロバイダ"));
 
         if (isOwnAI && hasUsageWord) {
             // 他社サービス名などが明記されている場合は、一般的な雑談とみなし除外
-            bool hasOtherAI = (trimmed.contains("chatgpt") || trimmed.contains("openai") || trimmed.contains("gemini") || trimmed.contains("claude"));
+            bool hasOtherAI = (lowerTrimmed.contains("chatgpt") || lowerTrimmed.contains("openai") || lowerTrimmed.contains("gemini") || lowerTrimmed.contains("claude"));
             if (!hasOtherAI) {
                 QString friendlyName = currentProvider;
                 if (currentProvider == "mistral") friendlyName = "Mistral AI";

@@ -272,3 +272,17 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-MODERATION-02** | `ScoreModerationEngine::evaluate` | ゲームタイトル・文脈を含む文章（「Elinで薬物を売った」）を渡す。 | `game_context` による減算 (-40) が適用され、最終スコア 0点 (SAFE) と判定されること。 |
 | **UT-MODERATION-03** | `ScoreModerationEngine::evaluate` | 直前がゲーム文脈かつ危険教意思図を含む文章（「覚醒剤の作り方を教えて」）を渡す。 | `instruction` (+50) が検知され、過去履歴減算がキャンセルされて 90点 (BLOCK) と判定されること。 |
 
+---
+
+### 3.17 AI向けランダム値取得 I/F (F-27) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-RANDOM-01** | `AIRandomUtils::getRandom` | `getRandom(1, 6)` を 100 回試行する（正常系・標準ダイス）。 | 返却値がすべて $1 \le x \le 6$ の範囲内であること。 |
+| **UT-RANDOM-02** | `AIRandomUtils::getRandom` | `getRandom(5, 5)` を呼ぶ（境界値・最小最大同一）。 | 返却値が常に `5` であること。 |
+| **UT-RANDOM-03** | `AIRandomUtils::getRandom` | `getRandom(10, 1)` を呼ぶ（異常系・引数逆転）。 | 自動的に引数が反転補正され、返却値が $1 \le x \le 10$ の範囲内であること。 |
+| **UT-RANDOM-04** | `AIRandomUtils::getRandomList` | `getRandomList(10, 3)` を呼ぶ（正常系・重複なし抽出）。 | 1. 返却リストの要素数が `3` であること。<br>2. 全要素が $0 \le x \le 10$ の範囲内であること。<br>3. リスト内の全要素に重複がないこと（相異なる）。 |
+| **UT-RANDOM-05** | `AIRandomUtils::getRandomList` | `getRandomList(5, 10)` を呼ぶ（境界値・要求個数オーバー）。 | 候補数 $5+1=6$ 個を超える要求に対し、取得可能な上限個数 `6` 個の重複なしリストが返ること。 |
+| **UT-RANDOM-06** | `AIRandomUtils::getRandomList` | `getRandomList(10, 0)` および `getRandomList(10, -2)` を呼ぶ（異常系・無効な個数）。 | 空のリスト (`QList<int>()`) が返ること。 |
+| **UT-RANDOM-07** | `AIRandomUtils::parseAndEvaluate` | 文字列 `"結果: Random(1, 6) リスト: RandomList(5, 3)"` をパース評価する（文字列マクロ置換）。 | 1. `"Random(1, 6)"` 部分が抽出結果の数値（1〜6）に置換されること。<br>2. `"RandomList(5, 3)"` 部分がカンマ区切りの非重複数値リスト（例: `"1, 3, 5"`）に置換されること。 |
+

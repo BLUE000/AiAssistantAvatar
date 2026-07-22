@@ -1400,3 +1400,79 @@ TEST_F(AIClientTest, ShoutoutSuccessFollowMessageTest) {
     }
     EXPECT_TRUE(foundFollowMsg);
 }
+
+#include "ai/ai_random_utils.h"
+
+// UT-RANDOM-01 ~ UT-RANDOM-07 の単体テスト
+TEST(AIRandomUtilsTest, GetRandomRangeTest) {
+    // UT-RANDOM-01: getRandom(1, 6) 100回試行
+    for (int i = 0; i < 100; ++i) {
+        int val = AIRandomUtils::getRandom(1, 6);
+        EXPECT_GE(val, 1);
+        EXPECT_LE(val, 6);
+    }
+}
+
+TEST(AIRandomUtilsTest, GetRandomBoundarySameMinMaxTest) {
+    // UT-RANDOM-02: min == max (5, 5)
+    for (int i = 0; i < 10; ++i) {
+        EXPECT_EQ(AIRandomUtils::getRandom(5, 5), 5);
+    }
+}
+
+TEST(AIRandomUtilsTest, GetRandomInvertedMinMaxTest) {
+    // UT-RANDOM-03: min > max (10, 1) 引数反転補正
+    for (int i = 0; i < 50; ++i) {
+        int val = AIRandomUtils::getRandom(10, 1);
+        EXPECT_GE(val, 1);
+        EXPECT_LE(val, 10);
+    }
+}
+
+TEST(AIRandomUtilsTest, GetRandomListNormalTest) {
+    // UT-RANDOM-04: getRandomList(10, 3) 重複なし抽出
+    QList<int> list = AIRandomUtils::getRandomList(10, 3);
+    EXPECT_EQ(list.size(), 3);
+    
+    QSet<int> set;
+    for (int val : list) {
+        EXPECT_GE(val, 0);
+        EXPECT_LE(val, 10);
+        set.insert(val);
+    }
+    EXPECT_EQ(set.size(), 3); // 重複なし
+}
+
+TEST(AIRandomUtilsTest, GetRandomListOverflowClampTest) {
+    // UT-RANDOM-05: count > max + 1 の上限クランプ (5, 10)
+    QList<int> list = AIRandomUtils::getRandomList(5, 10);
+    EXPECT_EQ(list.size(), 6); // 0~5 の全6個
+    
+    QSet<int> set;
+    for (int val : list) {
+        EXPECT_GE(val, 0);
+        EXPECT_LE(val, 5);
+        set.insert(val);
+    }
+    EXPECT_EQ(set.size(), 6);
+}
+
+TEST(AIRandomUtilsTest, GetRandomListInvalidCountTest) {
+    // UT-RANDOM-06: count <= 0 や max < 0 の異常系
+    EXPECT_TRUE(AIRandomUtils::getRandomList(10, 0).isEmpty());
+    EXPECT_TRUE(AIRandomUtils::getRandomList(10, -3).isEmpty());
+    EXPECT_TRUE(AIRandomUtils::getRandomList(-1, 3).isEmpty());
+}
+
+TEST(AIRandomUtilsTest, ParseAndEvaluateMacroTest) {
+    // UT-RANDOM-07: parseAndEvaluate 文字列マクロ置換
+    QString input = "Dice: Random(1, 6), Picks: RandomList(5, 3)";
+    QString evaluated = AIRandomUtils::parseAndEvaluate(input);
+    
+    EXPECT_NE(input, evaluated);
+    EXPECT_FALSE(evaluated.contains("Random("));
+    EXPECT_FALSE(evaluated.contains("RandomList("));
+    EXPECT_TRUE(evaluated.contains("Dice: "));
+    EXPECT_TRUE(evaluated.contains("Picks: "));
+}
+

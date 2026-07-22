@@ -323,6 +323,48 @@ public slots:
 
 ---
 
+### 3.2.5 AIRandomUtils (AI向けランダム値取得 I/F モジュール)
+
+AIプロンプトやシステム文章内から呼び出せるランダム抽出ユーティリティ。
+
+```cpp
+#pragma once
+#include <QString>
+#include <QList>
+
+namespace AIRandomUtils {
+    /**
+     * @brief min から max の閉区間 [min, max] で1つの整数をランダム抽選する。
+     */
+    int getRandom(int min, int max);
+
+    /**
+     * @brief 0 から max の閉区間 [0, max] から、重複しない整数を count 個取得する。
+     */
+    QList<int> getRandomList(int max, int count);
+
+    /**
+     * @brief 文字列内の "Random(min, max)" や "RandomList(max, count)" マクロ式を自動パース・評価・置換する。
+     */
+    QString parseAndEvaluate(const QString &text);
+}
+```
+
+#### ロジック・アルゴリズム詳細
+1. `getRandom(int min, int max)`:
+   - `min > max` の場合は値を反転（スワップ）。
+   - `QRandomGenerator::global()->bounded(min, max + 1)` を使用して公平に抽選。
+2. `getRandomList(int max, int count)`:
+   - `max < 0` または `count <= 0` の場合は空リストを返却。
+   - 抽出候補数 `totalCount = max + 1` (0〜max)。
+   - `count > totalCount` の場合は `count = totalCount` に自動クランプ。
+   - 0〜maxのリストを生成し、`std::shuffle` または `QRandomGenerator` でシャッフル後、先頭 `count` 個を抽出して返す。
+3. `parseAndEvaluate(const QString &text)`:
+   - `QRegularExpression` で `Random\\((-?\\d+)\\s*,\\s*(-?\\d+)\\)` を抽出し、`getRandom` の戻り値文字列へ置換。
+   - `QRegularExpression` で `RandomList\\((\\d+)\\s*,\\s*(\\d+)\\)` を抽出し、`getRandomList` のカンマ区切り文字列（例: `"1, 3, 9"`）へ置換。
+
+---
+
 #### B. 右側ペイン（QTextBrowser）の吹き出し風装飾仕様
 右側ペイン (`m_rightPanel`) はアバターの横に配置され、吹き出しのような外観にスタイルシートで装飾する。最新のAIの回答のみを表示する。
 

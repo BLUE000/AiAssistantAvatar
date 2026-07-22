@@ -51,6 +51,7 @@ set(SOURCES
     src/ai/dummy_ai_client.cpp
     src/ai/rate_limit_tracker.cpp
     src/ai/system_response_manager.cpp
+    src/ai/ai_random_utils.cpp
     src/ai/ai_router.cpp
     src/search/isearch_provider.cpp
     src/search/search_manager.cpp
