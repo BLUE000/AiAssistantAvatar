@@ -42,7 +42,9 @@ private:
     void connectToTwitch();       // debounce エントリ（外部から呼ぶ）
     void doConnectToTwitch();     // 実際の接続処理（タイマーから呼ばれる）
     void sendGreeting();          // JOIN確認後に挨拶を発火
+protected:
     void checkWatchdog();         // サイレント切断監視用タイマーコールバック
+    void onTextMessageReceived(const QString &message);
 
 public:
     explicit TwitchReader(QObject *parent = nullptr);

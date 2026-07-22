@@ -93,9 +93,18 @@ TEST(TwitchReaderTest, AvatarNameReactionDisabled) {
     EXPECT_EQ(spy.count(), 1);
 }
 
+class TwitchReaderTest : public ::testing::Test {
+protected:
+    class TestableTwitchReader : public TwitchReader {
+    public:
+        using TwitchReader::onTextMessageReceived;
+        using TwitchReader::checkWatchdog;
+    };
+};
+
 // UT-WATCHDOG-01 ~ UT-WATCHDOG-03: サイレント切断探知 Watchdog 単体テスト
-TEST(TwitchReaderTest, WatchdogSilentDisconnectDetection) {
-    TwitchReader reader;
+TEST_F(TwitchReaderTest, WatchdogSilentDisconnectDetection) {
+    TestableTwitchReader reader;
     reader.setSettings("test_channel", "dummy_token", "dummy_client_id", "アバターさん");
 
     // メッセージ受信時に lastDataReceivedTime が更新されること
