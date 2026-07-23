@@ -319,4 +319,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-SHOUTOUT-02** | `TwitchReader::on_requestTwitchSend` | `on_requestTwitchSend("channel", "/announce blue test message")` を呼び出す。 | `/announce` プレフィックスが文字消去されず、そのまま `PRIVMSG #channel :/announce blue test message` として送信されること。 |
 | **UT-SHOUTOUT-03** | `AIClientManager::handleRaidShoutout` | `handleRaidShoutout("targetuser")` を実行し、`/shoutout` イベントを生成する。 | 1. 発行されるイベントの `extraData` に `twitch_channel` が含まれること。<br>2. `CoreModule` 経由で `requestTwitchSend` へ確実にルーティングされること。 |
 
+---
+
+### 3.21 アバター共通・応答設定UIの独立グループボックス化 (F-30) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造を検証する。 | 「アバター共通・応答設定」グループボックスが存在し、アバター名・名前反応・ウェイクワード・判定項目が正常に組み込まれていること。 |
+| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | 「アバター共通・応答設定」で入力したアバター名・ウェイクワード等の値を保存・復元する。 | `local_settings.json` との間でデータの保存・読み込みおよび `TwitchReader` / `AIClientManager` への反映が正常に行われること。 |
+
 

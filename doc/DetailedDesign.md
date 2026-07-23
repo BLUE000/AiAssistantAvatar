@@ -399,6 +399,23 @@ Twitch IRC WebSocket コネクションの半開状態（サイレントドロ�
 
 ---
 
+### 3.2.9 アバター共通・応答設定UIリファクタリング仕様 (F-30)
+
+設定画面 (`AvatarWindow::initSettingsTab`) において、アバター応答に関する設定項目を独立した「アバター共通・応答設定」グループボックスへ整理・集約するUI仕様。
+
+#### グループボックス構造と配置エレメント
+1. **「アバター共通・応答設定」グループボックス (`QGroupBox`)**:
+   - **アバター名 (`m_avatarNameEdit`)**: QLineEdit
+   - **名前反応 (`m_nameReactionCheckbox`)**: QCheckBox ("名前（アバター名）呼ばれて反応する")
+   - **ウェイクワード / 判定 (`m_twitchWakeWordEdit` / `m_twitchWakeWordModeCombo`)**: QHBoxLayout 内にウェイクワード入力欄と判定コンボボックス (contains / prefix) を横並び配置。
+2. **「Twitch 連携設定」グループボックス (スリム化)**:
+   - チャンネル名 (`m_twitchChannelEdit`)
+   - クライアント ID (`m_twitchClientIdEdit`)
+   - OAuth用ポート (`m_twitchPortEdit`)
+   - 起動時挨拶 (`m_twitchGreetingCheckbox`)
+
+---
+
 ### 3.2.7 MarkdownTableEngine (マークダウン汎用データストレージ・抽出モジュール)
 
 `knowledge/` ディレクトリ配下に保管された階層ドキュメント構造からテーブルレコードをスキャン・抽出するデータエンジン。
