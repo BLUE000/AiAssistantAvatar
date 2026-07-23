@@ -321,11 +321,20 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 ---
 
-### 3.21 アバター共通・応答設定UIの独立グループボックス化 (F-30) の単体試験
+### 3.21 アバター共通・基本設定UI化およびOBS用アバターURL化 (F-30) の単体試験
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造を検証する。 | 「アバター共通・応答設定」グループボックスが存在し、アバター名・名前反応・ウェイクワード・判定項目が正常に組み込まれていること。 |
-| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | 「アバター共通・応答設定」で入力したアバター名・ウェイクワード等の値を保存・復元する。 | `local_settings.json` との間でデータの保存・読み込みおよび `TwitchReader` / `AIClientManager` への反映が正常に行われること。 |
+| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造およびOBS表示URLを検証する。 | 1. 「アバター共通・基本設定」グループボックスにアバター名・アバタースキン・名前反応・ウェイクワード・判定が集約されていること。<br>2. OBS表示欄が `http://localhost:<port>/avatar_obs.html` のURL表示になっていること。 |
+| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | 基本設定で入力したアバター名・スキン・ウェイクワード等の値を保存・復元する。 | `local_settings.json` との間でデータの保存・読み込みおよび各種マネージャーへの反映が正常に行われること。 |
+
+---
+
+### 3.22 TaskFlow 独立連携 ＆ 全プラットフォーム対応 (F-31) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-TASKFLOW-01** | `AIClientManager::on_requestAI` | `m_taskFlowEnabled = true` で、Twitch入力およびUIダイレクト入力より「今日の予定は？」と送信する。 | 1. `getTaskFlowSchedulesContext` が呼び出され、TaskFlow から予定が取得されること。<br>2. 取得したスケジュール情報がシステムプロンプトへ追加されAIに渡されること。 |
+| **UT-TASKFLOW-02** | `AIClientManager::on_requestAI` | `m_taskFlowEnabled = false` の状態で「今日の予定は？」と送信する。 | TaskFlow API へのコンテキスト取得・注入が発生しないこと。 |
 
 

@@ -399,20 +399,41 @@ Twitch IRC WebSocket コネクションの半開状態（サイレントドロ�
 
 ---
 
-### 3.2.9 アバター共通・応答設定UIリファクタリング仕様 (F-30)
+### 3.2.9 アバター共通・基本設定UI化およびOBS用アバターURL化仕様 (F-30)
 
-設定画面 (`AvatarWindow::initSettingsTab`) において、アバター応答に関する設定項目を独立した「アバター共通・応答設定」グループボックスへ整理・集約するUI仕様。
+設定画面 (`AvatarWindow::initSettingsTab`) におけるグループボックスの再統合と、OBS取り込み用表示のURL化・HTTP常時有効化の仕様。
 
 #### グループボックス構造と配置エレメント
-1. **「アバター共通・応答設定」グループボックス (`QGroupBox`)**:
+1. **「アバター共通・基本設定」グループボックス (`QGroupBox`)**:
    - **アバター名 (`m_avatarNameEdit`)**: QLineEdit
+   - **アバタースキン (Skin & Builderボタン)**: `m_comboAvatarSkin` ＋ `m_btnSkinBuilder` ("新規作成 / 編集...")。※「OBS / 描画設定」から移動整合。
    - **名前反応 (`m_nameReactionCheckbox`)**: QCheckBox ("名前（アバター名）呼ばれて反応する")
    - **ウェイクワード / 判定 (`m_twitchWakeWordEdit` / `m_twitchWakeWordModeCombo`)**: QHBoxLayout 内にウェイクワード入力欄と判定コンボボックス (contains / prefix) を横並び配置。
-2. **「Twitch 連携設定」グループボックス (スリム化)**:
+2. **「OBS / 描画設定」グループボックス (スリム化 ＆ URL表記化)**:
+   - WebSocket ポート (OBS用): `m_wsPortEdit`
+   - HTTP配信ポート: `m_obsHttpPortEdit`
+   - OBS用アバターURL: `http://localhost:<ポート>/avatar_obs.html` (表示更新 ＆ 「URLをコピー」ボタン)
+   - 吹き出し表示秒数: 短 / 長
+   - ※「OBS用HTTPサーバー有効化:」チェックボックスは廃止し常時起動。
+3. **「Twitch 連携設定」グループボックス (スリム化)**:
    - チャンネル名 (`m_twitchChannelEdit`)
    - クライアント ID (`m_twitchClientIdEdit`)
    - OAuth用ポート (`m_twitchPortEdit`)
    - 起動時挨拶 (`m_twitchGreetingCheckbox`)
+
+---
+
+### 3.2.10 TaskFlow 独立連携 ＆ 全プラットフォーム対応仕様 (F-31)
+
+TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャット・UI直接入力を問わず予定参照を可能とする仕様。
+
+#### 設定構造とコンテキスト注入ロジック
+1. **「TaskFlow 連携設定」グループボックス (`QGroupBox`)**:
+   - **連携有効化 (`m_taskFlowEnabledCheckbox`)**: "TaskFlow 連携を有効にする" チェックボックス。
+   - **自由可変 API URL (`m_taskFlowApiUrlEdit`)**: ユーザー固有の TaskFlow schedules.php エンドポイントURL設定。
+2. **全入力ソース共通の予定取得・プロンプトインジェクション**:
+   - `AIClientManager::on_requestAI` にて、`m_taskFlowEnabled == true` かつプロンプト内に「予定」「スケジュール」「タスク」「進捗」「配信予定」等のキーワードが含まれる場合、`getTaskFlowSchedulesContext()` を呼び出す。
+   - 入力元（Twitch / Discord / UI）に関わらず、TaskFlow API から今日〜7日間の作業・配信タスクを取得し、AIシステムプロンプトへコンテキストとして自動追加する。
 
 ---
 

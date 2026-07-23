@@ -355,13 +355,24 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
 - **ナレッジ文章連動 ＆ 高速検索・抽出マクロ/API**:
   - ナレッジ機能（プロンプト・指示文章）からの文章表現やマクロ（`TableSearch` / `TableSelectRandom` 等）により、「どのフォルダのどのサブフォルダのどのファイル（テーブル）から、どのデータを検索/ランダム抽出してどう扱うか」を柔軟にコントロール可能とする。
 
-### F-30: アバター共通・応答設定UIの独立グループボックス化 (Avatar Response Settings UI Refactoring)
-- **「アバター共通・応答設定」グループボックスの新規作成**:
-  - 設定画面において、これまで「Twitch 連携設定」内に混在していたアバター応答の基本条件（アバター名、名前反応、ウェイクワード、ウェイクワード判定モード）を独立した一つのグループボックス（`QGroupBox`）に整理・集約する。
-- **設定レイアウト構造**:
-  - **アバター名 (`m_avatarNameEdit`)**: キャラクター呼び名設定。
-  - **名前反応 (`m_nameReactionCheckbox`)**: "名前（アバター名）呼ばれて反応する" チェックボックス。
-  - **ウェイクワード (`m_twitchWakeWordEdit`)**: 反応キーワード設定。
-  - **判定モード (`m_twitchWakeWordModeCombo`)**: "contains" または "prefix" 判定選択。
-- **プラットフォーム非依存化とスリム化**:
-  - 「Twitch 連携設定」グループボックスをチャンネル名、クライアントID、OAuthポート、起動時挨拶等の純粋な Twitch 接続設定のみにスリム化し、STTやDiscord等を含めたアバター全体で共通利用される応答設定をクリアに視覚化する。
+### F-30: アバター共通・基本設定UI化およびOBS用アバターURL化 (Avatar Common Settings & OBS URL Refactoring)
+- **「アバター共通・基本設定」グループボックスの新規作成 ＆ アバタースキン統合**:
+  - アバターの基本構成および応答条件を一箇所で管理するため、以下を統合したグループボックス（`QGroupBox`）を新設する：
+    - **アバター名 (`m_avatarNameEdit`)**: キャラクター呼び名設定。
+    - **アバタースキン (Skin & Builderボタン)**: `m_comboAvatarSkin` ＋ `m_btnSkinBuilder` ("新規作成 / 編集...")。※「OBS / 描画設定」から移動。
+    - **名前反応 (`m_nameReactionCheckbox`)**: "名前（アバター名）呼ばれて反応する" チェックボックス。
+    - **ウェイクワード (`m_twitchWakeWordEdit`)**: 反応キーワード設定。
+    - **判定モード (`m_twitchWakeWordModeCombo`)**: "contains" または "prefix" 判定選択。
+- **OBS用アバターURL表記 ＆ HTTPサーバー常時自動有効化**:
+  - OBSブラウザソース取り込み用表記を従来のローカル絶対パスから **`http://localhost:<ポート>/avatar_obs.html`** のURL表示に変更する。
+  - 「URLをコピー」ボタンを押下すると、直ちに上記URL文字列がクリップボードにコピーされる。
+  - 通信セキュリティ・CORS制限回避と設定誤操作防止のため、「OBS用HTTPサーバー有効化:」チェックボックスを廃止し、アプリ起動時に常時自動ON（常時起動）とする。
+
+### F-31: TaskFlow 連携の独立グループボックス化 ＆ 全プラットフォーム対応 (TaskFlow Integration & Multi-Platform Support)
+- **「TaskFlow 連携設定」グループボックスの独立**:
+  - これまで「Discord 連携設定」内に配置されていた TaskFlow API 設定を独立したグループボックスへ分離・移行する。
+- **設定項目**:
+  - **連携有効化 (`m_taskFlowEnabledCheckbox`)**: "TaskFlow 連携を有効にする" チェックボックス。
+  - **自由可変 API URL (`m_taskFlowApiUrlEdit`)**: 配信者ごとの固有サーバー環境やTaskFlow APIエンドポイントURLを自由に設定・変更可能（既定値: `https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php`）。
+- **全プラットフォーム（Twitch / Discord / UI）での予定自動参照**:
+  - TaskFlow 連携が有効な場合、Discord チャットに限らず **Twitch チャットや UI 直接入力** からであっても「予定」「スケジュール」「タスク」「進捗」「配信予定」等のキーワードを検出した際、TaskFlow API から最新の予定データ（作業・配信タスク）を自動取得しAIプロンプトに注入して回答可能とする。
