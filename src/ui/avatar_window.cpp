@@ -1096,18 +1096,14 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     mainLayout->addWidget(obsGroup);
 
-    // 2. Twitch 連携設定グループ
-    QGroupBox *twitchGroup = new QGroupBox("Twitch 連携設定", scrollContent);
-    QFormLayout *twitchLayout = new QFormLayout(twitchGroup);
-    twitchLayout->setContentsMargins(10, 10, 10, 10);
-    twitchLayout->setSpacing(6);
-    twitchLayout->addRow("アバター名:", m_avatarNameEdit);
-    twitchLayout->addRow("名前反応:", m_nameReactionCheckbox);
-    twitchLayout->addRow("チャンネル:", m_twitchChannelEdit);
-    twitchLayout->addRow("クライアント ID:", m_twitchClientIdEdit);
-    twitchLayout->addRow("OAuth用ポート:", m_twitchPortEdit);
-    twitchLayout->addRow("起動時挨拶:", m_twitchGreetingCheckbox);
-    
+    // 2. アバター共通・応答設定グループ
+    QGroupBox *commonRespGroup = new QGroupBox("アバター共通・応答設定", scrollContent);
+    QFormLayout *commonRespLayout = new QFormLayout(commonRespGroup);
+    commonRespLayout->setContentsMargins(10, 10, 10, 10);
+    commonRespLayout->setSpacing(6);
+    commonRespLayout->addRow("アバター名:", m_avatarNameEdit);
+    commonRespLayout->addRow("名前反応:", m_nameReactionCheckbox);
+
     QWidget *wakeWordWidget = new QWidget(scrollContent);
     QHBoxLayout *wakeWordLayout = new QHBoxLayout(wakeWordWidget);
     wakeWordLayout->setContentsMargins(0, 0, 0, 0);
@@ -1117,7 +1113,18 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     wakeWordLayout->addWidget(new QLabel("判定:", scrollContent));
     wakeWordLayout->addWidget(m_twitchWakeWordModeCombo);
     wakeWordLayout->addStretch();
-    twitchLayout->addRow("ウェイクワード:", wakeWordWidget);
+    commonRespLayout->addRow("ウェイクワード:", wakeWordWidget);
+    mainLayout->addWidget(commonRespGroup);
+
+    // 3. Twitch 連携設定グループ
+    QGroupBox *twitchGroup = new QGroupBox("Twitch 連携設定", scrollContent);
+    QFormLayout *twitchLayout = new QFormLayout(twitchGroup);
+    twitchLayout->setContentsMargins(10, 10, 10, 10);
+    twitchLayout->setSpacing(6);
+    twitchLayout->addRow("チャンネル:", m_twitchChannelEdit);
+    twitchLayout->addRow("クライアント ID:", m_twitchClientIdEdit);
+    twitchLayout->addRow("OAuth用ポート:", m_twitchPortEdit);
+    twitchLayout->addRow("起動時挨拶:", m_twitchGreetingCheckbox);
     mainLayout->addWidget(twitchGroup);
 
     // 4. 外部通知設定グループ (WebHook)
