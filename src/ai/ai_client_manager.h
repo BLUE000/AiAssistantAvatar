@@ -66,7 +66,12 @@ private:
     QString m_cerebrasModel = "llama3.1-8b";
     QString m_mistralModel = "mistral-small-latest";
     QString m_tavilyApiKey;
+    bool m_taskFlowEnabled = true;
     QString m_taskFlowApiUrl;
+
+    // TaskFlow外部スケジュールAPI連携RAG
+    QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
+    QString getTaskFlowSchedulesContext();
     qint64 m_apiCallStartTimeMs = 0;
 
     QStringList workerPriorityOrder() const;
@@ -112,9 +117,7 @@ private:
     void saveKnowledgeMetadata();
     void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
 
-    // Discord外部スケジュールAPI連携RAG
-    QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
-    QString getDiscordSchedulesContext();
+
 
     // --- F-22 レイド・クリエイター自動紹介メンバ ---
     struct PendingShoutout {
@@ -144,13 +147,14 @@ private:
     QTimer *m_shoutoutUiTimer = nullptr;
     qint64 m_shoutoutCooldownStartMs = 0;
 
-    void handleRaidShoutout(const QString &username);
     void processNextShoutoutInQueue();
     void updateShoutoutUiStatus();
 
 public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
+    void loadSettingsFromJsonObject(const QJsonObject &obj);
+    void handleRaidShoutout(const QString &username);
     void setAIProvider(const QString &provider, bool forceRefresh = false);
 
     // 履歴データ取得/設定用のI/F

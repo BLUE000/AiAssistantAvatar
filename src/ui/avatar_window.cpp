@@ -1017,12 +1017,45 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_bubbleLongEdit = new QLineEdit(scrollContent);
 
     // 1. OBS / 描画設定グループ
+    // 1. アバター共通・基本設定グループ
+    QGroupBox *commonRespGroup = new QGroupBox("アバター共通・基本設定", scrollContent);
+    QFormLayout *commonRespLayout = new QFormLayout(commonRespGroup);
+    commonRespLayout->setContentsMargins(10, 10, 10, 10);
+    commonRespLayout->setSpacing(6);
+    commonRespLayout->addRow("アバター名:", m_avatarNameEdit);
+
+    QWidget *skinWidget = new QWidget(scrollContent);
+    QHBoxLayout *skinLayout = new QHBoxLayout(skinWidget);
+    skinLayout->setContentsMargins(0, 0, 0, 0);
+    skinLayout->setSpacing(8);
+    m_comboAvatarSkin = new QComboBox(scrollContent);
+    scanAvailableSkins();
+    m_btnSkinBuilder = new QPushButton("新規作成 / 編集...", scrollContent);
+    connect(m_btnSkinBuilder, &QPushButton::clicked, this, &AvatarWindow::onSkinBuilderClicked);
+    skinLayout->addWidget(m_comboAvatarSkin, 1);
+    skinLayout->addWidget(m_btnSkinBuilder);
+    commonRespLayout->addRow("アバタースキン (Skin):", skinWidget);
+
+    commonRespLayout->addRow("名前反応:", m_nameReactionCheckbox);
+
+    QWidget *wakeWordWidget = new QWidget(scrollContent);
+    QHBoxLayout *wakeWordLayout = new QHBoxLayout(wakeWordWidget);
+    wakeWordLayout->setContentsMargins(0, 0, 0, 0);
+    wakeWordLayout->setSpacing(8);
+    m_twitchWakeWordEdit->setFixedWidth(100);
+    wakeWordLayout->addWidget(m_twitchWakeWordEdit);
+    wakeWordLayout->addWidget(new QLabel("判定:", scrollContent));
+    wakeWordLayout->addWidget(m_twitchWakeWordModeCombo);
+    wakeWordLayout->addStretch();
+    commonRespLayout->addRow("ウェイクワード:", wakeWordWidget);
+    mainLayout->addWidget(commonRespGroup);
+
+    // 2. OBS / 描画設定グループ
     QGroupBox *obsGroup = new QGroupBox("OBS / 描画設定", scrollContent);
     QFormLayout *obsLayout = new QFormLayout(obsGroup);
     obsLayout->setContentsMargins(10, 10, 10, 10);
     obsLayout->setSpacing(6);
     obsLayout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
-    obsLayout->addRow("OBS用HTTPサーバー有効化:", m_obsHttpEnabledCheckbox);
     obsLayout->addRow("HTTP配信ポート:", m_obsHttpPortEdit);
 
     // 表示秒数の横並びレイアウト
@@ -1049,7 +1082,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     bubbleLayout->addStretch();
     obsLayout->addRow("吹き出し表示秒数:", bubbleDurationWidget);
 
-    // OBS用ファイルの絶対パス表示とコピーボタン
+    // OBS用アバターURL表示と「URLをコピー」ボタン
     QWidget *obsPathWidget = new QWidget(scrollContent);
     QHBoxLayout *obsPathLayout = new QHBoxLayout(obsPathWidget);
     obsPathLayout->setContentsMargins(0, 0, 0, 0);
@@ -1057,64 +1090,19 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     m_obsPathEdit = new QLineEdit(scrollContent);
     m_obsPathEdit->setReadOnly(true);
-    // パスを解決する
-    QString htmlPath = "pic/avatar_obs.html";
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(htmlPath)) {
-        htmlPath = QString(PROJECT_SOURCE_DIR) + "/pic/avatar_obs.html";
-    }
-#endif
-    if (!QFile::exists(htmlPath)) {
-        htmlPath = QCoreApplication::applicationDirPath() + "/pic/avatar_obs.html";
-    }
-    m_obsPathEdit->setText(QFileInfo(htmlPath).absoluteFilePath());
+    int httpPort = m_obsHttpPortEdit->text().toInt();
+    if (httpPort <= 0) httpPort = 4080;
+    m_obsPathEdit->setText(QString("http://localhost:%1/avatar_obs.html").arg(httpPort));
 
-    QPushButton *btnCopyObsPath = new QPushButton("パスをコピー", scrollContent);
+    QPushButton *btnCopyObsPath = new QPushButton("URLをコピー", scrollContent);
     btnCopyObsPath->setFixedWidth(100);
     connect(btnCopyObsPath, &QPushButton::clicked, this, &AvatarWindow::onCopyObsPathClicked);
 
     obsPathLayout->addWidget(m_obsPathEdit);
     obsPathLayout->addWidget(btnCopyObsPath);
-
-    obsLayout->addRow("OBS用ファイルパス:", obsPathWidget);
-
-    QWidget *skinWidget = new QWidget(scrollContent);
-    QHBoxLayout *skinLayout = new QHBoxLayout(skinWidget);
-    skinLayout->setContentsMargins(0, 0, 0, 0);
-    skinLayout->setSpacing(8);
-
-    m_comboAvatarSkin = new QComboBox(scrollContent);
-    scanAvailableSkins();
-
-    m_btnSkinBuilder = new QPushButton("新規作成 / 編集...", scrollContent);
-    connect(m_btnSkinBuilder, &QPushButton::clicked, this, &AvatarWindow::onSkinBuilderClicked);
-
-    skinLayout->addWidget(m_comboAvatarSkin, 1);
-    skinLayout->addWidget(m_btnSkinBuilder);
-
-    obsLayout->addRow("アバタースキン (Skin):", skinWidget);
+    obsLayout->addRow("OBS用アバターURL:", obsPathWidget);
 
     mainLayout->addWidget(obsGroup);
-
-    // 2. アバター共通・応答設定グループ
-    QGroupBox *commonRespGroup = new QGroupBox("アバター共通・応答設定", scrollContent);
-    QFormLayout *commonRespLayout = new QFormLayout(commonRespGroup);
-    commonRespLayout->setContentsMargins(10, 10, 10, 10);
-    commonRespLayout->setSpacing(6);
-    commonRespLayout->addRow("アバター名:", m_avatarNameEdit);
-    commonRespLayout->addRow("名前反応:", m_nameReactionCheckbox);
-
-    QWidget *wakeWordWidget = new QWidget(scrollContent);
-    QHBoxLayout *wakeWordLayout = new QHBoxLayout(wakeWordWidget);
-    wakeWordLayout->setContentsMargins(0, 0, 0, 0);
-    wakeWordLayout->setSpacing(8);
-    m_twitchWakeWordEdit->setFixedWidth(100);
-    wakeWordLayout->addWidget(m_twitchWakeWordEdit);
-    wakeWordLayout->addWidget(new QLabel("判定:", scrollContent));
-    wakeWordLayout->addWidget(m_twitchWakeWordModeCombo);
-    wakeWordLayout->addStretch();
-    commonRespLayout->addRow("ウェイクワード:", wakeWordWidget);
-    mainLayout->addWidget(commonRespGroup);
 
     // 3. Twitch 連携設定グループ
     QGroupBox *twitchGroup = new QGroupBox("Twitch 連携設定", scrollContent);
@@ -1127,7 +1115,19 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     twitchLayout->addRow("起動時挨拶:", m_twitchGreetingCheckbox);
     mainLayout->addWidget(twitchGroup);
 
-    // 4. 外部通知設定グループ (WebHook)
+    // 4. TaskFlow 連携設定グループ
+    QGroupBox *taskflowGroup = new QGroupBox("TaskFlow 連携設定", scrollContent);
+    QFormLayout *taskflowLayout = new QFormLayout(taskflowGroup);
+    taskflowLayout->setContentsMargins(10, 10, 10, 10);
+    taskflowLayout->setSpacing(6);
+    m_taskFlowEnabledCheckbox = new QCheckBox("TaskFlow 連携を有効にする", scrollContent);
+    m_taskFlowApiUrlEdit = new QLineEdit(scrollContent);
+    m_taskFlowApiUrlEdit->setPlaceholderText("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php");
+    taskflowLayout->addRow("有効化:", m_taskFlowEnabledCheckbox);
+    taskflowLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
+    mainLayout->addWidget(taskflowGroup);
+
+    // 5. 外部通知設定グループ (WebHook)
     QGroupBox *notifyGroup = new QGroupBox("外部通知設定 (WebHook)", scrollContent);
     QHBoxLayout *notifyLayout = new QHBoxLayout(notifyGroup);
     notifyLayout->setContentsMargins(10, 10, 10, 10);
@@ -1143,7 +1143,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     notifyLayout->addStretch();
     mainLayout->addWidget(notifyGroup);
 
-    // 5. Discord 連携設定グループ
+    // 6. Discord 連携設定グループ
     QGroupBox *discordGroup = new QGroupBox("Discord 連携設定", scrollContent);
     m_discordLayout = new QFormLayout(discordGroup);
     m_discordLayout->setContentsMargins(10, 10, 10, 10);
@@ -1154,9 +1154,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_discordBotTokenEdit->setEchoMode(QLineEdit::Password);
     m_discordBotTokenEdit->setPlaceholderText("ボットのトークンを入力...");
 
-    m_taskFlowApiUrlEdit = new QLineEdit(scrollContent);
-    m_taskFlowApiUrlEdit->setPlaceholderText("TaskFlow APIのURLを入力...");
-
     m_discordLayout->addRow("有効化:", m_discordEnabledCheckbox);
     m_discordLayout->addRow("ボット トークン:", m_discordBotTokenEdit);
 
@@ -1166,8 +1163,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_discordChannelsLayout->setContentsMargins(0, 0, 0, 0);
     m_discordChannelsLayout->setSpacing(6);
     m_discordLayout->addRow(m_discordChannelsContainer);
-
-    m_discordLayout->addRow("TaskFlow API URL:", m_taskFlowApiUrlEdit);
     mainLayout->addWidget(discordGroup);
 
     // 保存・適用ボタン
@@ -1569,12 +1564,18 @@ void AvatarWindow::loadSettingsToUI() {
                 }
             }
 
+            if (m_taskFlowEnabledCheckbox) {
+                m_taskFlowEnabledCheckbox->setChecked(obj.value("taskflow_enabled").toBool(true));
+            }
             if (m_taskFlowApiUrlEdit) {
                 m_taskFlowApiUrlEdit->setText(obj.value("taskflow_api_url").toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php"));
             }
 
-            if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(obj.value("obs_http_enabled").toBool(false));
-            if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(obj.value("obs_http_port").toInt(58082)));
+            if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(true);
+            int httpPort = obj.value("obs_http_port").toInt(4080);
+            if (httpPort <= 0) httpPort = 4080;
+            if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(httpPort));
+            if (m_obsPathEdit) m_obsPathEdit->setText(QString("http://localhost:%1/avatar_obs.html").arg(httpPort));
 
             if (m_raidAutoShoutoutCheckBox) m_raidAutoShoutoutCheckBox->setChecked(obj.value("raid_auto_shoutout_enabled").toBool(true));
             if (m_shoutoutConversationCheckBox) m_shoutoutConversationCheckBox->setChecked(obj.value("shoutout_conversation_enabled").toBool(true));
@@ -1723,13 +1724,21 @@ void AvatarWindow::saveSettingsFromUI() {
         obj["discord_greeting_enabled"] = false;
     }
 
+    if (m_taskFlowEnabledCheckbox) {
+        obj["taskflow_enabled"] = m_taskFlowEnabledCheckbox->isChecked();
+    }
     if (m_taskFlowApiUrlEdit) {
         obj["taskflow_api_url"] = m_taskFlowApiUrlEdit->text().trimmed();
     }
     obj.remove("greeting_enabled");
 
-    obj["obs_http_enabled"] = m_obsHttpEnabledCheckbox->isChecked();
-    obj["obs_http_port"] = m_obsHttpPortEdit->text().trimmed().toInt();
+    obj["obs_http_enabled"] = true;
+    int httpPort = m_obsHttpPortEdit ? m_obsHttpPortEdit->text().trimmed().toInt() : 4080;
+    if (httpPort <= 0) httpPort = 4080;
+    obj["obs_http_port"] = httpPort;
+    if (m_obsPathEdit) {
+        m_obsPathEdit->setText(QString("http://localhost:%1/avatar_obs.html").arg(httpPort));
+    }
 
     m_bubbleDisplayShortSec = m_bubbleShortEdit->text().trimmed().toInt();
     if (m_bubbleDisplayShortSec <= 0) m_bubbleDisplayShortSec = 5;
@@ -2033,7 +2042,7 @@ void AvatarWindow::onCopyObsPathClicked() {
     if (m_obsPathEdit) {
         QString path = m_obsPathEdit->text();
         QGuiApplication::clipboard()->setText(path);
-        statusBar()->showMessage("OBS用ファイルパスをクリップボードにコピーしました。");
+        statusBar()->showMessage("OBS用アバターURLをクリップボードにコピーしました。");
     }
 }
 

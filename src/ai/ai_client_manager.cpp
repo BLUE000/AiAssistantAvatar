@@ -116,6 +116,38 @@ void AIClientManager::saveSessionContext(const QString &context) {
     }
 }
 
+void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
+    m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
+    m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
+    m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
+    m_streamerName = obj["twitch_channel"].toString().trimmed().toLower();
+    m_avatarName = obj["avatar_name"].toString("AIアシスタント").trimmed();
+
+    // APIキーとモデル設定の読み込み
+    QString mistralKey = obj["mistral_api_key"].toString();
+    QString cerebrasKey = obj["cerebras_api_key"].toString();
+    QString groqKey = obj["groq_api_key"].toString();
+    m_tavilyApiKey = obj["tavily_api_key"].toString();
+    m_taskFlowEnabled = obj.value("taskflow_enabled").toBool(true);
+    m_taskFlowApiUrl = obj["taskflow_api_url"].toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php").trimmed();
+
+    m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
+    m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
+    m_mistralModel = obj["mistral_model"].toString("mistral-small-latest");
+
+    // F-22 レイド・自動紹介設定
+    m_raidAutoShoutoutEnabled = obj.value("raid_auto_shoutout_enabled").toBool(true);
+    m_shoutoutConversationEnabled = obj.value("shoutout_conversation_enabled").toBool(true);
+    m_shoutoutUseCommand = obj.value("shoutout_use_command").toBool(true);
+    m_shoutoutFollowMsgEnabled = obj.value("shoutout_follow_msg_enabled").toBool(true);
+    m_shoutoutFollowMsgTemplate = obj.value("shoutout_follow_msg_template").toString("ぜひ {name} さんをフォローしてね！");
+    m_shoutoutUseAnnounce = obj.value("shoutout_use_announce").toBool(true);
+    m_shoutoutAnnounceColor = obj.value("shoutout_announce_color").toString("random");
+    m_shoutoutLength = obj.value("shoutout_length").toString("standard");
+    m_shoutoutTone = obj.value("shoutout_tone").toString("明るく元気な口調で！");
+    m_shoutoutPrefix = obj.value("shoutout_prefix").toString("【レイド感謝】");
+}
+
 void AIClientManager::loadCredentials() {
     QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
     if (!QFile::exists(configPath)) {
@@ -149,34 +181,11 @@ void AIClientManager::loadCredentials() {
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
-            m_transCipherKey = obj["trans_cipher_key"].toString("DefaultCipherKey123");
-            m_provider = obj["ai_provider"].toString(ConfigDefaults::AI_PROVIDER);
-            m_blacklistEnabled = obj.value("blacklist_enabled").toBool(true);
-            m_streamerName = obj["twitch_channel"].toString().trimmed().toLower();
-            m_avatarName = obj["avatar_name"].toString("AIアシスタント").trimmed();
+            loadSettingsFromJsonObject(obj);
 
-            // APIキーとモデル設定の読み込み
             QString mistralKey = obj["mistral_api_key"].toString();
             QString cerebrasKey = obj["cerebras_api_key"].toString();
             QString groqKey = obj["groq_api_key"].toString();
-            m_tavilyApiKey = obj["tavily_api_key"].toString();
-            m_taskFlowApiUrl = obj["taskflow_api_url"].toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php").trimmed();
-
-            m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
-            m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
-            m_mistralModel = obj["mistral_model"].toString("mistral-small-latest");
-
-            // F-22 レイド・自動紹介設定
-            m_raidAutoShoutoutEnabled = obj.value("raid_auto_shoutout_enabled").toBool(true);
-            m_shoutoutConversationEnabled = obj.value("shoutout_conversation_enabled").toBool(true);
-            m_shoutoutUseCommand = obj.value("shoutout_use_command").toBool(true);
-            m_shoutoutFollowMsgEnabled = obj.value("shoutout_follow_msg_enabled").toBool(true);
-            m_shoutoutFollowMsgTemplate = obj.value("shoutout_follow_msg_template").toString("ぜひ {name} さんをフォローしてね！");
-            m_shoutoutUseAnnounce = obj.value("shoutout_use_announce").toBool(true);
-            m_shoutoutAnnounceColor = obj.value("shoutout_announce_color").toString("random");
-            m_shoutoutLength = obj.value("shoutout_length").toString("standard");
-            m_shoutoutTone = obj.value("shoutout_tone").toString("明るく元気な口調で！");
-            m_shoutoutPrefix = obj.value("shoutout_prefix").toString("【レイド感謝】");
 
             m_twitchChannel = obj["twitch_channel"].toString().trimmed();
             m_twitchUsername = obj["twitch_username"].toString().trimmed();
@@ -900,8 +909,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         finalPrompt = m_recalledContext + "\n\n" + finalPrompt;
     }
 
-    // スケジュール自動取得RAGの実行 (全入力ソース: Twitch, Discord, UI直接入力に対応)
-    {
+    // TaskFlow スケジュール自動取得RAGの実行 (m_taskFlowEnabled が有効時、全入力ソース: Twitch, Discord, UI直接入力に対応)
+    if (m_taskFlowEnabled) {
         QString lowerPrompt = filteredPrompt.toLower();
         if (lowerPrompt.contains("予定") || lowerPrompt.contains("スケジュール") || 
             lowerPrompt.contains("タスク") || lowerPrompt.contains("状況") || 
@@ -910,7 +919,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             lowerPrompt.contains("task") || lowerPrompt.contains("work") || 
             lowerPrompt.contains("stream")) {
             
-            QString schedulesContext = getDiscordSchedulesContext();
+            QString schedulesContext = getTaskFlowSchedulesContext();
             if (!additionalSystemPrompt.isEmpty()) {
                 additionalSystemPrompt += "\n\n" + schedulesContext;
             } else {
@@ -2263,7 +2272,7 @@ QString AIClientManager::fetchSchedules(const QString &category, const QDate &st
     return resultText;
 }
 
-QString AIClientManager::getDiscordSchedulesContext() {
+QString AIClientManager::getTaskFlowSchedulesContext() {
     QDate today = QDate::currentDate();
 
     // 今日から7日間のスケジュールを取得

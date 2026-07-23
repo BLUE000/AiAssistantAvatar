@@ -182,6 +182,7 @@ private:
     QLineEdit *m_discordBotTokenEdit = nullptr;
     QLineEdit *m_discordChannelIdEdit = nullptr;
     QLineEdit *m_taskFlowApiUrlEdit = nullptr;
+    QCheckBox *m_taskFlowEnabledCheckbox = nullptr;
     QFormLayout *m_discordLayout = nullptr;
     QWidget *m_discordChannelsContainer = nullptr;
     QVBoxLayout *m_discordChannelsLayout = nullptr;
