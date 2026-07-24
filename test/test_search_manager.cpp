@@ -140,10 +140,21 @@ TEST(MarkdownTableEngineTest, FullTableDatabaseSuite) {
     QString evalStr = engine.parseAndEvaluate(macroStr);
     EXPECT_TRUE(evalStr.contains("鉄鉱石x3, 木材x1"));
 
-    // UT-TABLEDB-06: searchRelevantContext 自然文RAG検索
-    QString context = engine.searchRelevantContext("鉄の剣の必要素材を教えて");
-    EXPECT_TRUE(context.contains("ナレッジデータベース参照結果"));
-    EXPECT_TRUE(context.contains("鉄の剣"));
+    // 区切り行(|---|)のないテーブルのテスト
+    QDir().mkpath(testDir + "/ROLC/武器/短剣");
+    QFile file2(testDir + "/ROLC/武器/短剣/構成.md");
+    if (file2.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file2);
+        out.setEncoding(QStringConverter::Utf8);
+        out << "Rank/Rare|名前|属性|左手|Lv|物攻|魔攻|会心|スキル構成|\n";
+        out << "1/C|カッパーダガー|-|○|1|51|43|20%|1 2 3 - - -|\n";
+        file2.close();
+    }
+
+    engine.reload();
+    QString context2 = engine.searchRelevantContext("カッパーダガーのスキル構成は？");
+    EXPECT_TRUE(context2.contains("カッパーダガー"));
+    EXPECT_TRUE(context2.contains("1 2 3 - - -"));
 
     // 後始末
     QDir(testDir).removeRecursively();

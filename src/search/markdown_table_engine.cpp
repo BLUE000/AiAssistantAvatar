@@ -108,10 +108,14 @@ void MarkdownTableEngine::parseMarkdownFile(const QString &filePath, const QStri
 
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines.at(i);
-        if (line.startsWith("|") && line.endsWith("|")) {
+        if (line.contains("|")) {
+            QString trimmedLine = line;
+            if (!trimmedLine.startsWith("|")) trimmedLine = "|" + trimmedLine;
+            if (!trimmedLine.endsWith("|")) trimmedLine = trimmedLine + "|";
+
             // パイプ区切りの行
             QStringList cells;
-            QStringList rawCells = line.split("|");
+            QStringList rawCells = trimmedLine.split("|");
             for (int c = 1; c < rawCells.size() - 1; ++c) {
                 cells.append(rawCells.at(c).trimmed());
             }
@@ -132,12 +136,12 @@ void MarkdownTableEngine::parseMarkdownFile(const QString &filePath, const QStri
                 continue;
             }
 
-            if (!inTable) {
-                // ハイフン区切り線の直前行をヘッダーとみなす
+            if (headers.isEmpty()) {
+                // 最初のパイプ行をヘッダー（項目名）とみなす
                 headers = cells;
                 record.headers = headers;
             } else {
-                // データ行
+                // データ行（区切り行が無くても2行目以降を直ちにデータとして読み込む）
                 if (cells.size() == headers.size()) {
                     QMap<QString, QString> rowMap;
                     for (int h = 0; h < headers.size(); ++h) {
