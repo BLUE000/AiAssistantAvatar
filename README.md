@@ -4,12 +4,12 @@
 
 AIの返答に合わせて、可愛いアバターの表情が変わり、画面上に吹き出し（字幕）がリアルタイムに表示されます。
 
-### 🤖 対応AIエンジン（全6種のAIプロバイダに対応）
+### 🤖 対応AI ＆ 拡張連携API一覧
 
-本アプリは、用途・好み・速度に合わせて選択できる **6種類の先進的なAIプロバイダ（AIエンジン）** に対応しています。
-各プロバイダのアカウント作成・APIキー取得手順は、以下の個別ガイドをご覧ください。
+本アプリは、用途・好み・速度に合わせて選択できる **6種類の先進的なAIプロバイダ（AIエンジン）** および **リアルタイムWeb検索拡張機能** に対応しています。
+各サービスのアカウント作成・APIキー取得手順は、以下の個別ガイドをご覧ください。
 
-| AIプロバイダ | 特徴・強み | ガイド手順書リンク |
+| サービス / AIプロバイダ | 役割・特徴 | ガイド手順書リンク |
 | :--- | :--- | :--- |
 | **Mistral AI** | バランスに優れ、自然で賢い日本語会話が可能 | [Mistral AI ガイド](doc/api_guides/mistral.md) |
 | **Cerebras AI** | 超高速レスポンス（リアルタイム会話に最適） | [Cerebras AI ガイド](doc/api_guides/cerebras.md) |
@@ -17,6 +17,7 @@ AIの返答に合わせて、可愛いアバターの表情が変わり、画面
 | **HuggingFace** | 世界最大のAIコミュニティ（最新オープンモデル利用可） | [HuggingFace ガイド](doc/api_guides/huggingface.md) |
 | **OpenRouter** | 統一キーで最新モデルを利用（完全無料 `:free` モデル多数） | [OpenRouter ガイド](doc/api_guides/openrouter.md) |
 | **さくらAI** | 安全な国内インフラで動く高火力国産LLM | [さくらAI ガイド](doc/api_guides/sakura.md) |
+| **Tavily (任意)** | 最新のニュースやネット情報をリアルタイム検索 | [Tavily ガイド](doc/api_guides/tavily.md) |
 
 ---
 
@@ -27,13 +28,14 @@ AIの返答に合わせて、可愛いアバターの表情が変わり、画面
 ### 1. AIの設定（返答をつくる頭脳）
 「AI設定」タブから、使用したいプロバイダのチェックボックスをONにし、取得したAPIキーを入力・モデルを選択するだけで完了です。
 
-* **プロバイダの個別設定ガイド**:
+* **プロバイダ・拡張機能の個別設定ガイド**:
   * [Mistral AI のキー取得手順](doc/api_guides/mistral.md)
   * [Cerebras AI のキー取得手順](doc/api_guides/cerebras.md)
   * [Groq AI のキー取得手順](doc/api_guides/groq.md)
   * [HuggingFace のキー取得手順](doc/api_guides/huggingface.md)
   * [OpenRouter のキー取得手順](doc/api_guides/openrouter.md)
   * [さくらAI のトークン取得手順](doc/api_guides/sakura.md)
+  * [Tavily Web検索のキー取得手順 (任意)](doc/api_guides/tavily.md)
 
 * **オートローテーション（安全機構）**:
   チェックを入れたAIが最優先で使用されますが、キー未設定や一時的な障害が発生した場合でも、キーが入力されている他のプロバイダへ自動的にミリ秒単位で切り替えて会話を継続します。
