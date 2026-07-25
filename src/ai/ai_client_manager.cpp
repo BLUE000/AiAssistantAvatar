@@ -519,7 +519,7 @@ QStringList AIClientManager::workerPriorityOrder() const {
         order.append(m_provider);
     }
     // 残りのプロバイダを重複なしで追加
-    QStringList defaultPriority = { "groq", "cerebras", "mistral", "dummy" };
+    QStringList defaultPriority = { "groq", "cerebras", "mistral", "huggingface", "openrouter", "sakura", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
             order.append(p);
