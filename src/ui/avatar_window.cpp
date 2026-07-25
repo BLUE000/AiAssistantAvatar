@@ -1244,25 +1244,45 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_aiHuggingFaceApiKeyEdit->setEchoMode(QLineEdit::Password);
     m_aiHuggingFaceApiKeyEdit->setPlaceholderText("HuggingFace API キー (hf_...) を入力...");
 
-    m_aiHuggingFaceModelEdit = new QLineEdit(scrollContent);
-    m_aiHuggingFaceModelEdit->setPlaceholderText("meta-llama/Llama-3.1-8B-Instruct");
-    m_aiHuggingFaceModelEdit->setText("meta-llama/Llama-3.1-8B-Instruct");
+    m_aiHuggingFaceModelCombo = new QComboBox(scrollContent);
+    m_aiHuggingFaceModelCombo->setEditable(true);
+    m_aiHuggingFaceModelCombo->addItems({
+        "meta-llama/Llama-3.1-8B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-72B-Instruct",
+        "mistralai/Mistral-7B-Instruct-v0.3"
+    });
 
     m_aiOpenRouterApiKeyEdit = new QLineEdit(scrollContent);
     m_aiOpenRouterApiKeyEdit->setEchoMode(QLineEdit::Password);
     m_aiOpenRouterApiKeyEdit->setPlaceholderText("OpenRouter API キー (sk-or-v1-...) を入力...");
 
-    m_aiOpenRouterModelEdit = new QLineEdit(scrollContent);
-    m_aiOpenRouterModelEdit->setPlaceholderText("meta-llama/llama-3.1-8b-instruct:free");
-    m_aiOpenRouterModelEdit->setText("meta-llama/llama-3.1-8b-instruct:free");
+    m_aiOpenRouterModelCombo = new QComboBox(scrollContent);
+    m_aiOpenRouterModelCombo->setEditable(true);
+    m_aiOpenRouterModelCombo->addItems({
+        "meta-llama/llama-3.1-8b-instruct:free",
+        "google/gemma-2-9b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "qwen/qwen-2.5-72b-instruct"
+    });
 
     m_aiSakuraApiKeyEdit = new QLineEdit(scrollContent);
     m_aiSakuraApiKeyEdit->setEchoMode(QLineEdit::Password);
     m_aiSakuraApiKeyEdit->setPlaceholderText("さくらAI API キーを入力...");
 
-    m_aiSakuraModelEdit = new QLineEdit(scrollContent);
-    m_aiSakuraModelEdit->setPlaceholderText("sakura-llm");
-    m_aiSakuraModelEdit->setText("sakura-llm");
+    m_aiSakuraModelCombo = new QComboBox(scrollContent);
+    m_aiSakuraModelCombo->setEditable(true);
+    m_aiSakuraModelCombo->addItems({
+        "llm-jp-3.1-8x13b-instruct4",
+        "gpt-oss-120b",
+        "preview/gemma-4-31B-it",
+        "preview/Kimi-K2.6",
+        "preview/Phi-4-mini-instruct-cpu",
+        "preview/Phi-4-multimodal-instruct",
+        "preview/Qwen3-0.6B-cpu",
+        "preview/Qwen3-VL-30B-A3B-Instruct",
+        "preview/Qwen3.6-35B-A3B"
+    });
 
     m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
@@ -1283,13 +1303,13 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     aiLayout->addRow("Groq モデル:", m_aiGroqModelCombo);
     aiLayout->addRow("HuggingFace 使用:", m_aiProviderHuggingFaceCheckbox);
     aiLayout->addRow("HuggingFace API キー:", m_aiHuggingFaceApiKeyEdit);
-    aiLayout->addRow("HuggingFace モデル:", m_aiHuggingFaceModelEdit);
+    aiLayout->addRow("HuggingFace モデル:", m_aiHuggingFaceModelCombo);
     aiLayout->addRow("OpenRouter 使用:", m_aiProviderOpenRouterCheckbox);
     aiLayout->addRow("OpenRouter API キー:", m_aiOpenRouterApiKeyEdit);
-    aiLayout->addRow("OpenRouter モデル:", m_aiOpenRouterModelEdit);
+    aiLayout->addRow("OpenRouter モデル:", m_aiOpenRouterModelCombo);
     aiLayout->addRow("さくらAI 使用:", m_aiProviderSakuraCheckbox);
     aiLayout->addRow("さくらAI API キー:", m_aiSakuraApiKeyEdit);
-    aiLayout->addRow("さくらAI モデル:", m_aiSakuraModelEdit);
+    aiLayout->addRow("さくらAI モデル:", m_aiSakuraModelCombo);
     aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
     mainLayout->addWidget(aiGroup);
 
@@ -1528,14 +1548,14 @@ void AvatarWindow::loadSettingsToUI() {
             if (m_aiOpenRouterApiKeyEdit) m_aiOpenRouterApiKeyEdit->setText(obj.value("openrouter_api_key").toString());
             if (m_aiSakuraApiKeyEdit) m_aiSakuraApiKeyEdit->setText(obj.value("sakura_api_key").toString());
 
-            if (m_aiHuggingFaceModelEdit && obj.contains("huggingface_model")) {
-                m_aiHuggingFaceModelEdit->setText(obj.value("huggingface_model").toString("meta-llama/Llama-3.1-8B-Instruct"));
+            if (m_aiHuggingFaceModelCombo && obj.contains("huggingface_model")) {
+                m_aiHuggingFaceModelCombo->setCurrentText(obj.value("huggingface_model").toString("meta-llama/Llama-3.1-8B-Instruct"));
             }
-            if (m_aiOpenRouterModelEdit && obj.contains("openrouter_model")) {
-                m_aiOpenRouterModelEdit->setText(obj.value("openrouter_model").toString("meta-llama/llama-3.1-8b-instruct:free"));
+            if (m_aiOpenRouterModelCombo && obj.contains("openrouter_model")) {
+                m_aiOpenRouterModelCombo->setCurrentText(obj.value("openrouter_model").toString("meta-llama/llama-3.1-8b-instruct:free"));
             }
-            if (m_aiSakuraModelEdit && obj.contains("sakura_model")) {
-                m_aiSakuraModelEdit->setText(obj.value("sakura_model").toString("sakura-llm"));
+            if (m_aiSakuraModelCombo && obj.contains("sakura_model")) {
+                m_aiSakuraModelCombo->setCurrentText(obj.value("sakura_model").toString("llm-jp-3.1-8x13b-instruct4"));
             }
 
             if (m_aiCerebrasModelCombo) {
@@ -1718,13 +1738,13 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["groq_model"] = groqModel.replace(" (推奨)", "").trimmed();
 
     obj["huggingface_api_key"] = m_aiHuggingFaceApiKeyEdit->text().trimmed();
-    obj["huggingface_model"] = m_aiHuggingFaceModelEdit->text().trimmed();
+    obj["huggingface_model"] = m_aiHuggingFaceModelCombo->currentText().trimmed();
 
     obj["openrouter_api_key"] = m_aiOpenRouterApiKeyEdit->text().trimmed();
-    obj["openrouter_model"] = m_aiOpenRouterModelEdit->text().trimmed();
+    obj["openrouter_model"] = m_aiOpenRouterModelCombo->currentText().trimmed();
 
     obj["sakura_api_key"] = m_aiSakuraApiKeyEdit->text().trimmed();
-    obj["sakura_model"] = m_aiSakuraModelEdit->text().trimmed();
+    obj["sakura_model"] = m_aiSakuraModelCombo->currentText().trimmed();
 
     obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
 

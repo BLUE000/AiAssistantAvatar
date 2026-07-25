@@ -30,7 +30,7 @@ protected:
 TEST_F(ObsHttpServerTest, StartStopTest) {
     ObsHttpServer server;
     // 競合しにくい高ポートを使用
-    quint16 testPort = 59991;
+    quint16 testPort = 58191;
     
     EXPECT_TRUE(server.start(testPort));
     EXPECT_TRUE(server.isListening());

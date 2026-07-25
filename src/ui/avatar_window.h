@@ -158,11 +158,11 @@ private:
     QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
     QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
     QLineEdit *m_aiHuggingFaceApiKeyEdit = nullptr;
-    QLineEdit *m_aiHuggingFaceModelEdit = nullptr;
+    QComboBox *m_aiHuggingFaceModelCombo = nullptr;
     QLineEdit *m_aiOpenRouterApiKeyEdit = nullptr;
-    QLineEdit *m_aiOpenRouterModelEdit = nullptr;
+    QComboBox *m_aiOpenRouterModelCombo = nullptr;
     QLineEdit *m_aiSakuraApiKeyEdit = nullptr;
-    QLineEdit *m_aiSakuraModelEdit = nullptr;
+    QComboBox *m_aiSakuraModelCombo = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
 
     // マネージャAI設定用UI

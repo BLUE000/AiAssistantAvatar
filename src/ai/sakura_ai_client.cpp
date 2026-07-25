@@ -9,7 +9,7 @@
 #include <QDebug>
 
 SakuraAIClient::SakuraAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false), m_model("sakura-llm")
+    : IAIClient(parent), m_isToolCalling(false), m_model("llm-jp-3.1-8x13b-instruct4")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,

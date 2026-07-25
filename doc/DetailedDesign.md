@@ -1880,5 +1880,38 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
   2. `whitelist.txt` をスキャンし、一致した文脈保護スコアを減算。
   3. 直近会話履歴 `historyTexts`（過去3件以内かつ3分以内）から `history_context` の存在を検証。
      - **Jailbreak Guard**: `instruction` または `personal_info` フラグが `true` の場合、`history_context` の減算適用をキャンセル（0固定）。
-  4. `最終スコア = (カテゴリスコア + 意図補正) - 文脈補正` を算出。
-  5. **中立ガイドラインインジェクション**: `politics` または `religion` が検出された場合、プロンプト追加指示文字列 `"【重要指導】政治・宗教・戦争等の繊細な話題が検出されました。特定の国家・勢力・立場・人物への一方的な応援や批判を厳禁とし、第三者的かつ客観的・中立的な立場を厳格に維持して平和的に回答してください。"` を `AIClientManager` にて動的インジェクション。
+## 12. 新規 AI プロバイダ統合 ＆ モデル指定UIプルダウン化詳細設計 (F-32)
+
+### 12.1 プロバイダ別設定仕様 (`local_settings.json`)
+- `ai_provider_huggingface` (bool, デフォルト: false): HuggingFace 使用ON/OFF
+- `ai_provider_huggingface_key` (string): HuggingFace API Token
+- `ai_provider_huggingface_model` (string, デフォルト: `"meta-llama/Llama-3.1-8B-Instruct"`): 使用モデル名
+- `ai_provider_openrouter` (bool, デフォルト: false): OpenRouter 使用ON/OFF
+- `ai_provider_openrouter_key` (string): OpenRouter API Key
+- `ai_provider_openrouter_model` (string, デフォルト: `"meta-llama/llama-3.1-8b-instruct:free"`): 使用モデル名
+- `ai_provider_sakura` (bool, デフォルト: false): さくらAI 使用ON/OFF
+- `ai_provider_sakura_key` (string): さくらAI API Key
+- `ai_provider_sakura_model` (string, デフォルト: `"llm-jp-3.1-8x13b-instruct4"`): 使用モデル名
+
+### 12.2 GUI制御・モデルプルダウン (QComboBox setEditable(true)) 仕様
+- **HuggingFace モデルプルダウン選択肢**:
+  1. `meta-llama/Llama-3.1-8B-Instruct` (推奨・高速)
+  2. `Qwen/Qwen2.5-7B-Instruct` (日本語おすすめ)
+  3. `Qwen/Qwen2.5-72B-Instruct` (高性能)
+  4. `mistralai/Mistral-7B-Instruct-v0.3`
+- **OpenRouter モデルプルダウン選択肢**:
+  1. `meta-llama/llama-3.1-8b-instruct:free` (推奨・無料)
+  2. `google/gemma-2-9b-it:free` (無料)
+  3. `mistralai/mistral-7b-instruct:free` (無料)
+  4. `qwen/qwen-2.5-72b-instruct`
+- **さくらAI 公式最新モデルプルダウン選択肢**:
+  1. `llm-jp-3.1-8x13b-instruct4` (国産LLM・推奨)
+  2. `gpt-oss-120b`
+  3. `preview/gemma-4-31B-it`
+  4. `preview/Kimi-K2.6`
+  5. `preview/Phi-4-mini-instruct-cpu`
+  6. `preview/Phi-4-multimodal-instruct`
+  7. `preview/Qwen3-0.6B-cpu`
+  8. `preview/Qwen3-VL-30B-A3B-Instruct`
+  9. `preview/Qwen3.6-35B-A3B`
+
