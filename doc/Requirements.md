@@ -376,3 +376,21 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
   - **自由可変 API URL (`m_taskFlowApiUrlEdit`)**: 配信者ごとの固有サーバー環境やTaskFlow APIエンドポイントURLを自由に設定・変更可能（既定値: `https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php`）。
 - **全プラットフォーム（Twitch / Discord / UI）での予定自動参照**:
   - TaskFlow 連携が有効な場合、Discord チャットに限らず **Twitch チャットや UI 直接入力** からであっても「予定」「スケジュール」「タスク」「進捗」「配信予定」等のキーワードを検出した際、TaskFlow API から最新の予定データ（作業・配信タスク）を自動取得しAIプロンプトに注入して回答可能とする。
+
+### F-32: 新規 AI プロバイダ統合 (HuggingFace / OpenRouter / さくらAI 対応)
+- **対応 AI プロバイダの拡張**:
+  - 従来の Mistral, Cerebras, Groq に加え、オープンソース・多種 LLM アクセス・国内インフラに対応する **HuggingFace**, **OpenRouter**, **さくらAI (Sakura AI)** の 3 プロバイダを AI クライアントエンジンとして追加統合する。
+- **API 通信仕様 (OpenAI 互換規格)**:
+  - 3 プロバイダともに OpenAI 互換の Chat Completions API 規格（`https://.../v1/chat/completions`）に準拠した通信方式を採用する。
+  - **HuggingFace (`huggingface`)**:
+    - エンドポイント: `https://api-inference.huggingface.co/v1/chat/completions`
+    - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
+  - **OpenRouter (`openrouter`)**:
+    - エンドポイント: `https://openrouter.ai/api/v1/chat/completions`
+    - デフォルトモデル: `meta-llama/llama-3.1-8b-instruct:free`
+  - **さくらAI (`sakura`)**:
+    - エンドポイント: `https://api.sakura.io/v1/chat/completions` (または可変指定URL)
+    - デフォルトモデル: `sakura-llm`
+- **UI 設定および保存仕様**:
+  - 設定画面（`AvatarWindow`）の「AIプロバイダー選択」に各プロバイダを選択できるチェックボックスを追加する（排他制御）。
+  - 各プロバイダごとに個別 API Key 入力欄および Model 名入力欄を配置し、`local_settings.json`（`huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`, `huggingface_model`, `openrouter_model`, `sakura_model`）に保存・読み込み可能とする。

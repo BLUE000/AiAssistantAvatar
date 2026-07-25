@@ -337,4 +337,16 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-TASKFLOW-01** | `AIClientManager::on_requestAI` | `m_taskFlowEnabled = true` で、Twitch入力およびUIダイレクト入力より「今日の予定は？」と送信する。 | 1. `getTaskFlowSchedulesContext` が呼び出され、TaskFlow から予定が取得されること。<br>2. 取得したスケジュール情報がシステムプロンプトへ追加されAIに渡されること。 |
 | **UT-TASKFLOW-02** | `AIClientManager::on_requestAI` | `m_taskFlowEnabled = false` の状態で「今日の予定は？」と送信する。 | TaskFlow API へのコンテキスト取得・注入が発生しないこと。 |
 
+---
+
+### 3.23 新規 AI プロバイダ統合 (F-32: HuggingFace / OpenRouter / さくらAI) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-PROVIDER-01** | `HuggingFaceAIClient::request` | `huggingface` プロバイダを選択し、プロンプト要求を送信する。 | OpenAI 互換 Chat Completions API (`https://api-inference.huggingface.co/v1/chat/completions`) に対し、指定した API キーおよびモデル名でリクエストが正しく構築・送信され、レスポンスが正常パースされること。 |
+| **UT-PROVIDER-02** | `OpenRouterAIClient::request` | `openrouter` プロバイダを選択し、プロンプト要求を送信する。 | OpenRouter エンドポイント (`https://openrouter.ai/api/v1/chat/completions`) に対し、リファラヘッダーを含めてリクエストが構築・送信され、レスポンスがパースされること。 |
+| **UT-PROVIDER-03** | `SakuraAIClient::request` | `sakura` プロバイダを選択し、プロンプト要求を送信する。 | さくらAI エンドポイント (`https://api.sakura.io/v1/chat/completions`) に対しリクエストが構築・送信され、レスポンスが正しくパースされること。 |
+| **UT-PROVIDER-04** | `AIClientManager::loadSettingsFromJsonObject` | `local_settings.json` から 3 プロバイダの API Key および Model 設定をロードする。 | `m_huggingfaceKey`, `m_openrouterKey`, `m_sakuraKey` および各モデル指定が正しく読み込まれ、選択されたプロバイダのインスタンスがアクティブになること。 |
+
+
 

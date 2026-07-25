@@ -246,6 +246,11 @@ classDiagram
    - 「TaskFlow 連携設定」グループボックスを新規独立配置し、有効化チェックボックスと任意可変 API URL 設定項目を設ける。
    - `AIClientManager` での予定取得（`getTaskFlowSchedulesContext`）を一般化し、Discord チャットに限らず **Twitch チャットや UI 直接入力** からの「予定」「スケジュール」「タスク」「進捗」等の問い合わせに対しても TaskFlow API から情報を動的取得してAIプロンプトにインジェクションする。
 
+8. **新規 AI プロバイダ統合設計 (F-32)**
+   - `IAIClient` インターフェースを実装する `HuggingFaceAIClient`, `OpenRouterAIClient`, `SakuraAIClient` を新設。
+   - `AIClientManager` にて既存のプロバイダと並列して登録・管理し、レートリミットトラッカー (`RateLimitTracker`) や自動フォールバック機構、AIルーティング (`AIRouter`) への組み込みを行う。
+   - UI 設定ダイアログに HuggingFace, OpenRouter, さくらAI の個別設定フィールドおよびプロバイダ選択オプションを追加。
+
 ### 4.3 アバター画像と表示状態の管理設計
 アバター画像（静止画）の切り替えによる簡易アニメーションを制御するため、アバターの「表示状態」を定義し、UIモジュール側で状態に応じた画像を管理する。
 

@@ -437,6 +437,38 @@ TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャッ�
 
 ---
 
+### 3.2.11 新規 AI プロバイダ統合仕様 (F-32: HuggingFace / OpenRouter / さくらAI)
+
+追加プロバイダ クラス（`HuggingFaceAIClient`, `OpenRouterAIClient`, `SakuraAIClient`）の詳細設計仕様。
+
+#### 1. クラス構造とインターフェース継承
+3 クラスともに `IAIClient` を継承し、OpenAI 互換 Chat Completions HTTP POST 通信を行う。
+
+- **`HuggingFaceAIClient`**:
+  - デフォルトエンドポイント: `https://api-inference.huggingface.co/v1/chat/completions`
+  - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
+  - 認証ヘッダー: `Authorization: Bearer <huggingface_api_key>`
+- **`OpenRouterAIClient`**:
+  - デフォルトエンドポイント: `https://openrouter.ai/api/v1/chat/completions`
+  - デフォルトモデル: `meta-llama/llama-3.1-8b-instruct:free`
+  - 認証ヘッダー: `Authorization: Bearer <openrouter_api_key>`, `HTTP-Referer: https://github.com/BLUE000/AiAssistantAvatar`
+- **`SakuraAIClient`**:
+  - デフォルトエンドポイント: `https://api.sakura.io/v1/chat/completions`
+  - デフォルトモデル: `sakura-llm`
+  - 認証ヘッダー: `Authorization: Bearer <sakura_api_key>`
+
+#### 2. UI 設定およびデータ永続化仕様 (`AvatarWindow` / `local_settings.json`)
+- **UI 設定項目**:
+  - AIプロバイダー選択チェックボックス (`m_aiProviderHuggingFaceCheckbox`, `m_aiProviderOpenRouterCheckbox`, `m_aiProviderSakuraCheckbox`)
+  - 各プロバイダ API キー入力欄 (`m_huggingfaceApiKeyEdit`, `m_openrouterApiKeyEdit`, `m_sakuraApiKeyEdit`)
+  - 各プロバイダ Model 入力欄 (`m_huggingfaceModelEdit`, `m_openrouterModelEdit`, `m_sakuraModelEdit`)
+- **JSON キー名**:
+  - `ai_provider`: `"huggingface"` | `"openrouter"` | `"sakura"`
+  - `huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`
+  - `huggingface_model`, `openrouter_model`, `sakura_model`
+
+---
+
 ### 3.2.7 MarkdownTableEngine (マークダウン汎用データストレージ・抽出モジュール)
 
 `knowledge/` ディレクトリ配下に保管された階層ドキュメント構造からテーブルレコードをスキャン・抽出するデータエンジン。
