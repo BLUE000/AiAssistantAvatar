@@ -4,6 +4,9 @@
 #include "mistral_ai_client.h"
 #include "cerebras_ai_client.h"
 #include "groq_ai_client.h"
+#include "huggingface_ai_client.h"
+#include "openrouter_ai_client.h"
+#include "sakura_ai_client.h"
 #include "dummy_ai_client.h"
 #include "system_response_manager.h"
 #include "../moderation/score_moderation_engine.h"
@@ -52,17 +55,26 @@ AIClientManager::AIClientManager(QObject *parent)
     m_mistralClient = new MistralAIClient(this);
     m_cerebrasClient = new CerebrasAIClient(this);
     m_groqClient = new GroqAIClient(this);
+    m_huggingfaceClient = new HuggingFaceAIClient(this);
+    m_openrouterClient = new OpenRouterAIClient(this);
+    m_sakuraClient = new SakuraAIClient(this);
     m_dummyClient = new DummyAIClient(this);
 
     m_clientMap["mistral"] = m_mistralClient;
     m_clientMap["cerebras"] = m_cerebrasClient;
     m_clientMap["groq"] = m_groqClient;
+    m_clientMap["huggingface"] = m_huggingfaceClient;
+    m_clientMap["openrouter"] = m_openrouterClient;
+    m_clientMap["sakura"] = m_sakuraClient;
     m_clientMap["dummy"] = m_dummyClient;
 
     // トラッカーへの初期登録
     m_tracker.registerClient(m_mistralClient->defaultStatus());
     m_tracker.registerClient(m_cerebrasClient->defaultStatus());
     m_tracker.registerClient(m_groqClient->defaultStatus());
+    m_tracker.registerClient(m_huggingfaceClient->defaultStatus());
+    m_tracker.registerClient(m_openrouterClient->defaultStatus());
+    m_tracker.registerClient(m_sakuraClient->defaultStatus());
     m_tracker.registerClient(m_dummyClient->defaultStatus());
 
     // シグナルコネクションの設定

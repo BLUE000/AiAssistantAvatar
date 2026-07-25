@@ -34,6 +34,9 @@ set(TEST_SOURCES
     ../src/ai/mistral_ai_client.cpp
     ../src/ai/cerebras_ai_client.cpp
     ../src/ai/groq_ai_client.cpp
+    ../src/ai/huggingface_ai_client.cpp
+    ../src/ai/openrouter_ai_client.cpp
+    ../src/ai/sakura_ai_client.cpp
     ../src/ai/dummy_ai_client.cpp
     ../src/ai/rate_limit_tracker.cpp
     ../src/ai/system_response_manager.cpp

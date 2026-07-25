@@ -7,6 +7,9 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "ai/ai_client_manager.h"
+#include "ai/huggingface_ai_client.h"
+#include "ai/openrouter_ai_client.h"
+#include "ai/sakura_ai_client.h"
 #include "cipher_engine.h"
 #include "twitch/twitch_reader.h"
 #include "discord/discord_reader.h"
@@ -1495,6 +1498,48 @@ TEST_F(AIClientTest, ShoutoutAnnounceAndCommandRoutingTest) {
         }
     }
     EXPECT_TRUE(foundAnnounceText);
+}
+
+// UT-PROVIDER-01 ~ UT-PROVIDER-04: 新規 AI プロバイダ (HuggingFace / OpenRouter / さくらAI) の単体テスト
+TEST(NewAIProvidersTest, HuggingFaceClientBasicTest) {
+    HuggingFaceAIClient client;
+    EXPECT_EQ(client.clientId(), "huggingface");
+    client.setApiKey("dummy_hf_key");
+    client.setModel("meta-llama/Llama-3.1-8B-Instruct");
+
+    ProviderStatus s = client.defaultStatus();
+    EXPECT_EQ(s.provider, "huggingface");
+}
+
+TEST(NewAIProvidersTest, OpenRouterClientBasicTest) {
+    OpenRouterAIClient client;
+    EXPECT_EQ(client.clientId(), "openrouter");
+    client.setApiKey("dummy_or_key");
+    client.setModel("meta-llama/llama-3.1-8b-instruct:free");
+
+    ProviderStatus s = client.defaultStatus();
+    EXPECT_EQ(s.provider, "openrouter");
+}
+
+TEST(NewAIProvidersTest, SakuraAIClientBasicTest) {
+    SakuraAIClient client;
+    EXPECT_EQ(client.clientId(), "sakura");
+    client.setApiKey("dummy_sakura_key");
+    client.setModel("sakura-llm");
+
+    ProviderStatus s = client.defaultStatus();
+    EXPECT_EQ(s.provider, "sakura");
+}
+
+TEST(NewAIProvidersTest, AIClientManagerRegistrationTest) {
+    AIClientManager manager;
+    QJsonObject obj;
+    obj["ai_provider"] = "huggingface";
+    obj["huggingface_api_key"] = "test_hf_key";
+    obj["openrouter_api_key"] = "test_or_key";
+    obj["sakura_api_key"] = "test_sakura_key";
+
+    EXPECT_NO_THROW(manager.loadSettingsFromJsonObject(obj));
 }
 
 

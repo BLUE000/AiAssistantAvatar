@@ -48,10 +48,13 @@ private:
     QString m_currentRequester;
     QString m_previousRequester; // 前回のリクエスター（切り替わり検知用）
 
-    // --- F-15/F-16 AIルーティング・Groq対応追加 ---
+    // --- F-15/F-16/F-32 AIプロバイダ追加 ---
     class MistralAIClient *m_mistralClient = nullptr;
     class CerebrasAIClient *m_cerebrasClient = nullptr;
     class GroqAIClient *m_groqClient = nullptr;
+    class HuggingFaceAIClient *m_huggingfaceClient = nullptr;
+    class OpenRouterAIClient *m_openrouterClient = nullptr;
+    class SakuraAIClient *m_sakuraClient = nullptr;
     class DummyAIClient *m_dummyClient = nullptr;
 
     QMap<QString, IAIClient*> m_clientMap;
@@ -65,6 +68,9 @@ private:
     QString m_groqModel = "llama-3.3-70b-versatile";
     QString m_cerebrasModel = "llama3.1-8b";
     QString m_mistralModel = "mistral-small-latest";
+    QString m_huggingfaceModel = "meta-llama/Llama-3.1-8B-Instruct";
+    QString m_openrouterModel = "meta-llama/llama-3.1-8b-instruct:free";
+    QString m_sakuraModel = "sakura-llm";
     QString m_tavilyApiKey;
     bool m_taskFlowEnabled = true;
     QString m_taskFlowApiUrl;

@@ -149,11 +149,20 @@ private:
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
     QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
     QCheckBox *m_aiProviderGroqCheckbox = nullptr; // Groq
+    QCheckBox *m_aiProviderHuggingFaceCheckbox = nullptr; // HuggingFace
+    QCheckBox *m_aiProviderOpenRouterCheckbox = nullptr; // OpenRouter
+    QCheckBox *m_aiProviderSakuraCheckbox = nullptr; // さくらAI
     QLineEdit *m_aiApiKeyEdit = nullptr;
     QLineEdit *m_aiCerebrasApiKeyEdit = nullptr;
     QComboBox *m_aiCerebrasModelCombo = nullptr;
     QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
     QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
+    QLineEdit *m_aiHuggingFaceApiKeyEdit = nullptr;
+    QLineEdit *m_aiHuggingFaceModelEdit = nullptr;
+    QLineEdit *m_aiOpenRouterApiKeyEdit = nullptr;
+    QLineEdit *m_aiOpenRouterModelEdit = nullptr;
+    QLineEdit *m_aiSakuraApiKeyEdit = nullptr;
+    QLineEdit *m_aiSakuraModelEdit = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
 
     // マネージャAI設定用UI
