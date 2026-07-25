@@ -1890,8 +1890,8 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
 - `ai_provider_openrouter_key` (string): OpenRouter API Key
 - `ai_provider_openrouter_model` (string, デフォルト: `"meta-llama/llama-3.1-8b-instruct:free"`): 使用モデル名
 - `ai_provider_sakura` (bool, デフォルト: false): さくらAI 使用ON/OFF
-- `ai_provider_sakura_key` (string): さくらAI API Key
-- `ai_provider_sakura_model` (string, デフォルト: `"llm-jp-3.1-8x13b-instruct4"`): 使用モデル名
+- `ai_provider_sakura_key` (string): さくらAI API Key (アカウントトークン: <UUID>:<シークレット>)
+- `ai_provider_sakura_model` (string, デフォルト: `"llm-jp-3.1-8x13b-instruct4"`): 使用モデル名 (エンドポイント: https://api.ai.sakura.ad.jp/v1/chat/completions)
 
 ### 12.2 GUI制御・モデルプルダウン (QComboBox setEditable(true)) 仕様
 - **HuggingFace モデルプルダウン選択肢**:

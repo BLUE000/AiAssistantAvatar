@@ -56,7 +56,7 @@ void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
 
-    QUrl url("https://api.sakura.io/v1/chat/completions");
+    QUrl url("https://api.ai.sakura.ad.jp/v1/chat/completions");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
