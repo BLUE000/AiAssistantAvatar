@@ -1867,6 +1867,9 @@ void AvatarWindow::saveSettingsFromUI() {
 
 void AvatarWindow::onSaveSettingsClicked() {
     saveSettingsFromUI();
+    if (m_aiClientManager) {
+        m_aiClientManager->loadCredentials();
+    }
     // WebSocket サーバー再起動
     stopWebSocketServer();
     startWebSocketServer();

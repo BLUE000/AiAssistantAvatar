@@ -238,8 +238,8 @@ void AIClientManager::loadCredentials() {
                 m_tracker.registerClient(s);
             }
 
-            m_huggingfaceClient->setApiKey(hfKey);
-            m_huggingfaceClient->setModel(m_huggingfaceModel);
+            m_huggingfaceClient->setApiKey(hfKey.trimmed());
+            m_huggingfaceClient->setModel(m_huggingfaceModel.trimmed());
             m_huggingfaceClient->setTavilyApiKey(m_tavilyApiKey);
             {
                 ProviderStatus s = m_tracker.statusOf("huggingface");
@@ -247,8 +247,8 @@ void AIClientManager::loadCredentials() {
                 m_tracker.registerClient(s);
             }
 
-            m_openrouterClient->setApiKey(openrouterKey);
-            m_openrouterClient->setModel(m_openrouterModel);
+            m_openrouterClient->setApiKey(openrouterKey.trimmed());
+            m_openrouterClient->setModel(m_openrouterModel.trimmed());
             m_openrouterClient->setTavilyApiKey(m_tavilyApiKey);
             {
                 ProviderStatus s = m_tracker.statusOf("openrouter");
@@ -256,8 +256,8 @@ void AIClientManager::loadCredentials() {
                 m_tracker.registerClient(s);
             }
 
-            m_sakuraClient->setApiKey(sakuraKey);
-            m_sakuraClient->setModel(m_sakuraModel);
+            m_sakuraClient->setApiKey(sakuraKey.trimmed());
+            m_sakuraClient->setModel(m_sakuraModel.trimmed());
             m_sakuraClient->setTavilyApiKey(m_tavilyApiKey);
             {
                 ProviderStatus s = m_tracker.statusOf("sakura");
