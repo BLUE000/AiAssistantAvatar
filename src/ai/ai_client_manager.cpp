@@ -146,6 +146,10 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
     m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
     m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
     m_mistralModel = obj["mistral_model"].toString("mistral-small-latest");
+    m_huggingfaceModel = obj["huggingface_model"].toString(ConfigDefaults::DEFAULT_HUGGINGFACE_MODEL).trimmed();
+    m_openrouterModel = obj["openrouter_model"].toString(ConfigDefaults::DEFAULT_OPENROUTER_MODEL).trimmed();
+    m_sakuraModel = obj["sakura_model"].toString(ConfigDefaults::DEFAULT_SAKURA_MODEL).trimmed();
+
 
     // F-22 レイド・自動紹介設定
     m_raidAutoShoutoutEnabled = obj.value("raid_auto_shoutout_enabled").toBool(true);
