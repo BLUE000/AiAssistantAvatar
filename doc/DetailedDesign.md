@@ -502,7 +502,7 @@ TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャッ�
   - デフォルトモデル: `sakura-llm`
   - 認証ヘッダー: `Authorization: Bearer <sakura_api_key>`
 
-#### 2. UI 設定およびデータ永続化仕様 (`AvatarWindow` / `local_settings.json`)
+#### 2. UI 設定およびデータ永続化仕様 (`AvatarWindow` / `AIClientManager` / `local_settings.json`)
 - **UI 設定項目**:
   - AIプロバイダー選択チェックボックス (`m_aiProviderHuggingFaceCheckbox`, `m_aiProviderOpenRouterCheckbox`, `m_aiProviderSakuraCheckbox`)
   - 各プロバイダ API キー入力欄 (`m_huggingfaceApiKeyEdit`, `m_openrouterApiKeyEdit`, `m_sakuraApiKeyEdit`)
@@ -511,6 +511,9 @@ TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャッ�
   - `ai_provider`: `"huggingface"` | `"openrouter"` | `"sakura"`
   - `huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`
   - `huggingface_model`, `openrouter_model`, `sakura_model`
+- **Save / Load 双方向同期および定数管理仕様**:
+  - 設定保存 (`AvatarWindow::saveSettingsFromUI`) と設定ロード (`AIClientManager::loadSettingsFromJsonObject`) の両方において、上記 JSON キー名の対（ツイン）処理を保証する。
+  - 各プロバイダのデフォルトモデル名はコード内への直書き（マジックストリング）を禁止し、`ConfigDefaults` 定数クラス（`DEFAULT_HUGGINGFACE_MODEL`, `DEFAULT_OPENROUTER_MODEL`, `DEFAULT_SAKURA_MODEL`）で一元管理する。
 
 ---
 

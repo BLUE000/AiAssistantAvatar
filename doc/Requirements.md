@@ -418,7 +418,7 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
     - デフォルトモデル: `sakura-llm`
 - **UI 設定および保存仕様**:
   - 設定画面（`AvatarWindow`）の「AIプロバイダー選択」に各プロバイダを選択できるチェックボックスを追加する（排他制御）。
-  - 各プロバイダごとに個別 API Key 入力欄および Model 名入力欄を配置し、`local_settings.json`（`huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`, `huggingface_model`, `openrouter_model`, `sakura_model`）に保存・読み込み可能とする。
+  - 各プロバイダごとに個別 API Key 入力欄および Model 名入力欄を配置し、`local_settings.json`（`huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`, `huggingface_model`, `openrouter_model`, `sakura_model`）へ双方向に永続保存・漏れなく再読み込み可能とする（設定保存とロード処理の完全整合性を担保）。
 
 ### F-29: ナレッジベース拡張（インデックス管理・トリガー優先度・構文診断機能）
 本機能は、不特定多数のユーザーやコミュニティが追加する Markdown ナレッジファイルを安全・安定かつ決定論的に管理・実行する拡張アーキテクチャを提供する。
