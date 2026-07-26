@@ -1027,6 +1027,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     obsLayout->setContentsMargins(10, 10, 10, 10);
     obsLayout->setSpacing(6);
     obsLayout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
+    obsLayout->addRow("簡易HTTP機能:", m_obsHttpEnabledCheckbox);
     obsLayout->addRow("HTTP配信ポート:", m_obsHttpPortEdit);
 
     // 表示秒数の横並びレイアウト
