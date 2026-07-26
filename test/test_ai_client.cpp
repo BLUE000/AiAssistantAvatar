@@ -479,19 +479,19 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
     }
 }
 
-TEST(AIClientTest, PseudoFunctionTagAndUserExtractionTest) {
+TEST_F(AIClientTest, PseudoFunctionTagAndUserExtractionTest) {
     AIClientManager manager;
     QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
 
     // AIからの応答に疑似ファンクションタグが含まれているケース
-    QString rawResponse = "こばんざめさん、うどんで決定です！<function=update_nickname>{\"nickname\": \"\\u3055\\u3093\\u3054\", \"target_user\": \"kobanzame_igc\"}</function>どんな具がいいですか？";
+    QString rawResponse = "こんにちは！<function=update_nickname>{\"nickname\": \"\\u3055\\u3093\\u3054\", \"target_user\": \"taro_san\"}</function>お元気ですか？";
     manager.on_clientRequestFinished(rawResponse, true);
 
     ASSERT_GE(spy.count(), 1);
     AppEvent ev = spy.at(0).at(0).value<AppEvent>();
     EXPECT_EQ(ev.type, EventType::AIResponseReceived);
     // タグが完全削除され、発話本文のみになっていることを検証
-    EXPECT_EQ(ev.text, "こばんざめさん、うどんで決定です！どんな具がいいですか？");
+    EXPECT_EQ(ev.text, "こんにちは！お元気ですか？");
 }
 
 TEST_F(AIClientTest, TranslationCommandTest) {
@@ -1243,7 +1243,7 @@ TEST_F(AIClientTest, SegregatedGreetingSettingsTest) {
 
 TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
     AIClientManager manager;
-    manager.setAIProvider("cerebras");
+    manager.setAIProvider(""); // 自動ルーティングモード（優先順位順フォールバック）をテストするため特定の固定プロバイダ指定をクリア
 
     // 全クライアントの available = false にし、dummy のみ available = true にする
     for (const QString &provider : manager.tracker().registeredClientIds()) {

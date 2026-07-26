@@ -1960,6 +1960,13 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
   8. `preview/Qwen3-VL-30B-A3B-Instruct`
   9. `preview/Qwen3.6-35B-A3B`
 
+### 12.3 明示的選択プロバイダの非フォールバック（直接エラーハンドリング）ルーティング仕様
+- **勝手なフォールバックの禁止**:
+  - `AIClientManager::selectAndPrepareClient()` および `AIRouter::selectClient()` において、ユーザーが UI 設定（`m_provider`）で特定プロバイダ（`huggingface`, `openrouter`, `sakura`, `mistral`, `cerebras` 等）を明示的に選択している場合は、サイレントなプロバイダ切り替え（`groq` 等へのフォールバック）を行わず、選択プロバイダ単体で通信を実行する。
+  - 選択プロバイダ側で通信失敗（HTTP 4xx / 5xx 等）が発生した場合は、他プロバイダのエラーにすり替えず、当該プロバイダが返したエラー文面・ステータスコードをそのまま UI（吹き出し）およびログへ通知・表示する。
+- **疑似ファンクション呼び出しタグの全消去フィルター**:
+  - `on_clientRequestFinished()` において、AI応答に含まれる `<function=...></function>` タグを正規表現で検出して裏で実行し、応答テキストからは完全消去して綺麗な会話本文のみを出力する。
+
 ### 13. ナレッジベース拡張詳細設計 (F-29)
 
 #### 13.1 `knowledge_index.json` スキーマ仕様

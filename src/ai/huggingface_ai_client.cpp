@@ -135,26 +135,35 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
     QByteArray responseData = reply->readAll();
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
-    if (!doc.isObject()) {
-        emit requestFinished("HuggingFace 無効なJSONレスポンス形式", false);
-        return;
+    
+    QString replyText;
+
+    if (doc.isArray()) {
+        QJsonArray arr = doc.array();
+        if (!arr.isEmpty() && arr.first().isObject()) {
+            QJsonObject item = arr.first().toObject();
+            if (item.contains("generated_text")) {
+                replyText = item.value("generated_text").toString();
+            }
+        }
+    } else if (doc.isObject()) {
+        QJsonObject obj = doc.object();
+        if (obj.contains("choices")) {
+            QJsonArray choices = obj["choices"].toArray();
+            if (!choices.isEmpty()) {
+                QJsonObject firstChoice = choices.first().toObject();
+                QJsonObject messageObj = firstChoice["message"].toObject();
+                replyText = messageObj["content"].toString();
+            }
+        } else if (obj.contains("generated_text")) {
+            replyText = obj.value("generated_text").toString();
+        }
     }
 
-    QJsonObject obj = doc.object();
-    if (!obj.contains("choices")) {
-        emit requestFinished("HuggingFace レスポンスにchoicesが含まれていません", false);
+    if (replyText.isEmpty()) {
+        emit requestFinished("HuggingFace 応答テキストの解析に失敗しました。", false);
         return;
     }
-
-    QJsonArray choices = obj["choices"].toArray();
-    if (choices.isEmpty()) {
-        emit requestFinished("HuggingFace 空のchoicesレスポンス", false);
-        return;
-    }
-
-    QJsonObject firstChoice = choices.first().toObject();
-    QJsonObject messageObj = firstChoice["message"].toObject();
-    QString replyText = messageObj["content"].toString();
 
     emit requestFinished(replyText.trimmed(), true);
 }

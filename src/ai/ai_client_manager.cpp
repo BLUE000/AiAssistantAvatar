@@ -198,6 +198,9 @@ void AIClientManager::loadCredentials() {
             QString mistralKey = obj["mistral_api_key"].toString();
             QString cerebrasKey = obj["cerebras_api_key"].toString();
             QString groqKey = obj["groq_api_key"].toString();
+            QString hfKey = obj["huggingface_api_key"].toString();
+            QString openrouterKey = obj["openrouter_api_key"].toString();
+            QString sakuraKey = obj["sakura_api_key"].toString();
 
             m_twitchChannel = obj["twitch_channel"].toString().trimmed();
             m_twitchUsername = obj["twitch_username"].toString().trimmed();
@@ -232,6 +235,33 @@ void AIClientManager::loadCredentials() {
             {
                 ProviderStatus s = m_tracker.statusOf("groq");
                 s.available = !groqKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
+
+            m_huggingfaceClient->setApiKey(hfKey);
+            m_huggingfaceClient->setModel(m_huggingfaceModel);
+            m_huggingfaceClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("huggingface");
+                s.available = !hfKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
+
+            m_openrouterClient->setApiKey(openrouterKey);
+            m_openrouterClient->setModel(m_openrouterModel);
+            m_openrouterClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("openrouter");
+                s.available = !openrouterKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
+
+            m_sakuraClient->setApiKey(sakuraKey);
+            m_sakuraClient->setModel(m_sakuraModel);
+            m_sakuraClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("sakura");
+                s.available = !sakuraKey.trimmed().isEmpty();
                 m_tracker.registerClient(s);
             }
 
@@ -1648,28 +1678,27 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             QString failedId = m_currentClient->clientId();
             qWarning() << "AIClientManager: Detected retryable error for client:" << failedId << "Error:" << responseText;
             
-            // トラッカーを強制的にレートリミット状態にする (60秒リセット待ちにする)
             m_tracker.forceRateLimit(failedId, 60);
 
-            // 別のクライアントを選択して再送を試みる
-            if (selectAndPrepareClient()) {
-                qDebug() << "AIClientManager: Retrying with next client:" << m_currentClient->clientId();
-                
-                // コアへ送信開始イベントを再通知
-                AppEvent retryEvent;
-                retryEvent.type = EventType::AIRequestSent;
-                retryEvent.source = "AIClientManager";
-                retryEvent.text = m_lastPrompt;
-                emit notifyEvent(retryEvent);
+            // ユーザーが特定プロバイダを明示的に選択している場合は他AIへの無限リトライ・すり替えを行わない
+            if (m_provider.isEmpty()) {
+                if (selectAndPrepareClient()) {
+                    qDebug() << "AIClientManager: Retrying with next client:" << m_currentClient->clientId();
+                    
+                    AppEvent retryEvent;
+                    retryEvent.type = EventType::AIRequestSent;
+                    retryEvent.source = "AIClientManager";
+                    retryEvent.text = m_lastPrompt;
+                    emit notifyEvent(retryEvent);
 
-                // 再送
-                m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory, m_sessionContext, m_lastAdditionalSystemPrompt);
-                return; // 早期リターンして再試行を継続
+                    m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory, m_sessionContext, m_lastAdditionalSystemPrompt);
+                    return;
+                }
             }
         }
 
         event.type = EventType::ErrorOccurred;
-        event.text = responseText; // エラーメッセージが格納されている
+        event.text = responseText;
         emit notifyEvent(event);
     }
     processPendingRequests();
@@ -2539,6 +2568,14 @@ void AIClientManager::processPendingRequests() {
 }
 
 bool AIClientManager::selectAndPrepareClient() {
+    // ユーザーが明示的にプロバイダを選択している場合は他AIへの無断フォールバックを行わない
+    if (!m_provider.isEmpty() && m_clientMap.contains(m_provider)) {
+        m_currentClient = m_clientMap[m_provider];
+        qDebug() << "AIClientManager: Routing request directly to user-selected client:" << m_provider;
+        m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
+        return true;
+    }
+
     QString workerId = m_router.selectClient(AIRole::Worker, m_tracker, workerPriorityOrder());
     if (workerId.isEmpty()) {
         auto resetInfo = m_tracker.earliestResetTime();
@@ -2550,7 +2587,6 @@ bool AIClientManager::selectAndPrepareClient() {
         ev.source = "AIClientManager";
         ev.text = waitMsg;
 
-        // 要求元（Discord / Twitch）の返信先を設定
         if (!m_currentDiscordChannelId.isEmpty()) {
             ev.extraData["channel_id"] = m_currentDiscordChannelId;
         } else if (!m_currentTwitchChannel.isEmpty()) {
@@ -2559,7 +2595,6 @@ bool AIClientManager::selectAndPrepareClient() {
 
         emit notifyEvent(ev);
 
-        // クリア処理
         m_currentDiscordChannelId.clear();
         m_currentTwitchChannel.clear();
 
@@ -2567,7 +2602,7 @@ bool AIClientManager::selectAndPrepareClient() {
     }
     m_currentClient = m_clientMap[workerId];
     qDebug() << "AIClientManager: Routing request to client:" << workerId;
-    m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch(); // レイテンシ計測開始
+    m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
     return true;
 }
 

@@ -208,10 +208,9 @@ classDiagram
 
 #### 2段構成の責務分担
 
-1. **1段目：`AIClientManager`（スレッド窓口・共通管理）**
+1. **1段目：`AIClientManager`（スレッド窓口・共通管理 ＆ ルーティング）**
    - コアスレッドからの要求をスロット（`on_requestAI`）で受信。コアモジュールからは常にこのクラスのみが見える。
-   - 現在の設定に基づき、適切な `IAIClient` 具象クラス（2段目）へ処理を委譲する。
-   - 2段目から返ってきた処理結果（テキストや成否フラグ）を受け取り、共通の `AppEvent` 構造体に組み立ててコアモジュールへ通知する。
+   - ユーザーがUIで明示的に選択した AI プロバイダを最優先とし、他プロバイダへの勝手なすり替え（サイレントフォールバック）を禁止する。選択されたプロバイダ自身のエラーを正確にキャプチャして通知する。
    - AIから受領したテキストに含まれる疑似ファンクション呼び出しタグ（`<function=update_nickname>...</function>`）の自動パース・ニックネーム更新実行・発話本文からのタグ全除去フィルターを行う。
    - 会話履歴におけるユーザー名・送信元プラットフォーム（`parseSenderAndMessage`）の解析・保持を行う。
    - APIキーの管理や、タイムアウト制御などの各AIで共通する処理をここで吸収する。
@@ -220,6 +219,7 @@ classDiagram
    - HTTPのヘッダーおよびペイロード（JSON）の構築。
    - `HuggingFaceAIClient`: モデルIDを動的にパスに含めたエンドポイント (`https://api-inference.huggingface.co/models/<model_id>/v1/chat/completions`) の構築と詳細エラーレスポンスのパース。
    - `OpenRouterAIClient`: デフォルトモデルID (`meta-llama/llama-3.1-8b-instruct:free`) の補正と詳細エラーパース。
+   - `SakuraAIClient`: さくらインターネット LLM API (`https://api.ai.sakura.ad.jp/v1/chat/completions`) への独立通信とエラーパース。
    - `QNetworkAccessManager` を使用した各API固有のエンドポイントへの通信。
    - 各API固有のJSONレスポンスのパースと、最終的な返答テキストの抽出。
 
