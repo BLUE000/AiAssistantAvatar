@@ -11,7 +11,7 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
     : QDialog(parent)
     , m_aiManager(aiManager)
 {
-    setWindowTitle("会話履歴ビューア (非同期読み込み・ページネーション対応)");
+    setWindowTitle("会話履歴ビューア");
     resize(750, 550);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
