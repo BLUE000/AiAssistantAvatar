@@ -547,7 +547,74 @@ QStringList AIClientManager::managerPriorityOrder() const {
 QList<ConversationEntry> AIClientManager::getConversationEntries() const {
     QList<ConversationEntry> entries;
 
-    // サマリ化済みのセッションコンテキスト要約が存在する場合
+    // 1. log/archive/ 内の過去の全セッション要約・詳細対話ログを読み込み
+    QDir archiveDir("log/archive");
+    if (archiveDir.exists()) {
+        // 過去の要約ファイル (summary_*.json / meta_summary_*.json) の読み込み
+        QStringList sumFilters;
+        sumFilters << "summary_*.json" << "meta_summary_*.json";
+        QFileInfoList sumFiles = archiveDir.entryInfoList(sumFilters, QDir::Files, QDir::Name);
+        for (const QFileInfo &fi : sumFiles) {
+            QFile file(fi.absoluteFilePath());
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                file.close();
+                if (doc.isObject()) {
+                    QJsonObject obj = doc.object();
+                    ConversationEntry entry;
+                    entry.timestamp = fi.lastModified().toString("yyyy-MM-dd hh:mm");
+                    entry.sender = "システム要約";
+                    entry.text = obj.value("summary").toString();
+                    if (entry.text.isEmpty()) {
+                        entry.text = obj.value("meta_summary").toString();
+                    }
+                    entry.isSummarized = true;
+                    if (!entry.text.isEmpty()) {
+                        entries.append(entry);
+                    }
+                }
+            }
+        }
+
+        // 過去の詳細対話ファイル (detail_*.json) の読み込み
+        QStringList detailFilters;
+        detailFilters << "detail_*.json";
+        QFileInfoList detailFiles = archiveDir.entryInfoList(detailFilters, QDir::Files, QDir::Name);
+        for (const QFileInfo &fi : detailFiles) {
+            QFile file(fi.absoluteFilePath());
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                file.close();
+                if (doc.isObject()) {
+                    QJsonObject obj = doc.object();
+                    QJsonArray chatArr = obj.value("chat_history").toArray();
+                    for (const QJsonValue &v : chatArr) {
+                        QJsonObject chatObj = v.toObject();
+                        ConversationEntry entry;
+                        QString tsStr = chatObj.value("timestamp").toString();
+                        QDateTime dt = QDateTime::fromString(tsStr, Qt::ISODate);
+                        entry.timestamp = dt.isValid() ? dt.toString("yyyy-MM-dd hh:mm") : tsStr;
+                        
+                        QString src = chatObj.value("source").toString();
+                        if (src == "[User]") {
+                            entry.sender = "ユーザー";
+                        } else if (src == "[AI]") {
+                            entry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+                        } else {
+                            entry.sender = src;
+                        }
+                        entry.text = chatObj.value("message").toString();
+                        entry.isSummarized = false;
+                        if (!entry.text.isEmpty()) {
+                            entries.append(entry);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. メモリ上にある現行セッションの要約コンテキスト (存在する場合)
     if (!m_sessionContext.isEmpty()) {
         ConversationEntry summaryEntry;
         summaryEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
@@ -557,7 +624,7 @@ QList<ConversationEntry> AIClientManager::getConversationEntries() const {
         entries.append(summaryEntry);
     }
 
-    // 未サマリの直近チャット生ログ
+    // 3. メモリ上にある現行セッションの未サマリ直近チャット
     for (const auto &pair : m_chatHistory) {
         ConversationEntry userEntry;
         userEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
