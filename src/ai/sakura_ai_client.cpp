@@ -120,11 +120,31 @@ void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         QByteArray errBody = reply->readAll();
         qWarning() << "さくらAI API Request Failed. Code:" << httpCode << "Error:" << errStr << "Body:" << errBody;
 
+        QString detailMessage = errStr;
+        if (!errBody.isEmpty()) {
+            QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
+            if (errDoc.isObject()) {
+                QJsonObject errObj = errDoc.object();
+                if (errObj.contains("error")) {
+                    QJsonValue errVal = errObj["error"];
+                    if (errVal.isObject() && errVal.toObject().contains("message")) {
+                        detailMessage = errVal.toObject()["message"].toString();
+                    } else if (errVal.isString()) {
+                        detailMessage = errVal.toString();
+                    }
+                } else if (errObj.contains("message")) {
+                    detailMessage = errObj["message"].toString();
+                }
+            } else {
+                detailMessage += " (" + QString::fromUtf8(errBody).trimmed() + ")";
+            }
+        }
+
         if (httpCode == 429) {
             qWarning() << "さくらAI API Rate Limit Exceeded (HTTP 429)";
         }
 
-        emit requestFinished(QString("さくらAI API エラー: %1").arg(errStr), false);
+        emit requestFinished(QString("さくらAI API エラー (%1): %2").arg(httpCode).arg(detailMessage), false);
         return;
     }
 

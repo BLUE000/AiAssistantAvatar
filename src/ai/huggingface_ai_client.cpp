@@ -122,11 +122,23 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         qWarning() << "HuggingFace API Request Failed. Code:" << httpCode << "Error:" << errStr << "Body:" << errBody;
 
         QString detailedErr = errStr;
-        QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
-        if (errDoc.isObject() && errDoc.object().contains("error")) {
-            detailedErr = errDoc.object().value("error").toString();
-        } else if (!errBody.isEmpty()) {
-            detailedErr = QString::fromUtf8(errBody).left(120);
+        if (!errBody.isEmpty()) {
+            QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
+            if (errDoc.isObject()) {
+                QJsonObject errObj = errDoc.object();
+                if (errObj.contains("error")) {
+                    QJsonValue errVal = errObj["error"];
+                    if (errVal.isObject() && errVal.toObject().contains("message")) {
+                        detailedErr = errVal.toObject()["message"].toString();
+                    } else if (errVal.isString()) {
+                        detailedErr = errVal.toString();
+                    }
+                } else if (errObj.contains("message")) {
+                    detailedErr = errObj["message"].toString();
+                }
+            } else {
+                detailedErr = QString::fromUtf8(errBody).trimmed();
+            }
         }
 
         emit requestFinished(QString("HuggingFace API エラー (%1): %2").arg(httpCode).arg(detailedErr), false);
