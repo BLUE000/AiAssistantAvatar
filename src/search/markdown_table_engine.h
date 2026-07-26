@@ -5,6 +5,9 @@
 #include <QDir>
 #include <QFileInfo>
 
+#include <QJsonObject>
+#include <QJsonArray>
+
 struct TableRecord {
     QString group;                  // 情報グループ名 (最上位フォルダ)
     QString category;               // カテゴリ名 (サブフォルダ)
@@ -14,6 +17,21 @@ struct TableRecord {
     QList<QMap<QString, QString>> rows; // 各行のキーバリューデータ
 };
 
+struct KnowledgeIndexEntry {
+    QString filePath;
+    QString group;
+    QString category;
+    QString tableName;
+    QString title;
+    int priority = 100;
+    QString mode = "random_row"; // "random_row" または "table_search"
+    QStringList triggers;
+    QStringList headers;
+    bool isValid = true;
+    QString errorMessage;
+    int errorLine = 0;
+};
+
 class MarkdownTableEngine {
 public:
     explicit MarkdownTableEngine(const QString &rootDir = "knowledge");
@@ -21,6 +39,15 @@ public:
 
     // 指定ルートフォルダ配下の全マークダウンテーブルをロード・インデックス化
     void reload();
+
+    // インデックス構築とエラー診断バリデーション (knowledge_index.json 生成)
+    bool buildIndexAndValidate(QJsonObject &outIndexData, QList<KnowledgeIndexEntry> &outDiagnostics);
+
+    // トリガーキーワードの一致判定および最高優先度 (priority) エントリーの自動解決
+    KnowledgeIndexEntry resolveBestEntryForTrigger(const QString &triggerWord) const;
+
+    // 最新の構文診断レポート（エラー・警告一覧）の取得
+    QList<KnowledgeIndexEntry> diagnostics() const { return m_diagnostics; }
 
     // キー検索による特定カラムの数値/テキスト抽出
     // 例: queryColumn("Elin", "装備", "片手剣", "鉄の剣", "必要素材")
@@ -45,6 +72,8 @@ public:
 private:
     QString m_rootDir;
     QList<TableRecord> m_tables;
+    QList<KnowledgeIndexEntry> m_indexEntries;
+    QList<KnowledgeIndexEntry> m_diagnostics;
 
     void scanDirectory(const QString &dirPath, const QString &currentGroup, const QString &currentCategory);
     void parseMarkdownFile(const QString &filePath, const QString &group, const QString &category);

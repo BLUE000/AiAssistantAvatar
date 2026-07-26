@@ -34,26 +34,99 @@ bool MarkdownTableEngine::isPathSafe(const QString &path) const {
 
 void MarkdownTableEngine::reload() {
     m_tables.clear();
+    m_indexEntries.clear();
+    m_diagnostics.clear();
 
     QString actualRoot = m_rootDir;
     if (!QDir(actualRoot).exists()) {
-        actualRoot = QCoreApplication::applicationDirPath() + "/" + m_rootDir;
-    }
-    if (!QDir(actualRoot).exists()) {
-#ifdef PROJECT_SOURCE_DIR
-        actualRoot = QString(PROJECT_SOURCE_DIR) + "/" + m_rootDir;
-#endif
+        QDir cur;
+        if (cur.exists("knowledge")) {
+            actualRoot = "knowledge";
+        }
     }
 
-    QDir rootDir(actualRoot);
-    if (!rootDir.exists()) {
+    if (!QDir(actualRoot).exists()) {
         qDebug() << "MarkdownTableEngine: Knowledge root directory does not exist:" << actualRoot;
         return;
     }
 
-    m_rootDir = rootDir.absolutePath();
-    scanDirectory(m_rootDir, "", "");
-    qDebug() << "MarkdownTableEngine: Loaded" << m_tables.size() << "tables from knowledge repository.";
+    scanDirectory(actualRoot, "", "");
+    QJsonObject indexObj;
+    buildIndexAndValidate(indexObj, m_diagnostics);
+    qDebug() << "MarkdownTableEngine: Loaded" << m_tables.size() << "valid tables from knowledge repository. Diagnostics count:" << m_diagnostics.size();
+}
+
+bool MarkdownTableEngine::buildIndexAndValidate(QJsonObject &outIndexData, QList<KnowledgeIndexEntry> &outDiagnostics) {
+    outDiagnostics.clear();
+    QJsonObject triggersObj;
+    QJsonArray diagnosticsArr;
+
+    for (const KnowledgeIndexEntry &entry : m_indexEntries) {
+        if (!entry.isValid) {
+            QJsonObject diagObj;
+            diagObj["file_path"] = entry.filePath;
+            diagObj["line_number"] = entry.errorLine;
+            diagObj["error_type"] = "syntax_error";
+            diagObj["message"] = entry.errorMessage;
+            diagnosticsArr.append(diagObj);
+            outDiagnostics.append(entry);
+            continue;
+        }
+
+        QJsonObject entryObj;
+        entryObj["file_path"] = entry.filePath;
+        entryObj["group"] = entry.group;
+        entryObj["category"] = entry.category;
+        entryObj["title"] = entry.title;
+        entryObj["priority"] = entry.priority;
+        entryObj["mode"] = entry.mode;
+        entryObj["status"] = "valid";
+
+        QJsonArray headersArr;
+        for (const QString &h : entry.headers) {
+            headersArr.append(h);
+        }
+        entryObj["columns"] = headersArr;
+
+        for (const QString &trig : entry.triggers) {
+            QJsonArray arr = triggersObj.value(trig).toArray();
+            arr.append(entryObj);
+            triggersObj[trig] = arr;
+        }
+    }
+
+    outIndexData["version"] = "1.0";
+    outIndexData["triggers"] = triggersObj;
+    outIndexData["diagnostics"] = diagnosticsArr;
+
+    // knowledge_index.json の保存
+    QFile indexFile("knowledge_index.json");
+    if (indexFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument doc(outIndexData);
+        indexFile.write(doc.toJson(QJsonDocument::Indented));
+        indexFile.close();
+    }
+    return true;
+}
+
+KnowledgeIndexEntry MarkdownTableEngine::resolveBestEntryForTrigger(const QString &triggerWord) const {
+    KnowledgeIndexEntry bestEntry;
+    int highestPriority = -1;
+
+    for (const KnowledgeIndexEntry &entry : m_indexEntries) {
+        if (!entry.isValid) continue;
+        for (const QString &trig : entry.triggers) {
+            if (trig.compare(triggerWord, Qt::CaseInsensitive) == 0 ||
+                triggerWord.contains(trig, Qt::CaseInsensitive)) {
+                if (entry.priority > highestPriority) {
+                    highestPriority = entry.priority;
+                    bestEntry = entry;
+                }
+            }
+        }
+    }
+
+    return bestEntry;
 }
 
 void MarkdownTableEngine::scanDirectory(const QString &dirPath, const QString &currentGroup, const QString &currentCategory) {
@@ -103,24 +176,65 @@ void MarkdownTableEngine::parseMarkdownFile(const QString &filePath, const QStri
     record.tableName = tableName;
     record.filePath = filePath;
 
-    bool inTable = false;
+    KnowledgeIndexEntry indexEntry;
+    indexEntry.filePath = filePath;
+    indexEntry.group = group;
+    indexEntry.category = category;
+    indexEntry.tableName = tableName;
+    indexEntry.title = tableName;
+    indexEntry.isValid = true;
+
+    bool headersParsed = false;
     QStringList headers;
+    int expectedColumnCount = -1;
+    bool inTriggerSection = false;
+    bool inPrioritySection = false;
+    bool inModeSection = false;
 
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines.at(i);
+        if (line.isEmpty()) continue;
+
+        // セクション判定 (# トリガー, # 優先度, # 処理モード)
+        if (line.startsWith("#")) {
+            QString headerText = line.section('#', 1).trimmed();
+            inTriggerSection = (headerText.contains("トリガー", Qt::CaseInsensitive) || headerText.contains("Trigger", Qt::CaseInsensitive));
+            inPrioritySection = (headerText.contains("優先度", Qt::CaseInsensitive) || headerText.contains("Priority", Qt::CaseInsensitive));
+            inModeSection = (headerText.contains("処理", Qt::CaseInsensitive) || headerText.contains("Mode", Qt::CaseInsensitive));
+            continue;
+        }
+
+        if (inTriggerSection && (line.startsWith("-") || line.startsWith("*"))) {
+            QString trig = line.mid(1).trimmed();
+            if (!trig.isEmpty()) indexEntry.triggers.append(trig);
+            continue;
+        }
+
+        if (inPrioritySection && (line.startsWith("-") || line.startsWith("*"))) {
+            QString prioStr = line.mid(1).trimmed();
+            bool ok = false;
+            int prio = prioStr.toInt(&ok);
+            if (ok) indexEntry.priority = prio;
+            continue;
+        }
+
+        if (inModeSection && (line.startsWith("-") || line.startsWith("*"))) {
+            indexEntry.mode = line.mid(1).trimmed();
+            continue;
+        }
+
+        // テーブル構造パース ＆ バリデーション
         if (line.contains("|")) {
             QString trimmedLine = line;
             if (!trimmedLine.startsWith("|")) trimmedLine = "|" + trimmedLine;
             if (!trimmedLine.endsWith("|")) trimmedLine = trimmedLine + "|";
 
-            // パイプ区切りの行
             QStringList cells;
             QStringList rawCells = trimmedLine.split("|");
             for (int c = 1; c < rawCells.size() - 1; ++c) {
                 cells.append(rawCells.at(c).trimmed());
             }
 
-            // 区切り線 (|:---|:---|) の判定
             bool isSeparator = true;
             for (const QString &cell : cells) {
                 QString cleaned = cell;
@@ -130,33 +244,36 @@ void MarkdownTableEngine::parseMarkdownFile(const QString &filePath, const QStri
                     break;
                 }
             }
+            if (isSeparator) continue;
 
-            if (isSeparator) {
-                inTable = true;
-                continue;
-            }
-
-            if (headers.isEmpty()) {
-                // 最初のパイプ行をヘッダー（項目名）とみなす
+            if (!headersParsed) {
                 headers = cells;
+                expectedColumnCount = cells.size();
                 record.headers = headers;
+                indexEntry.headers = headers;
+                headersParsed = true;
             } else {
-                // データ行（区切り行が無くても2行目以降を直ちにデータとして読み込む）
-                if (cells.size() == headers.size()) {
-                    QMap<QString, QString> rowMap;
-                    for (int h = 0; h < headers.size(); ++h) {
-                        rowMap[headers.at(h)] = cells.at(h);
-                    }
-                    record.rows.append(rowMap);
+                if (cells.size() != expectedColumnCount) {
+                    indexEntry.isValid = false;
+                    indexEntry.errorMessage = QString("テーブルの列数が一致しません (期待値: %1 列, 検出値: %2 列)").arg(expectedColumnCount).arg(cells.size());
+                    indexEntry.errorLine = i + 1;
+                    m_indexEntries.append(indexEntry);
+                    qDebug() << "MarkdownTableEngine: Validation error in file:" << filePath << "Line:" << indexEntry.errorLine << indexEntry.errorMessage;
+                    return;
                 }
+
+                QMap<QString, QString> rowMap;
+                for (int c = 0; c < cells.size() && c < headers.size(); ++c) {
+                    rowMap[headers.at(c)] = cells.at(c);
+                }
+                record.rows.append(rowMap);
             }
-        } else {
-            inTable = false;
         }
     }
 
-    if (!record.rows.isEmpty()) {
+    if (!headers.isEmpty() && record.rows.size() > 0) {
         m_tables.append(record);
+        m_indexEntries.append(indexEntry);
     }
 }
 

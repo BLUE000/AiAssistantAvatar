@@ -900,7 +900,21 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     // 5. 静的ナレッジ想起（RAG）の実行
     if (m_importState == KnowledgeImportState::Idle) {
         QString recalledStatic;
-        scanStaticKnowledge(filteredPrompt, recalledStatic);
+        KnowledgeIndexEntry bestEntry = m_tableEngine.resolveBestEntryForTrigger(filteredPrompt);
+        if (bestEntry.isValid && !bestEntry.tableName.isEmpty()) {
+            QString bestContext = m_tableEngine.selectRandomColumn(bestEntry.group, bestEntry.category, bestEntry.tableName, "");
+            if (!bestContext.isEmpty()) {
+                recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3")
+                                     .arg(bestEntry.title)
+                                     .arg(bestEntry.priority)
+                                     .arg(bestContext);
+            }
+        }
+
+        if (recalledStatic.isEmpty()) {
+            scanStaticKnowledge(filteredPrompt, recalledStatic);
+        }
+
         if (!recalledStatic.isEmpty()) {
             finalPrompt = recalledStatic + "\n\n" + finalPrompt;
         }

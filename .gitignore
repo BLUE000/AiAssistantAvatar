@@ -20,3 +20,4 @@ test_output.txt
 *.zip
 err.txt
 out.txt
+knowledge_index.json

@@ -264,10 +264,14 @@ AIの返答（吹き出し）が画面に表示される時間を調整します
   > Copyright (C) 2024 The Qt Company Ltd and other contributors.
   > (https://www.qt.io/licensing/)
 
-#### 4. Mistral AI API (AI対話エンジン)
-本アプリケーションの返答生成機能は、`Mistral AI` が提供するAPIを利用しています。
-* **利用規約・ライセンス**: Mistral AIのサービス利用規約およびポリシーに従い動作します。
-* 詳細は [Mistral AI Terms of Service](https://mistral.ai/terms/) をご確認ください。
+#### 4. AI対話エンジン (対応 AI API プロバイダ)
+本アプリケーションの返答生成機能は、ユーザーが選択・設定した外部の AI プロバイダ API を利用して動作します。ご利用の際は各サービスの利用規約およびポリシーをご確認ください。
+* **Mistral AI**: [Mistral AI Terms of Service](https://mistral.ai/terms/)
+* **Cerebras Cloud**: [Cerebras Terms of Service](https://cerebras.ai/terms-of-service/)
+* **Groq Cloud**: [Groq Terms of Service](https://groq.com/terms-of-service/)
+* **HuggingFace**: [HuggingFace Terms of Service](https://huggingface.co/terms-of-service)
+* **OpenRouter**: [OpenRouter Terms of Service](https://openrouter.ai/terms)
+* **さくらAI (さくらインターネット)**: [さくらインターネット 約款・規約一覧](https://www.sakura.ad.jp/agreement/)
 
 #### 5. Web検索プロバイダ (Tavily API & DuckDuckGo)
 本アプリケーションは、AIによる最新情報のウェブ検索機能（ファンクション・コーリング）のために以下の外部サービスおよび検索エンジンを利用しています。

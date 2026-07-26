@@ -1,5 +1,6 @@
 #include "avatar_window.h"
 #include "avatar_skin_builder_dialog.h"
+#include "../search/markdown_table_engine.h"
 #include <QProcess>
 #include <QFile>
 #include <QGroupBox>
@@ -2367,6 +2368,14 @@ void AvatarWindow::initKnowledgeTab(QWidget *parent) {
     m_knowledgeTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     layout->addWidget(m_knowledgeTable);
 
+    // 構文診断レポートグループボックス
+    QGroupBox *diagGroup = new QGroupBox("ナレッジファイル構文診断レポート (エラー・警告)", parent);
+    QVBoxLayout *diagLayout = new QVBoxLayout(diagGroup);
+    QListWidget *diagList = new QListWidget(diagGroup);
+    diagList->setObjectName("diagListWidget");
+    diagLayout->addWidget(diagList);
+    layout->addWidget(diagGroup);
+
     QHBoxLayout *btnLayout = new QHBoxLayout();
     m_deleteKnowledgeButton = new QPushButton("選択したナレッジを削除", parent);
     connect(m_deleteKnowledgeButton, &QPushButton::clicked, this, &AvatarWindow::onDeleteKnowledgeClicked);
@@ -2403,6 +2412,27 @@ void AvatarWindow::updateKnowledgeTable() {
         m_knowledgeTable->setItem(i, 2, new QTableWidgetItem(keywords));
         m_knowledgeTable->setItem(i, 3, new QTableWidgetItem(registeredAt));
         m_knowledgeTable->setItem(i, 4, new QTableWidgetItem(id));
+    }
+
+    if (m_knowledgeTab) {
+        QListWidget *diagList = m_knowledgeTab->findChild<QListWidget*>("diagListWidget");
+        if (diagList) {
+            diagList->clear();
+            MarkdownTableEngine engine;
+            engine.reload();
+            QList<KnowledgeIndexEntry> diags = engine.diagnostics();
+            if (diags.isEmpty()) {
+                diagList->addItem("✅ すべてのナレッジファイルは正常な構文で読み込まれました。");
+            } else {
+                for (const KnowledgeIndexEntry &diag : diags) {
+                    QString msg = QString("⚠️ [%1行目] %2 : %3")
+                                      .arg(diag.errorLine)
+                                      .arg(QFileInfo(diag.filePath).fileName())
+                                      .arg(diag.errorMessage);
+                    diagList->addItem(msg);
+                }
+            }
+        }
     }
 }
 

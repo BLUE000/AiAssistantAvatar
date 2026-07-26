@@ -348,5 +348,15 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-PROVIDER-03** | `SakuraAIClient::request` | `sakura` プロバイダを選択し、プロンプト要求を送信する。 | さくらAI エンドポイント (`https://api.sakura.io/v1/chat/completions`) に対しリクエストが構築・送信され、レスポンスが正しくパースされること。 |
 | **UT-PROVIDER-04** | `AIClientManager::loadSettingsFromJsonObject` | `local_settings.json` から 3 プロバイダの API Key および Model 設定をロードする。 | `m_huggingfaceKey`, `m_openrouterKey`, `m_sakuraKey` および各モデル指定が正しく読み込まれ、選択されたプロバイダのインスタンスがアクティブになること。 |
 
+---
+
+### 3.24 ナレッジベース拡張 (F-29: インデックス・トリガー優先度・エラー診断) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-KNOWLEDGE-INDEX-01** | `MarkdownTableEngine::buildIndexAndValidate` | `knowledge/` 配下に複数 Markdown ファイルが存在する状態でスキャン・インデックス構築を実行する。 | `knowledge_index.json` が生成され、各ファイルのタイトル・トリガー・優先度が構造化データとして正常取得されること。 |
+| **UT-KNOWLEDGE-PRIORITY-02** | `MarkdownTableEngine::resolveBestEntryForTrigger` | 同一のトリガーキーワード（例: 「占い」）を保持する優先度 100 と 50 の 2 ファイルが存在する状態で呼び出す。 | 優先度 100 のファイルが一義的に選択・解決され、インデックスおよびログに採用結果が記録されること。 |
+| **UT-KNOWLEDGE-VALIDATE-03** | `MarkdownTableEngine::buildIndexAndValidate` | テーブルの列数（`|`）が途中で欠落した壊れた Markdown ファイルを配置してスキャンを実行する。 | 1. 壊れたファイルはロード対象から除外（スキップ）されること。<br>2. 該当ファイル名とエラー発生行・内容が `diagnostics` リストへ登録され、UI上にレポートとして可視化されること。 |
+
 
 

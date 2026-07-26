@@ -160,4 +160,48 @@ TEST(MarkdownTableEngineTest, FullTableDatabaseSuite) {
     QDir(testDir).removeRecursively();
 }
 
+// UT-KNOWLEDGE-INDEX-01 & UT-KNOWLEDGE-PRIORITY-02 & UT-KNOWLEDGE-VALIDATE-03
+// F-29: ナレッジベース拡張 (インデックス構築、優先度解決、構文診断バリデーション) の単体テスト
+TEST(SearchManagerTest, KnowledgeIndexAndValidationTest) {
+    QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+
+    // 正常なナレッジファイル 1 (優先度 100)
+    QFile file1(tempDir.filePath("fortune_high.md"));
+    ASSERT_TRUE(file1.open(QIODevice::WriteOnly | QIODevice::Text));
+    QTextStream out1(&file1);
+    out1 << "# トリガー\n- 占い\n- 運勢\n\n# 優先度\n- 100\n\n# 運勢データ\n| 運勢 | アイテム |\n| 大吉 | 金のコイン |\n";
+    file1.close();
+
+    // 正常なナレッジファイル 2 (優先度 50)
+    QFile file2(tempDir.filePath("fortune_low.md"));
+    ASSERT_TRUE(file2.open(QIODevice::WriteOnly | QIODevice::Text));
+    QTextStream out2(&file2);
+    out2 << "# トリガー\n- 占い\n\n# 優先度\n- 50\n\n# 運勢データ\n| 運勢 | アイテム |\n| 小吉 | 木の枝 |\n";
+    file2.close();
+
+    // 壊れたナレッジファイル 3 (列数不一致のエラーファイル)
+    QFile file3(tempDir.filePath("broken.md"));
+    ASSERT_TRUE(file3.open(QIODevice::WriteOnly | QIODevice::Text));
+    QTextStream out3(&file3);
+    out3 << "# トリガー\n- 占い\n\n| 運勢 | アイテム | カラー |\n| 大吉 | 金のコイン |\n"; // 列数 3 と 2 で不一致
+    file3.close();
+
+    MarkdownTableEngine engine(tempDir.path());
+    engine.reload();
+
+    // 1. バリデーション結果の評価 (UT-KNOWLEDGE-VALIDATE-03)
+    QList<KnowledgeIndexEntry> diags = engine.diagnostics();
+    ASSERT_EQ(diags.size(), 1);
+    EXPECT_TRUE(diags.first().filePath.contains("broken.md"));
+    EXPECT_FALSE(diags.first().isValid);
+    EXPECT_TRUE(diags.first().errorMessage.contains("テーブルの列数が一致しません"));
+
+    // 2. 優先度解決の評価 (UT-KNOWLEDGE-PRIORITY-02)
+    KnowledgeIndexEntry resolved = engine.resolveBestEntryForTrigger("占い");
+    EXPECT_TRUE(resolved.isValid);
+    EXPECT_EQ(resolved.priority, 100);
+    EXPECT_TRUE(resolved.filePath.contains("fortune_high.md"));
+}
+
 

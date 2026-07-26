@@ -1915,3 +1915,58 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
   8. `preview/Qwen3-VL-30B-A3B-Instruct`
   9. `preview/Qwen3.6-35B-A3B`
 
+### 13. ナレッジベース拡張詳細設計 (F-29)
+
+#### 13.1 `knowledge_index.json` スキーマ仕様
+```json
+{
+  "version": "1.0",
+  "last_updated": "2026-07-26T05:00:00Z",
+  "triggers": {
+    "占い": [
+      {
+        "file_path": "knowledge/エンタメ/占い/星座占い.md",
+        "title": "今日の星座占い",
+        "priority": 100,
+        "mode": "random_row",
+        "columns": ["運勢", "幸運のアイテム", "ラッキーカラー", "アドバイス"],
+        "status": "valid"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "file_path": "knowledge/テスト/broken.md",
+      "line_number": 15,
+      "error_type": "column_mismatch",
+      "message": "テーブルの列数が一致しません (期待値: 4, 検出値: 3)",
+      "timestamp": "2026-07-26T05:00:00Z"
+    }
+  ]
+}
+```
+
+#### 13.2 `MarkdownTableEngine` データ構造の拡張
+```cpp
+struct KnowledgeIndexEntry {
+    QString filePath;
+    QString title;
+    int priority = 100;
+    QString mode; // "random_row", "table_search" 等
+    QStringList triggers;
+    QStringList columns;
+    bool isValid = true;
+    QString errorMessage;
+    int errorLine = 0;
+};
+
+class MarkdownTableEngine {
+public:
+    // インデックスの再構築とエラーバリデーション
+    bool buildIndexAndValidate(QJsonObject &outIndexData, QList<KnowledgeIndexEntry> &diagnostics);
+    
+    // トリガー一致＆優先度解決
+    KnowledgeIndexEntry resolveBestEntryForTrigger(const QString &triggerWord) const;
+};
+```
+

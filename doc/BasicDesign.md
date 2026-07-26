@@ -1405,4 +1405,42 @@ pic/
 [⑥ AI対話エンジン送信]
 ```
 
+---
+
+## 7. ナレッジベース拡張アーキテクチャ設計 (F-29)
+
+### 7.1 ナレッジインデックス管理アーキテクチャ (`knowledge_index.json`)
+`knowledge/` フォルダ配下の全 Markdown ファイルを起動時および変更検知時に自動スキャンし、`knowledge_index.json` に構造化メタデータ（インデックス）として出力・保持する。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Engine as MarkdownTableEngine
+    participant Storage as knowledge/ ディレクトリ
+    participant Index as knowledge_index.json
+    participant UI as GUI (AvatarWindow ナレッジタブ)
+
+    Engine->>Storage: 全 .md ファイルを自動スキャン
+    Engine->>Engine: 構文チェック (バリデーション)
+    alt 正常な Markdown
+        Engine->>Engine: トリガー, モード, priority 抽出
+        Engine->>Index: knowledge_index.json へ保存・更新
+    else 壊れた Markdown (文法エラー)
+        Engine->>Engine: 読み込み除外 (Skip)
+        Engine->>UI: ナレッジ診断レポートにエラー表示
+    end
+```
+
+### 7.2 トリガー一致＆決定論的優先度評価 (`priority`)
+1. **発火ガード判定**: 入力コメントが「アバター名」または「ウェイクワード」と同時に送信された場合のみ、トリガー一致判定を行う。
+2. **優先度解決 (Priority Resolution)**:
+   - 複数ファイルで同一トリガーが検出された場合、インデックス内の `priority`（優先度数値、デフォルト: 100）を比較する。
+   - `priority` が最も高いファイルを一意に決定して実行する。選択されたファイルと優先度はログおよび画面に記録される。
+
+### 7.3 ナレッジ構文診断レポート (エラーチェッカー)
+- ファイルスキャン時に以下の構文エラーを自動検知し、該当ファイル・エラー行数・エラー内容をUI上の診断レポートとして提示する：
+  - **テーブル列数不一致**: 行ごとにカラム数（`|` の数）が異なる。
+  - **必須構造欠損**: `# トリガー` または `# 処理モード` が存在しない。
+  - **エンコーディング指定外**: UTF-8 以外の形式。
+
 
