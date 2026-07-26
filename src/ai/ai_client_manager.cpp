@@ -547,98 +547,209 @@ QStringList AIClientManager::managerPriorityOrder() const {
 QList<ConversationEntry> AIClientManager::getConversationEntries() const {
     QList<ConversationEntry> entries;
 
-    // 1. log/archive/ 内の過去の全セッション要約・詳細対話ログを読み込み
-    QDir archiveDir("log/archive");
-    if (archiveDir.exists()) {
-        // 過去の要約ファイル (summary_*.json / meta_summary_*.json) の読み込み
+    // ディレクトリ探索パス候補
+    QStringList logDirCandidates;
+    logDirCandidates << "log"
+                     << QCoreApplication::applicationDirPath() + "/log"
+                     << QCoreApplication::applicationDirPath() + "/../log"
+                     << QCoreApplication::applicationDirPath() + "/../../log"
+                     << QDir::currentPath() + "/log";
+    logDirCandidates.removeDuplicates();
+
+    QStringList archiveDirCandidates;
+    archiveDirCandidates << "log/archive"
+                         << QCoreApplication::applicationDirPath() + "/log/archive"
+                         << QCoreApplication::applicationDirPath() + "/../log/archive"
+                         << QCoreApplication::applicationDirPath() + "/../../log/archive"
+                         << QDir::currentPath() + "/log/archive"
+                         << "log/archive/archived_summaries"
+                         << QCoreApplication::applicationDirPath() + "/log/archive/archived_summaries"
+                         << QCoreApplication::applicationDirPath() + "/../log/archive/archived_summaries";
+    archiveDirCandidates.removeDuplicates();
+
+    // 重複読み込み防止用のキー集合
+    QSet<QString> processedKeys;
+
+    // 1. log/ 内の暗号化セッションバックアップファイル (*.enc) の読み込み・復号
+    for (const QString &dirPath : logDirCandidates) {
+        QDir dir(dirPath);
+        if (!dir.exists()) continue;
+
+        QStringList encFilters;
+        encFilters << "*.enc";
+        QFileInfoList encFiles = dir.entryInfoList(encFilters, QDir::Files, QDir::Name);
+
+        for (const QFileInfo &fi : encFiles) {
+            QFile file(fi.absoluteFilePath());
+            if (!file.open(QIODevice::ReadOnly)) continue;
+            QByteArray encryptedData = file.readAll();
+            file.close();
+
+            CipherResult result = CipherEngine::decrypt(encryptedData, m_transCipherKey);
+            if (!result.isSuccess()) continue;
+
+            QJsonDocument doc = QJsonDocument::fromJson(result.data());
+            if (doc.isNull() || !doc.isArray()) continue;
+
+            QString tsStr = fi.lastModified().toString("yyyy-MM-dd hh:mm");
+            QJsonArray array = doc.array();
+            for (int i = 0; i < array.size(); ++i) {
+                QJsonObject item = array.at(i).toObject();
+                QString prompt = item.value("prompt").toString();
+                QString response = item.value("response").toString();
+
+                if (prompt.isEmpty() && response.isEmpty()) {
+                    prompt = item.value("message").toString();
+                }
+
+                if (prompt.isEmpty()) continue;
+
+                QString key = tsStr + "|" + prompt;
+                if (processedKeys.contains(key)) continue;
+                processedKeys.insert(key);
+
+                ConversationEntry userEntry;
+                userEntry.timestamp = tsStr;
+                userEntry.sender = "ユーザー";
+                userEntry.text = prompt;
+                userEntry.isSummarized = false;
+                entries.append(userEntry);
+
+                if (!response.isEmpty()) {
+                    ConversationEntry avatarEntry;
+                    avatarEntry.timestamp = tsStr;
+                    avatarEntry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+                    avatarEntry.text = response;
+                    avatarEntry.isSummarized = false;
+                    entries.append(avatarEntry);
+                }
+            }
+        }
+    }
+
+    // 2. log/archive/ 内の要約JSONファイルおよび詳細対話JSONファイル (*.json) の読み込み
+    for (const QString &dirPath : archiveDirCandidates) {
+        QDir dir(dirPath);
+        if (!dir.exists()) continue;
+
+        // 要約ファイル
         QStringList sumFilters;
         sumFilters << "summary_*.json" << "meta_summary_*.json";
-        QFileInfoList sumFiles = archiveDir.entryInfoList(sumFilters, QDir::Files, QDir::Name);
+        QFileInfoList sumFiles = dir.entryInfoList(sumFilters, QDir::Files, QDir::Name);
+
         for (const QFileInfo &fi : sumFiles) {
             QFile file(fi.absoluteFilePath());
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                file.close();
-                if (doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    ConversationEntry entry;
-                    entry.timestamp = fi.lastModified().toString("yyyy-MM-dd hh:mm");
-                    entry.sender = "システム要約";
-                    entry.text = obj.value("summary").toString();
-                    if (entry.text.isEmpty()) {
-                        entry.text = obj.value("meta_summary").toString();
-                    }
-                    entry.isSummarized = true;
-                    if (!entry.text.isEmpty()) {
-                        entries.append(entry);
-                    }
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) continue;
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            file.close();
+
+            if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                QString summaryText = obj.value("summary").toString();
+                if (summaryText.isEmpty()) {
+                    summaryText = obj.value("meta_summary").toString();
                 }
+                if (summaryText.isEmpty()) continue;
+
+                QString tsStr = fi.lastModified().toString("yyyy-MM-dd hh:mm");
+                QString key = tsStr + "|SUMMARY|" + summaryText.left(30);
+                if (processedKeys.contains(key)) continue;
+                processedKeys.insert(key);
+
+                ConversationEntry entry;
+                entry.timestamp = tsStr;
+                entry.sender = "システム要約";
+                entry.text = summaryText;
+                entry.isSummarized = true;
+                entries.append(entry);
             }
         }
 
-        // 過去の詳細対話ファイル (detail_*.json) の読み込み
+        // 詳細対話ファイル (detail_*.json, detail_session_*.json)
         QStringList detailFilters;
-        detailFilters << "detail_*.json";
-        QFileInfoList detailFiles = archiveDir.entryInfoList(detailFilters, QDir::Files, QDir::Name);
+        detailFilters << "detail_*.json" << "detail_session_*.json";
+        QFileInfoList detailFiles = dir.entryInfoList(detailFilters, QDir::Files, QDir::Name);
+
         for (const QFileInfo &fi : detailFiles) {
             QFile file(fi.absoluteFilePath());
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                file.close();
-                if (doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    QJsonArray chatArr = obj.value("chat_history").toArray();
-                    for (const QJsonValue &v : chatArr) {
-                        QJsonObject chatObj = v.toObject();
-                        ConversationEntry entry;
-                        QString tsStr = chatObj.value("timestamp").toString();
-                        QDateTime dt = QDateTime::fromString(tsStr, Qt::ISODate);
-                        entry.timestamp = dt.isValid() ? dt.toString("yyyy-MM-dd hh:mm") : tsStr;
-                        
-                        QString src = chatObj.value("source").toString();
-                        if (src == "[User]") {
-                            entry.sender = "ユーザー";
-                        } else if (src == "[AI]") {
-                            entry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
-                        } else {
-                            entry.sender = src;
-                        }
-                        entry.text = chatObj.value("message").toString();
-                        entry.isSummarized = false;
-                        if (!entry.text.isEmpty()) {
-                            entries.append(entry);
-                        }
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) continue;
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            file.close();
+
+            if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                QJsonArray chatArr = obj.value("chat_history").toArray();
+                for (const QJsonValue &v : chatArr) {
+                    QJsonObject chatObj = v.toObject();
+                    QString msg = chatObj.value("message").toString();
+                    if (msg.isEmpty()) continue;
+
+                    QString tsStr = chatObj.value("timestamp").toString();
+                    QDateTime dt = QDateTime::fromString(tsStr, Qt::ISODate);
+                    QString formattedTs = dt.isValid() ? dt.toString("yyyy-MM-dd hh:mm") : fi.lastModified().toString("yyyy-MM-dd hh:mm");
+
+                    QString key = formattedTs + "|" + msg;
+                    if (processedKeys.contains(key)) continue;
+                    processedKeys.insert(key);
+
+                    ConversationEntry entry;
+                    entry.timestamp = formattedTs;
+                    QString src = chatObj.value("source").toString();
+                    if (src == "[User]" || src.contains("User")) {
+                        entry.sender = "ユーザー";
+                    } else if (src == "[AI]" || src.contains("AI")) {
+                        entry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+                    } else {
+                        entry.sender = src;
                     }
+                    entry.text = msg;
+                    entry.isSummarized = false;
+                    entries.append(entry);
                 }
             }
         }
     }
 
-    // 2. メモリ上にある現行セッションの要約コンテキスト (存在する場合)
+    // 3. メモリ上にある現行セッションの要約コンテキスト (存在する場合)
     if (!m_sessionContext.isEmpty()) {
-        ConversationEntry summaryEntry;
-        summaryEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
-        summaryEntry.sender = "システム要約";
-        summaryEntry.text = m_sessionContext;
-        summaryEntry.isSummarized = true;
-        entries.append(summaryEntry);
+        QString tsStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
+        QString key = tsStr + "|SUMMARY|" + m_sessionContext.left(30);
+        if (!processedKeys.contains(key)) {
+            processedKeys.insert(key);
+            ConversationEntry summaryEntry;
+            summaryEntry.timestamp = tsStr;
+            summaryEntry.sender = "システム要約";
+            summaryEntry.text = m_sessionContext;
+            summaryEntry.isSummarized = true;
+            entries.append(summaryEntry);
+        }
     }
 
-    // 3. メモリ上にある現行セッションの未サマリ直近チャット
+    // 4. メモリ上にある現行セッションの未サマリ直近チャット
     for (const auto &pair : m_chatHistory) {
-        ConversationEntry userEntry;
-        userEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
-        userEntry.sender = "ユーザー";
-        userEntry.text = pair.first;
-        userEntry.isSummarized = false;
-        entries.append(userEntry);
+        QString tsStr = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
 
-        ConversationEntry avatarEntry;
-        avatarEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
-        avatarEntry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
-        avatarEntry.text = pair.second;
-        avatarEntry.isSummarized = false;
-        entries.append(avatarEntry);
+        QString userKey = tsStr + "|" + pair.first;
+        if (!processedKeys.contains(userKey)) {
+            processedKeys.insert(userKey);
+            ConversationEntry userEntry;
+            userEntry.timestamp = tsStr;
+            userEntry.sender = "ユーザー";
+            userEntry.text = pair.first;
+            userEntry.isSummarized = false;
+            entries.append(userEntry);
+        }
+
+        QString avatarKey = tsStr + "|" + pair.second;
+        if (!processedKeys.contains(avatarKey)) {
+            processedKeys.insert(avatarKey);
+            ConversationEntry avatarEntry;
+            avatarEntry.timestamp = tsStr;
+            avatarEntry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+            avatarEntry.text = pair.second;
+            avatarEntry.isSummarized = false;
+            entries.append(avatarEntry);
+        }
     }
 
     return entries;
