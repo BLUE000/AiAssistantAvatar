@@ -18,6 +18,13 @@ enum class KnowledgeImportState {
     QandAMode
 };
 
+struct ConversationEntry {
+    QString timestamp;
+    QString sender;
+    QString text;
+    bool isSummarized = false;
+};
+
 class SystemResponseManager;
 
 class AIClientManager : public QObject {
@@ -198,6 +205,8 @@ public slots:
     void on_shoutoutSuccessReceived(const QString &username);
     void on_clientRequestFinished(const QString &responseText, bool success);
     void resetSession(bool isManual); // セッションリセット機能
+    void forceSummarizeHistory(); // 手動強制サマリ化
+    QList<ConversationEntry> getConversationEntries() const; // 会話履歴エントリ取得
     bool importSessionBackup(const QString &filePath);
     void exportSessionBackup(const QString &encPath, const QString &txtPath);
     void on_settingsUpdated();

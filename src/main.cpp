@@ -118,6 +118,7 @@ int main(int argc, char *argv[]) {
     DiscordReader *discord = new DiscordReader();
     STTManager *stt = new STTManager();
     AIClientManager *ai = new AIClientManager();
+    window.setAIClientManager(ai);
 
     // 各オブジェクトを対応する常駐スレッドに移動
     core->moveToThread(&coreThread);

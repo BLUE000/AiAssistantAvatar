@@ -1470,6 +1470,41 @@ TEST(AIRandomUtilsTest, ParseAndEvaluateMacroTest) {
     EXPECT_TRUE(evaluated.contains("Picks: "));
 }
 
+TEST(AIRandomUtilsTest, InvalidMacroSyntaxMaintained) {
+    QString text = "テスト Random(abc) List()";
+    QString evaluated = AIRandomUtils::parseAndEvaluate(text);
+    EXPECT_EQ(evaluated, text);
+}
+
+TEST(HistoryViewerTest, ConversationEntriesAndSummarizeTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // 初期状態（履歴なし）
+    QList<ConversationEntry> entries = manager.getConversationEntries();
+    EXPECT_EQ(entries.size(), 0);
+
+    // チャット履歴を追加
+    QList<QPair<QString, QString>> history;
+    history.append(qMakePair(QString("こんにちは"), QString("こんにちは！何かお手伝いできますか？")));
+    history.append(qMakePair(QString("今日の天気を教えて"), QString("今日は晴れです。")));
+    manager.setChatHistory(history);
+
+    // エントリ取得の検証
+    entries = manager.getConversationEntries();
+    EXPECT_EQ(entries.size(), 4); // ユーザー2件、アバター2件 = 4件
+    for (const auto &e : entries) {
+        EXPECT_FALSE(e.isSummarized); // まだ要約されていない生ログ
+    }
+    EXPECT_EQ(entries.at(0).sender, "ユーザー");
+    EXPECT_EQ(entries.at(0).text, "こんにちは");
+    EXPECT_EQ(entries.at(1).sender, "AIアシスタント");
+    EXPECT_EQ(entries.at(1).text, "こんにちは！何かお手伝いできますか？");
+
+    // 手動サマリ化の発火テスト
+    EXPECT_NO_THROW(manager.forceSummarizeHistory());
+}
+
 // UT-SHOUTOUT-01 ~ UT-SHOUTOUT-03: レイド自動紹介・アナウンス・/shoutout ルーティングテスト
 TEST_F(AIClientTest, ShoutoutAnnounceAndCommandRoutingTest) {
     AIClientManager manager;

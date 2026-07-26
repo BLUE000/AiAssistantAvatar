@@ -544,6 +544,46 @@ QStringList AIClientManager::managerPriorityOrder() const {
     return order;
 }
 
+QList<ConversationEntry> AIClientManager::getConversationEntries() const {
+    QList<ConversationEntry> entries;
+
+    // サマリ化済みのセッションコンテキスト要約が存在する場合
+    if (!m_sessionContext.isEmpty()) {
+        ConversationEntry summaryEntry;
+        summaryEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
+        summaryEntry.sender = "システム要約";
+        summaryEntry.text = m_sessionContext;
+        summaryEntry.isSummarized = true;
+        entries.append(summaryEntry);
+    }
+
+    // 未サマリの直近チャット生ログ
+    for (const auto &pair : m_chatHistory) {
+        ConversationEntry userEntry;
+        userEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
+        userEntry.sender = "ユーザー";
+        userEntry.text = pair.first;
+        userEntry.isSummarized = false;
+        entries.append(userEntry);
+
+        ConversationEntry avatarEntry;
+        avatarEntry.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm");
+        avatarEntry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+        avatarEntry.text = pair.second;
+        avatarEntry.isSummarized = false;
+        entries.append(avatarEntry);
+    }
+
+    return entries;
+}
+
+void AIClientManager::forceSummarizeHistory() {
+    if (!m_chatHistory.isEmpty()) {
+        qDebug() << "AIClientManager: Manual force summarization requested.";
+        resetSession(true);
+    }
+}
+
 void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     // --- F-26 多層スコアフィルタリング評価 ---
     QStringList historyMsgs;

@@ -358,5 +358,16 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-KNOWLEDGE-PRIORITY-02** | `MarkdownTableEngine::resolveBestEntryForTrigger` | 同一のトリガーキーワード（例: 「占い」）を保持する優先度 100 と 50 の 2 ファイルが存在する状態で呼び出す。 | 優先度 100 のファイルが一義的に選択・解決され、インデックスおよびログに採用結果が記録されること。 |
 | **UT-KNOWLEDGE-VALIDATE-03** | `MarkdownTableEngine::buildIndexAndValidate` | テーブルの列数（`|`）が途中で欠落した壊れた Markdown ファイルを配置してスキャンを実行する。 | 1. 壊れたファイルはロード対象から除外（スキップ）されること。<br>2. 該当ファイル名とエラー発生行・内容が `diagnostics` リストへ登録され、UI上にレポートとして可視化されること。 |
 
+---
+
+### 3.25 右クリックメニュー廃止 ＆ ページネーション対応会話履歴ビューア (F-30) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-HISTORY-PAGINATION-01** | `HistoryViewerDialog::onPageSizeChanged` | 会話ログ全 150 件のデータが存在する状態で、表示件数を `10件` / `50件` / `100件` へ変更する。 | 総ページ数がそれぞれ `15` / `3` / `2` ページと正しく再計算され、表示ログ範囲が正確に制御されること。 |
+| **UT-HISTORY-STATUS-02** | `HistoryViewerDialog::updateView` | サマリ化済ログ 138 件、未サマリ生ログ 12 件が含まれる会話履歴データを読込み表示する。 | 1. ステータスラベルに「未サマリ: 12件 / 全150件」が表示されること。<br>2. 各メッセージの先頭に `[サマリ化済]` または `[未サマリ]` の状態タグが付与されて描画されること。 |
+| **UT-HISTORY-EXPORT-03** | `HistoryViewerDialog::onExportText` | 会話ログが存在する状態でエクスポート処理を実行する。 | UIスレッドフリーズを生じさせず、テキストファイル (.txt) にすべての会話ログが平文で正確に保存されること。 |
+| **UT-HISTORY-SUMMARIZE-04** | `HistoryViewerDialog::onForceSummarize` | 未サマリログが存在する状態で「今すぐサマリ化」ボタンを押下する。 | `AIClientManager::forceSummarizeHistory()` が正常発火し、未サマリログが直ちに圧縮統合されて画面上の未サマリ件数が `0` に更新されること。 |
+
 
 

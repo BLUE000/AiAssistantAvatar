@@ -37,6 +37,8 @@ set(SOURCES
     src/core_module.cpp
     src/ui/avatar_window.cpp
     src/ui/avatar_skin_builder_dialog.cpp
+    src/ui/history_viewer_dialog.cpp
+    src/ui/history_viewer_dialog.h
     src/twitch/twitch_reader.cpp
     src/stt/stt_manager.cpp
     src/stt/istt_engine.cpp

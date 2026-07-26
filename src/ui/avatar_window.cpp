@@ -1,5 +1,6 @@
 #include "avatar_window.h"
 #include "avatar_skin_builder_dialog.h"
+#include "history_viewer_dialog.h"
 #include "../search/markdown_table_engine.h"
 #include <QProcess>
 #include <QFile>
@@ -768,43 +769,6 @@ void AvatarWindow::moveEvent(QMoveEvent *event) {
     }
 }
 
-void AvatarWindow::contextMenuEvent(QContextMenuEvent *event) {
-    showContextMenu(event->globalPos());
-}
-
-void AvatarWindow::showContextMenu(const QPoint &globalPos) {
-    QMenu menu(this);
-    
-    QAction *actResetHistory = menu.addAction("会話履歴をクリアして要約");
-    QAction *actImportHistory = menu.addAction("会話履歴をインポート...");
-    QAction *actExportHistory = menu.addAction("会話履歴をエクスポート...");
-
-    menu.addSeparator();
-    QAction *actQuit = menu.addAction("終了");
-
-    QAction *selected = menu.exec(globalPos);
-    if (!selected) return;
-
-    if (selected == actResetHistory) {
-        emit resetSessionRequested();
-    } else if (selected == actImportHistory) {
-        QString filePath = QFileDialog::getOpenFileName(this, "会話履歴のインポート", "log", "Encrypted Backups (*.enc)");
-        if (!filePath.isEmpty()) {
-            emit importSessionRequested(filePath);
-        }
-    } else if (selected == actExportHistory) {
-        QString encPath = QFileDialog::getOpenFileName(this, "エクスポート元（暗号ファイル）の選択", "log", "Encrypted Backups (*.enc)");
-        if (!encPath.isEmpty()) {
-            QString txtPath = QFileDialog::getSaveFileName(this, "エクスポート先（テキストファイル）の選択", "log/decrypted_history.txt", "Text Files (*.txt)");
-            if (!txtPath.isEmpty()) {
-                emit exportSessionRequested(encPath, txtPath);
-            }
-        }
-    } else if (selected == actQuit) {
-        close();
-    }
-}
-
 void AvatarWindow::onSendClicked() {
     if (!m_inputEdit) return;
     QString text = m_inputEdit->text().trimmed();
@@ -819,9 +783,9 @@ void AvatarWindow::onSttClicked() {
 }
 
 void AvatarWindow::onMenuClicked() {
-    if (!m_menuButton) return;
-    QPoint pos = m_menuButton->mapToGlobal(QPoint(0, m_menuButton->height()));
-    showContextMenu(pos);
+    if (m_tabWidget && m_settingsTab) {
+        m_tabWidget->setCurrentWidget(m_settingsTab);
+    }
 }
 
 void AvatarWindow::on_notify_events(const AppEvent &event) {
@@ -1049,6 +1013,12 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     wakeWordLayout->addWidget(m_twitchWakeWordModeCombo);
     wakeWordLayout->addStretch();
     commonRespLayout->addRow("ウェイクワード:", wakeWordWidget);
+
+    QPushButton *btnShowHistory = new QPushButton("📜 会話履歴を表示...", scrollContent);
+    btnShowHistory->setStyleSheet("font-weight: bold; padding: 6px 12px; background-color: #2980b9; color: white; border-radius: 4px;");
+    connect(btnShowHistory, &QPushButton::clicked, this, &AvatarWindow::onShowHistoryClicked);
+    commonRespLayout->addRow("会話履歴:", btnShowHistory);
+
     mainLayout->addWidget(commonRespGroup);
 
     // 2. OBS / 描画設定グループ
@@ -2383,6 +2353,11 @@ void AvatarWindow::initKnowledgeTab(QWidget *parent) {
     btnLayout->addStretch();
     btnLayout->addWidget(m_deleteKnowledgeButton);
     layout->addLayout(btnLayout);
+}
+
+void AvatarWindow::onShowHistoryClicked() {
+    HistoryViewerDialog dialog(m_aiClientManager, this);
+    dialog.exec();
 }
 
 void AvatarWindow::updateKnowledgeTable() {

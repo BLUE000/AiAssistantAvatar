@@ -300,7 +300,6 @@ private:
     void pickNextPattern();
     void pauseScheduler();    // AI 処理中にスケジューラーを停止
     void resumeScheduler();   // AI 処理完了後にスケジューラーを再開
-    void showContextMenu(const QPoint &globalPos);
 
     void initSettingsTab(QWidget *parent);
     void initAiSettingsTab(QWidget *parent);
@@ -333,17 +332,21 @@ private slots:
     void onAddUserClicked();
     void onUserTableCellChanged(int row, int column);
     void onDeleteKnowledgeClicked();
+    void onShowHistoryClicked(); // 会話履歴ビューア表示スロット
     void onLimitProviderChanged(int index);
     void onLimitAutoFetchClicked();
     void onModelsReplyFinished(QNetworkReply *reply);
 
 protected:
     void moveEvent(QMoveEvent *event) override;
-    void contextMenuEvent(QContextMenuEvent *event) override;
 
 public:
     explicit AvatarWindow(QWidget *parent = nullptr);
     ~AvatarWindow();
+    void setAIClientManager(class AIClientManager *manager) { m_aiClientManager = manager; }
+
+private:
+    class AIClientManager *m_aiClientManager = nullptr;
 
 signals:
     // コアスレッドへの要求シグナル
