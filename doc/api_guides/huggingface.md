@@ -31,3 +31,6 @@ HuggingFace（ハギングフェイス）は、世界最大級のオープンソ
 - **HuggingFace 使用**: チェックを入れる
 - **HuggingFace API キー**: コピーした `hf_...` トークンを貼り付け
 - **HuggingFace モデル**: プルダウンから `meta-llama/Llama-3.1-8B-Instruct`（推奨）または `Qwen/Qwen2.5-7B-Instruct` 等を選択
+
+> [!NOTE]
+> 本アプリでは Hugging Face の OpenAI 互換 Inference API (`https://api-inference.huggingface.co/models/<model_id>/v1/chat/completions`) を自動的に構築して呼び出します。初回のモデル呼び出し時にコールドスタートが発生した場合は、詳細エラーメッセージおよびHTTPステータスコードが画面・ログに表示されます。

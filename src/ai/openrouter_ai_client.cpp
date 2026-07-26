@@ -56,6 +56,8 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
 
+    QString targetModel = m_model.isEmpty() ? "meta-llama/llama-3.1-8b-instruct:free" : m_model;
+
     QUrl url("https://openrouter.ai/api/v1/chat/completions");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -64,7 +66,7 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
     request.setRawHeader("X-Title", "AiAssistantAvatar");
 
     QJsonObject requestBody;
-    requestBody["model"] = m_model;
+    requestBody["model"] = targetModel;
 
     QJsonArray messages;
     QJsonObject systemMessage;
@@ -121,11 +123,20 @@ void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         QByteArray errBody = reply->readAll();
         qWarning() << "OpenRouter API Request Failed. Code:" << httpCode << "Error:" << errStr << "Body:" << errBody;
 
-        if (httpCode == 429) {
-            qWarning() << "OpenRouter API Rate Limit Exceeded (HTTP 429)";
+        QString detailedErr = errStr;
+        QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
+        if (errDoc.isObject() && errDoc.object().contains("error")) {
+            QJsonValue errVal = errDoc.object().value("error");
+            if (errVal.isObject() && errVal.toObject().contains("message")) {
+                detailedErr = errVal.toObject().value("message").toString();
+            } else if (errVal.isString()) {
+                detailedErr = errVal.toString();
+            }
+        } else if (!errBody.isEmpty()) {
+            detailedErr = QString::fromUtf8(errBody).left(120);
         }
 
-        emit requestFinished(QString("OpenRouter API エラー: %1").arg(errStr), false);
+        emit requestFinished(QString("OpenRouter API エラー (%1): %2").arg(httpCode).arg(detailedErr), false);
         return;
     }
 

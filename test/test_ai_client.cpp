@@ -479,6 +479,21 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
     }
 }
 
+TEST(AIClientTest, PseudoFunctionTagAndUserExtractionTest) {
+    AIClientManager manager;
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    // AIからの応答に疑似ファンクションタグが含まれているケース
+    QString rawResponse = "こばんざめさん、うどんで決定です！<function=update_nickname>{\"nickname\": \"\\u3055\\u3093\\u3054\", \"target_user\": \"kobanzame_igc\"}</function>どんな具がいいですか？";
+    manager.on_clientRequestFinished(rawResponse, true);
+
+    ASSERT_GE(spy.count(), 1);
+    AppEvent ev = spy.at(0).at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIResponseReceived);
+    // タグが完全削除され、発話本文のみになっていることを検証
+    EXPECT_EQ(ev.text, "こばんざめさん、うどんで決定です！どんな具がいいですか？");
+}
+
 TEST_F(AIClientTest, TranslationCommandTest) {
     AIClientManager manager;
     manager.setAIProvider("dummy");

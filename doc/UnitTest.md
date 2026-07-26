@@ -83,6 +83,10 @@ classDiagram
 | **UT-AI-10** | `AIClientManager` (ナレッジ本登録とメタデータ) | `QandAMode` 状態で、本登録ツール `finalizeKnowledgeImport("タイトル", "説明", キーワードリスト)` を実行する。 | 1. 一時フォルダのファイルが `log/knowledge/` にコピー・リネームされること。<br>2. `knowledge_metadata.json` にメタデータ（タイトル、説明、キーワード、ファイル名）が正しく追加保存されること。<br>3. 状態が `Idle` に戻り、UI更新シグナル `knowledgeMetadataUpdated` が発火すること。 |
 | **UT-AI-11** | `AIClientManager` (セキュリティ制限) | Twitch/Discord（`user` が非空）から、`/open_folder` やナレッジ登録関連の入力を行う。 | 1. コマンド判定がバイパスされ、AIクライアントへのツール追加や実行が拒否・無視されること（Twitch/Discordからはナレッジ操作不可）。 |
 | **UT-AI-12** | `AIClientManager` (システム固定自動応答) | プロンプト「version」や「アバターが使っているAIは？」、「マイクラのバージョン教えて」で `on_requestAI` を実行する。 | 1. バージョン単体やアバター指定のバージョン/AI問い合わせに対して、AIクライアントが呼ばれず（バイパス）、即座に `EventType::AIResponseReceived` が発生し、正しい固定テキストが返ること。<br>2. アバターを修飾しない無関係な対象のバージョン（「マイクラのバージョン」など）や、無関係なAIの問い合わせはバイパスされず、通常のAI処理へ送られること。 |
+| **UT-AI-13** | `HuggingFaceAIClient` (モデルパスURL構築) | 指定モデル `meta-llama/Llama-3.1-8B-Instruct` で `sendRequest` を呼び出す。 | 送信先 URL が `https://api-inference.huggingface.co/models/meta-llama/Llama-3.1-8B-Instruct/v1/chat/completions` として正しく構築されること。 |
+| **UT-AI-14** | `OpenRouterAIClient` (モデル名補正 & エラーパース) | 空のモデル名で呼び出し、および HTTP 400 エラーレスポンスを受信する。 | 1. デフォルトモデル名 `meta-llama/llama-3.1-8b-instruct:free` が補正適用されること。<br>2. `error.message` が可読テキストとしてデコード抽出されること。 |
+| **UT-AI-15** | `AIClientManager` (疑似ファンクションタグ解析・消去) | AI応答テキストに `<function=update_nickname>{"nickname": "\u3055\u3093\u3054", "target_user": "kobanzame_igc"}</function>` が含まれる状態で受信する。 | 1. `handleNicknameUpdateRequest` が発火し、`kobanzame_igc` のニックネームに「さんご」が登録されること。<br>2. 応答テキストから該当タグが完全消去され、会話本文のみが吹き出しイベントに渡されること。 |
+| **UT-AI-16** | `AIClientManager` (会話履歴ユーザー名解読) | `[Twitch] blue002` や `buchiushi] blue002: テスト` の形式を含む対話ログを読み込む。 | `parseSenderAndMessage` により `blue002 (Twitch)` 等の送信者名と綺麗に整形されたメッセージ文が抽出され、会話履歴エントリに設定されること。 |
 
 
 ---

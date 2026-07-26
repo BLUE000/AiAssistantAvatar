@@ -56,13 +56,15 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
 
-    QUrl url("https://api-inference.huggingface.co/v1/chat/completions");
+    QString modelName = m_model.isEmpty() ? "meta-llama/Llama-3.1-8B-Instruct" : m_model;
+    QString urlStr = QString("https://api-inference.huggingface.co/models/%1/v1/chat/completions").arg(modelName);
+    QUrl url(urlStr);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = m_model;
+    requestBody["model"] = modelName;
 
     QJsonArray messages;
     QJsonObject systemMessage;
@@ -119,11 +121,15 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         QByteArray errBody = reply->readAll();
         qWarning() << "HuggingFace API Request Failed. Code:" << httpCode << "Error:" << errStr << "Body:" << errBody;
 
-        if (httpCode == 429) {
-            qWarning() << "HuggingFace API Rate Limit Exceeded (HTTP 429)";
+        QString detailedErr = errStr;
+        QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
+        if (errDoc.isObject() && errDoc.object().contains("error")) {
+            detailedErr = errDoc.object().value("error").toString();
+        } else if (!errBody.isEmpty()) {
+            detailedErr = QString::fromUtf8(errBody).left(120);
         }
 
-        emit requestFinished(QString("HuggingFace API エラー: %1").arg(errStr), false);
+        emit requestFinished(QString("HuggingFace API エラー (%1): %2").arg(httpCode).arg(detailedErr), false);
         return;
     }
 
