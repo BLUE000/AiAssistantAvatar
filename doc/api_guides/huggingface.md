@@ -19,8 +19,9 @@ HuggingFace（ハギングフェイス）は、世界最大級のオープンソ
 
 ### ステップ④：Token の設定と生成
 1. **Token name**：任意の名前（例: `AiAvatarToken`）を入力します。
-2. **Token type**：`Read` または `Fine-grained`（Inference 権限）を選択します。
-3. 「**Generate a token**」をクリックします。
+2. **Token type**：**`Fine-grained`** を選択します。
+3. **Permissions**：`Inference` プリセットを選択し、**`Make calls to Inference Providers`** にチェックが入っていることを確認します。
+4. 「**Generate a token**」をクリックします。
 
 ### ステップ⑤：Token のコピー
 生成されたトークン文字列（`hf_...` で始まる文字列）をコピーし、アプリの設定画面の **「HuggingFace API キー」** 欄に貼り付けます。
@@ -33,4 +34,4 @@ HuggingFace（ハギングフェイス）は、世界最大級のオープンソ
 - **HuggingFace モデル**: プルダウンから `meta-llama/Llama-3.1-8B-Instruct`（推奨）または `Qwen/Qwen2.5-7B-Instruct` 等を選択
 
 > [!NOTE]
-> 本アプリでは Hugging Face の OpenAI 互換 Inference API (`https://api-inference.huggingface.co/models/<model_id>/v1/chat/completions`) を自動的に構築して呼び出します。初回のモデル呼び出し時にコールドスタートが発生した場合は、詳細エラーメッセージおよびHTTPステータスコードが画面・ログに表示されます。
+> 本アプリでは Hugging Face の最新 OpenAI 互換ルーター API (`https://router.huggingface.co/v1/chat/completions`) を自動的に構築して呼び出します。初回のモデル呼び出し時にコールドスタートが発生した場合は、詳細エラーメッセージおよびHTTPステータスコードが画面・ログに表示されます。

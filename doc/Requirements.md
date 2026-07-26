@@ -171,7 +171,7 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
   - AI設定タブからAPIキーおよび使用モデルをGUIで設定可能とする。
 
 - **[F-32] 新規 AI プロバイダ統合 (HuggingFace / OpenRouter / さくらAI 統合)**:
-  - HuggingFace (`https://api-inference.huggingface.co/v1/chat/completions`)、OpenRouter (`https://openrouter.ai/api/v1/chat/completions`)、およびさくらAI (`https://api.ai.sakura.ad.jp/v1/chat/completions`) を AI クライアントエンジンとして追加統合。
+  - HuggingFace (`https://router.huggingface.co/v1/chat/completions`)、OpenRouter (`https://openrouter.ai/api/v1/chat/completions`)、およびさくらAI (`https://api.ai.sakura.ad.jp/v1/chat/completions`) を AI クライアントエンジンとして追加統合。
   - 設定画面から API Key およびモデル名を自由に切り替えて会話・配信アバターが動作する機能。
   - **モデル指定UIのプルダウン化**: HuggingFace, OpenRouter, さくらAI のモデル指定欄を、推奨モデルをワンクリックで選択できる編集可能プルダウン (QComboBox: editable) 化し、初心者でも容易に選択できるように改善。さくらAI には `llm-jp-3.1-8x13b-instruct4`, `gpt-oss-120b`, `preview/gemma-4-31B-it` 等の公式最新モデル一覧を完全網羅。
   - Groqはその高速推論速度と無料枠の大きさから、Manager AIおよびWorker AIの両ロールで使用可能とする。
@@ -408,7 +408,7 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
 - **API 通信仕様 (OpenAI 互換規格)**:
   - 3 プロバイダともに OpenAI 互換の Chat Completions API 規格（`https://.../v1/chat/completions`）に準拠した通信方式を採用する。
   - **HuggingFace (`huggingface`)**:
-    - エンドポイント: `https://api-inference.huggingface.co/v1/chat/completions`
+    - エンドポイント: `https://router.huggingface.co/v1/chat/completions`
     - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
   - **OpenRouter (`openrouter`)**:
     - エンドポイント: `https://openrouter.ai/api/v1/chat/completions`

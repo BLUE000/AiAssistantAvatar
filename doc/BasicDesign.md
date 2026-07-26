@@ -217,7 +217,7 @@ classDiagram
 
 2. **2段目：`IAIClient` 具象クラス（各AI API固有の個別処理）**
    - HTTPのヘッダーおよびペイロード（JSON）の構築。
-   - `HuggingFaceAIClient`: モデルIDを動的にパスに含めたエンドポイント (`https://api-inference.huggingface.co/models/<model_id>/v1/chat/completions`) の構築と詳細エラーレスポンスのパース。
+   - `HuggingFaceAIClient`: OpenAI 互換のルーターエンドポイント (`https://router.huggingface.co/v1/chat/completions`) の構築と詳細エラーレスポンスのパース。
    - `OpenRouterAIClient`: デフォルトモデルID (`meta-llama/llama-3.1-8b-instruct:free`) の補正と詳細エラーパース。
    - `SakuraAIClient`: さくらインターネット LLM API (`https://api.ai.sakura.ad.jp/v1/chat/completions`) への独立通信とエラーパース。
    - `QNetworkAccessManager` を使用した各API固有のエンドポイントへの通信。

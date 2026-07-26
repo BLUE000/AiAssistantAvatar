@@ -490,7 +490,7 @@ TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャッ�
 3 クラスともに `IAIClient` を継承し、OpenAI 互換 Chat Completions HTTP POST 通信を行う。
 
 - **`HuggingFaceAIClient`**:
-  - デフォルトエンドポイント: `https://api-inference.huggingface.co/v1/chat/completions`
+  - デフォルトエンドポイント: `https://router.huggingface.co/v1/chat/completions`
   - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
   - 認証ヘッダー: `Authorization: Bearer <huggingface_api_key>`
 - **`OpenRouterAIClient`**:
