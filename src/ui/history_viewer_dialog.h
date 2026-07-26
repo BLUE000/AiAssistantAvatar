@@ -5,13 +5,14 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QList>
+#include <QThread>
 #include "../ai/ai_client_manager.h"
 
 class HistoryViewerDialog : public QDialog {
     Q_OBJECT
 public:
     explicit HistoryViewerDialog(AIClientManager *aiManager, QWidget *parent = nullptr);
-    ~HistoryViewerDialog() override = default;
+    ~HistoryViewerDialog() override;
 
 private slots:
     void onPageSizeChanged(int index);
@@ -19,12 +20,15 @@ private slots:
     void onNextPage();
     void onExportText();
     void onForceSummarize();
+    void onEntriesLoaded(const QList<ConversationEntry> &entries);
 
 private:
-    void updateView();
+    void startAsyncLoad();
+    void renderCurrentPage();
 
     AIClientManager *m_aiManager;
     QList<ConversationEntry> m_allEntries;
+    bool m_isLoading = false;
     int m_pageSize = 50;
     int m_currentPage = 1;
 
@@ -36,4 +40,5 @@ private:
     QLabel *m_pageLabel;
     QPushButton *m_exportButton;
     QPushButton *m_summarizeButton;
+    QThread *m_loadThread = nullptr;
 };

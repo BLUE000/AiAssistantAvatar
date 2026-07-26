@@ -11,13 +11,13 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
     : QDialog(parent)
     , m_aiManager(aiManager)
 {
-    setWindowTitle("会話履歴ビューア (ページネーション対応)");
-    resize(720, 520);
+    setWindowTitle("会話履歴ビューア (非同期読み込み・ページネーション対応)");
+    resize(750, 550);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
     // 上部ステータスバー
-    m_statusLabel = new QLabel(this);
+    m_statusLabel = new QLabel("⏳ 過去の会話履歴を読み込んでいます...", this);
     m_statusLabel->setStyleSheet("font-weight: bold; color: #2c3e50; padding: 4px;");
     mainLayout->addWidget(m_statusLabel);
 
@@ -36,6 +36,7 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
     topControlLayout->addStretch();
 
     m_prevButton = new QPushButton("◀ 前へ", this);
+    m_prevButton->setEnabled(false);
     connect(m_prevButton, &QPushButton::clicked, this, &HistoryViewerDialog::onPrevPage);
     topControlLayout->addWidget(m_prevButton);
 
@@ -44,6 +45,7 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
     topControlLayout->addWidget(m_pageLabel);
 
     m_nextButton = new QPushButton("次へ ▶", this);
+    m_nextButton->setEnabled(false);
     connect(m_nextButton, &QPushButton::clicked, this, &HistoryViewerDialog::onNextPage);
     topControlLayout->addWidget(m_nextButton);
 
@@ -53,6 +55,7 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
     m_textEdit = new QTextEdit(this);
     m_textEdit->setReadOnly(true);
     m_textEdit->setStyleSheet("font-family: Consolas, 'Yu Gothic', monospace; font-size: 13px; background-color: #f8f9fa; border: 1px solid #ced4da; padding: 8px;");
+    m_textEdit->setHtml("<div style='color: #7f8c8d; text-align: center; margin-top: 50px;'>⏳ ディスクから暗号化ログ・アーカイブをスキャン中...<br>しばらくお待ちください。</div>");
     mainLayout->addWidget(m_textEdit);
 
     // 下部ボタンアクションバー
@@ -60,11 +63,13 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
 
     m_exportButton = new QPushButton("📄 平文エクスポート (.txt)", this);
     m_exportButton->setStyleSheet("padding: 6px 12px; font-weight: bold;");
+    m_exportButton->setEnabled(false);
     connect(m_exportButton, &QPushButton::clicked, this, &HistoryViewerDialog::onExportText);
     actionLayout->addWidget(m_exportButton);
 
     m_summarizeButton = new QPushButton("⚡ 今すぐサマリ化", this);
     m_summarizeButton->setStyleSheet("padding: 6px 12px; font-weight: bold; background-color: #e74c3c; color: white;");
+    m_summarizeButton->setEnabled(false);
     connect(m_summarizeButton, &QPushButton::clicked, this, &HistoryViewerDialog::onForceSummarize);
     actionLayout->addWidget(m_summarizeButton);
 
@@ -77,20 +82,57 @@ HistoryViewerDialog::HistoryViewerDialog(AIClientManager *aiManager, QWidget *pa
 
     mainLayout->addLayout(actionLayout);
 
-    updateView();
+    // バックグラウンドスレッドで非同期読み込み開始
+    startAsyncLoad();
+}
+
+HistoryViewerDialog::~HistoryViewerDialog() {
+    if (m_loadThread && m_loadThread->isRunning()) {
+        m_loadThread->requestInterruption();
+        m_loadThread->quit();
+        m_loadThread->wait();
+    }
+}
+
+void HistoryViewerDialog::startAsyncLoad() {
+    if (!m_aiManager) return;
+
+    m_isLoading = true;
+    AIClientManager *aiMgr = m_aiManager;
+
+    // 非同期読み込みスレッドの作成と実行
+    m_loadThread = QThread::create([this, aiMgr]() {
+        QList<ConversationEntry> loadedEntries = aiMgr->getConversationEntries();
+        QMetaObject::invokeMethod(this, [this, loadedEntries]() {
+            onEntriesLoaded(loadedEntries);
+        }, Qt::QueuedConnection);
+    });
+
+    m_loadThread->start();
+}
+
+void HistoryViewerDialog::onEntriesLoaded(const QList<ConversationEntry> &entries) {
+    m_isLoading = false;
+    m_allEntries = entries;
+    m_currentPage = 1;
+
+    m_exportButton->setEnabled(true);
+    m_summarizeButton->setEnabled(true);
+
+    renderCurrentPage();
 }
 
 void HistoryViewerDialog::onPageSizeChanged(int index) {
     Q_UNUSED(index);
     m_pageSize = m_pageSizeCombo->currentData().toInt();
     m_currentPage = 1;
-    updateView();
+    renderCurrentPage();
 }
 
 void HistoryViewerDialog::onPrevPage() {
     if (m_currentPage > 1) {
         m_currentPage--;
-        updateView();
+        renderCurrentPage();
     }
 }
 
@@ -98,14 +140,12 @@ void HistoryViewerDialog::onNextPage() {
     int totalPages = qMax(1, (m_allEntries.size() + m_pageSize - 1) / m_pageSize);
     if (m_currentPage < totalPages) {
         m_currentPage++;
-        updateView();
+        renderCurrentPage();
     }
 }
 
-void HistoryViewerDialog::updateView() {
-    if (m_aiManager) {
-        m_allEntries = m_aiManager->getConversationEntries();
-    }
+void HistoryViewerDialog::renderCurrentPage() {
+    if (m_isLoading) return;
 
     int totalCount = m_allEntries.size();
     int unsummarizedCount = 0;
@@ -150,13 +190,12 @@ void HistoryViewerDialog::updateView() {
                 tagHtml = "<span style='background-color: #2ecc71; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold;'>[未サマリ]</span>";
             }
 
-            QString senderColor = (entry.sender == "ユーザー") ? "#2980b9" : "#8e44ad";
-            if (entry.sender == "システム要約") senderColor = "#d35400";
+            QString senderColor = (entry.sender == "ユーザー") ? "#2980b9" : ((entry.sender == "システム要約") ? "#d35400" : "#27ae60");
 
-            html += QString("<div style='margin-bottom: 10px; padding: 6px; background-color: white; border-left: 4px solid %1; border-radius: 4px;'>")
+            html += QString("<div style='margin-bottom: 12px; padding: 8px; background-color: white; border-radius: 5px; border-left: 4px solid %1;'>")
                         .arg(senderColor);
-            html += QString("<div>%1 <strong style='color: %2;'>%3</strong> <span style='color: #95a5a6; font-size: 11px;'>[%4]</span></div>")
-                        .arg(tagHtml).arg(senderColor).arg(entry.sender.toHtmlEscaped()).arg(entry.timestamp);
+            html += QString("<div>%1 <b style='color: %2;'>%3</b> <span style='color: #95a5a6; font-size: 11px;'>[%4]</span></div>")
+                        .arg(tagHtml, senderColor, entry.sender.toHtmlEscaped(), entry.timestamp.toHtmlEscaped());
             html += QString("<div style='margin-top: 4px; color: #2c3e50; white-space: pre-wrap;'>%1</div>")
                         .arg(entry.text.toHtmlEscaped());
             html += "</div>";
@@ -169,49 +208,54 @@ void HistoryViewerDialog::updateView() {
 
 void HistoryViewerDialog::onExportText() {
     if (m_allEntries.isEmpty()) {
-        QMessageBox::information(this, "通知", "保存する会話履歴がありません。");
+        QMessageBox::information(this, "エクスポート", "エクスポートする会話履歴がありません。");
         return;
     }
 
-    QString defaultName = QString("ChatHistory_%1.txt").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
-    QString filePath = QFileDialog::getSaveFileName(this, "会話履歴の保存 (平文エクスポート)", defaultName, "テキストファイル (*.txt)");
+    QString defaultName = QString("conversation_history_%1.txt").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
+    QString filePath = QFileDialog::getSaveFileName(this, "会話履歴のエクスポート", defaultName, "テキストファイル (*.txt)");
+
     if (filePath.isEmpty()) return;
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, "エラー", "ファイルの書き込みに失敗しました。");
+        QMessageBox::critical(this, "エラー", "ファイルの書き込みに失敗しました。");
         return;
     }
 
     QTextStream out(&file);
-    out << "========================================" << "\n";
-    out << "  AiAssistantAvatar 会話履歴エクスポート" << "\n";
-    out << "  出力日時: " << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << "\n";
-    out << "  全ログ件数: " << m_allEntries.size() << " 件" << "\n";
-    out << "========================================" << "\n\n";
+    out.setEncoding(QStringConverter::Utf8);
+    out << "=== AiAssistantAvatar 会話履歴エクスポート ===\n";
+    out << "出力日時: " << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << "\n";
+    out << "総エントリ数: " << m_allEntries.size() << " 件\n";
+    out << "============================================\n\n";
 
     for (const auto &entry : m_allEntries) {
-        QString statusStr = entry.isSummarized ? "[サマリ化済]" : "[未サマリ]";
-        out << statusStr << " " << entry.sender << " [" << entry.timestamp << "]\n";
+        out << QString("[%1] [%2] %3\n")
+                   .arg(entry.isSummarized ? "サマリ化済" : "未サマリ")
+                   .arg(entry.timestamp)
+                   .arg(entry.sender);
         out << entry.text << "\n";
-        out << "----------------------------------------\n";
+        out << "--------------------------------------------\n";
     }
 
     file.close();
-    QMessageBox::information(this, "成功", QString("会話履歴をテキスト保存しました:\n%1").arg(filePath));
+    QMessageBox::information(this, "完了", QString("会話履歴を書き出しました:\n%1").arg(filePath));
 }
 
 void HistoryViewerDialog::onForceSummarize() {
     if (!m_aiManager) return;
 
-    QMessageBox::StandardButton res = QMessageBox::question(
-        this, "強制サマリ化の確認",
-        "現在の未サマリ会話ログを今すぐ要約（トークン要約圧縮）し、記憶に統合しますか？",
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "強制サマリ化",
+        "現在の未サマリ会話履歴を今すぐAIで要約し、長期記憶コンテキストに変換しますか？",
         QMessageBox::Yes | QMessageBox::No);
 
-    if (res == QMessageBox::Yes) {
+    if (reply == QMessageBox::Yes) {
         m_aiManager->forceSummarizeHistory();
-        QMessageBox::information(this, "処理完了", "会話ログのサマリ化（要約圧縮）要求を送信しました。");
-        updateView();
+        QMessageBox::information(this, "要約開始", "背景でサマリ化リクエストを送信しました。要約完了後に反映されます。");
+        
+        // 再ロード
+        startAsyncLoad();
     }
 }

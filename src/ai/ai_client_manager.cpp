@@ -550,27 +550,44 @@ QList<ConversationEntry> AIClientManager::getConversationEntries() const {
     // ディレクトリ探索パス候補
     QStringList logDirCandidates;
     logDirCandidates << "log"
+                     << "tmp/log"
+                     << "tmp"
                      << QCoreApplication::applicationDirPath() + "/log"
+                     << QCoreApplication::applicationDirPath() + "/tmp/log"
+                     << QCoreApplication::applicationDirPath() + "/tmp"
                      << QCoreApplication::applicationDirPath() + "/../log"
+                     << QCoreApplication::applicationDirPath() + "/../tmp/log"
                      << QCoreApplication::applicationDirPath() + "/../../log"
-                     << QDir::currentPath() + "/log";
+                     << QCoreApplication::applicationDirPath() + "/../../tmp/log"
+                     << QDir::currentPath() + "/log"
+                     << QDir::currentPath() + "/tmp/log";
     logDirCandidates.removeDuplicates();
 
     QStringList archiveDirCandidates;
     archiveDirCandidates << "log/archive"
+                         << "tmp/log/archive"
                          << QCoreApplication::applicationDirPath() + "/log/archive"
+                         << QCoreApplication::applicationDirPath() + "/tmp/log/archive"
                          << QCoreApplication::applicationDirPath() + "/../log/archive"
+                         << QCoreApplication::applicationDirPath() + "/../tmp/log/archive"
                          << QCoreApplication::applicationDirPath() + "/../../log/archive"
+                         << QCoreApplication::applicationDirPath() + "/../../tmp/log/archive"
                          << QDir::currentPath() + "/log/archive"
+                         << QDir::currentPath() + "/tmp/log/archive"
                          << "log/archive/archived_summaries"
-                         << QCoreApplication::applicationDirPath() + "/log/archive/archived_summaries"
-                         << QCoreApplication::applicationDirPath() + "/../log/archive/archived_summaries";
+                         << QCoreApplication::applicationDirPath() + "/log/archive/archived_summaries";
     archiveDirCandidates.removeDuplicates();
+
+    // 試行する暗号鍵候補
+    QStringList keysToTry;
+    if (!m_transCipherKey.isEmpty()) keysToTry << m_transCipherKey;
+    keysToTry << "AiAssistantAvatar" << "DefaultCipherKey123" << "";
+    keysToTry.removeDuplicates();
 
     // 重複読み込み防止用のキー集合
     QSet<QString> processedKeys;
 
-    // 1. log/ 内の暗号化セッションバックアップファイル (*.enc) の読み込み・復号
+    // 1. log/ および tmp/log/ 内の暗号化セッションバックアップファイル (*.enc) の読み込み・復号
     for (const QString &dirPath : logDirCandidates) {
         QDir dir(dirPath);
         if (!dir.exists()) continue;
@@ -585,49 +602,90 @@ QList<ConversationEntry> AIClientManager::getConversationEntries() const {
             QByteArray encryptedData = file.readAll();
             file.close();
 
-            CipherResult result = CipherEngine::decrypt(encryptedData, m_transCipherKey);
-            if (!result.isSuccess()) continue;
+            CipherResult result;
+            bool decrypted = false;
+            for (const QString &key : keysToTry) {
+                result = CipherEngine::decrypt(encryptedData, key);
+                if (result.isSuccess()) {
+                    decrypted = true;
+                    break;
+                }
+            }
+            if (!decrypted) continue;
 
             QJsonDocument doc = QJsonDocument::fromJson(result.data());
-            if (doc.isNull() || !doc.isArray()) continue;
+            if (doc.isNull()) continue;
 
             QString tsStr = fi.lastModified().toString("yyyy-MM-dd hh:mm");
-            QJsonArray array = doc.array();
-            for (int i = 0; i < array.size(); ++i) {
-                QJsonObject item = array.at(i).toObject();
-                QString prompt = item.value("prompt").toString();
-                QString response = item.value("response").toString();
 
-                if (prompt.isEmpty() && response.isEmpty()) {
-                    prompt = item.value("message").toString();
+            if (doc.isArray()) {
+                QJsonArray array = doc.array();
+                for (int i = 0; i < array.size(); ++i) {
+                    QJsonObject item = array.at(i).toObject();
+                    QString prompt = item.value("prompt").toString();
+                    QString response = item.value("response").toString();
+
+                    if (prompt.isEmpty() && response.isEmpty()) {
+                        prompt = item.value("message").toString();
+                    }
+
+                    if (prompt.isEmpty()) continue;
+
+                    QString key = tsStr + "|" + prompt;
+                    if (processedKeys.contains(key)) continue;
+                    processedKeys.insert(key);
+
+                    ConversationEntry userEntry;
+                    userEntry.timestamp = tsStr;
+                    userEntry.sender = "ユーザー";
+                    userEntry.text = prompt;
+                    userEntry.isSummarized = false;
+                    entries.append(userEntry);
+
+                    if (!response.isEmpty()) {
+                        ConversationEntry avatarEntry;
+                        avatarEntry.timestamp = tsStr;
+                        avatarEntry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+                        avatarEntry.text = response;
+                        avatarEntry.isSummarized = false;
+                        entries.append(avatarEntry);
+                    }
                 }
+            } else if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                QJsonArray chatArr = obj.value("chat_history").toArray();
+                for (const QJsonValue &v : chatArr) {
+                    QJsonObject chatObj = v.toObject();
+                    QString msg = chatObj.value("message").toString();
+                    if (msg.isEmpty()) continue;
 
-                if (prompt.isEmpty()) continue;
+                    QString itemTs = chatObj.value("timestamp").toString();
+                    QDateTime dt = QDateTime::fromString(itemTs, Qt::ISODate);
+                    QString formattedTs = dt.isValid() ? dt.toString("yyyy-MM-dd hh:mm") : tsStr;
 
-                QString key = tsStr + "|" + prompt;
-                if (processedKeys.contains(key)) continue;
-                processedKeys.insert(key);
+                    QString key = formattedTs + "|" + msg;
+                    if (processedKeys.contains(key)) continue;
+                    processedKeys.insert(key);
 
-                ConversationEntry userEntry;
-                userEntry.timestamp = tsStr;
-                userEntry.sender = "ユーザー";
-                userEntry.text = prompt;
-                userEntry.isSummarized = false;
-                entries.append(userEntry);
-
-                if (!response.isEmpty()) {
-                    ConversationEntry avatarEntry;
-                    avatarEntry.timestamp = tsStr;
-                    avatarEntry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
-                    avatarEntry.text = response;
-                    avatarEntry.isSummarized = false;
-                    entries.append(avatarEntry);
+                    ConversationEntry entry;
+                    entry.timestamp = formattedTs;
+                    QString src = chatObj.value("source").toString();
+                    if (src == "[User]" || src.contains("User")) {
+                        entry.sender = "ユーザー";
+                    } else if (src == "[AI]" || src.contains("AI")) {
+                        entry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
+                    } else {
+                        entry.sender = src;
+                    }
+                    entry.text = msg;
+                    entry.isSummarized = false;
+                    entries.append(entry);
                 }
             }
         }
     }
 
-    // 2. log/archive/ 内の要約JSONファイルおよび詳細対話JSONファイル (*.json) の読み込み
+    // 2. log/archive/ および tmp/log/archive/ 内の要約JSONファイルおよび詳細対話JSONファイル (*.json) の読み込み
     for (const QString &dirPath : archiveDirCandidates) {
         QDir dir(dirPath);
         if (!dir.exists()) continue;
@@ -752,6 +810,7 @@ QList<ConversationEntry> AIClientManager::getConversationEntries() const {
         }
     }
 
+    qDebug() << "AIClientManager::getConversationEntries: Loaded" << entries.size() << "total conversation entries.";
     return entries;
 }
 
