@@ -61,8 +61,8 @@ void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
-    QJsonObject requestBody;
-    requestBody["model"] = m_model;
+    QString targetModel = m_model.isEmpty() ? "llm-jp-3.1-8x13b-instruct4" : m_model;
+    requestBody["model"] = targetModel;
 
     QJsonArray messages;
     QJsonObject systemMessage;
