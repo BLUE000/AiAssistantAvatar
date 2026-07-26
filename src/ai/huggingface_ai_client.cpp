@@ -57,7 +57,7 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
     m_pendingPrompt = prompt;
 
     QString modelName = m_model.isEmpty() ? "meta-llama/Llama-3.1-8B-Instruct" : m_model;
-    QString urlStr = "https://router.huggingface.co/hf-inference/v1/chat/completions";
+    QString urlStr = "https://router.huggingface.co/v1/chat/completions";
     QUrl url(urlStr);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
