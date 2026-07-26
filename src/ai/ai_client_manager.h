@@ -29,6 +29,8 @@ class SystemResponseManager;
 
 class AIClientManager : public QObject {
     Q_OBJECT
+public:
+    void loadCredentials();
 private:
     IAIClient *m_currentClient = nullptr;
     SystemResponseManager *m_systemResponseManager = nullptr;
@@ -98,7 +100,6 @@ private:
     void processPendingRequests();
     bool selectAndPrepareClient();
 
-    void loadCredentials();
     void loadSessionContext();
     void saveSessionContext(const QString &context);
     void saveObfuscatedLog(const QString &logText); // TransCipherを用いたログ難読化保存
