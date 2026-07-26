@@ -514,11 +514,9 @@ void AIClientManager::setAIProvider(const QString &provider, bool forceRefresh) 
 
 QStringList AIClientManager::workerPriorityOrder() const {
     QStringList order;
-    // UIで選択されたプロバイダを最優先に配置
     if (!m_provider.isEmpty()) {
         order.append(m_provider);
     }
-    // 残りのプロバイダを重複なしで追加
     QStringList defaultPriority = { "groq", "cerebras", "mistral", "huggingface", "openrouter", "sakura", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
@@ -530,11 +528,9 @@ QStringList AIClientManager::workerPriorityOrder() const {
 
 QStringList AIClientManager::managerPriorityOrder() const {
     QStringList order;
-    // 設定された Manager AI プロバイダを最優先に配置
     if (!m_managerProvider.isEmpty()) {
         order.append(m_managerProvider);
     }
-    // 残りのプロバイダを重複なしで追加
     QStringList defaultPriority = { "groq", "cerebras", "mistral", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
@@ -542,6 +538,66 @@ QStringList AIClientManager::managerPriorityOrder() const {
         }
     }
     return order;
+}
+
+static void parseSenderAndMessage(const QString &src, const QString &msg, QString &outSender, QString &outText, const QString &avatarName) {
+    outText = msg;
+
+    if (src == "[AI]" || src.contains("AI")) {
+        outSender = avatarName.isEmpty() ? "アバター" : avatarName;
+        return;
+    }
+
+    if (src == "[Direct]") {
+        outSender = "ダイレクト入力";
+        return;
+    }
+
+    // "buchiushi] blue002: ！うらない！" のようなフォーマットの解析
+    if (msg.contains("] ") && msg.contains(": ")) {
+        int bracketIndex = msg.indexOf("] ");
+        int colonIndex = msg.indexOf(": ", bracketIndex);
+        if (bracketIndex != -1 && colonIndex > bracketIndex) {
+            QString userPart = msg.mid(bracketIndex + 2, colonIndex - (bracketIndex + 2)).trimmed();
+            if (!userPart.isEmpty()) {
+                outSender = userPart;
+                if (src.contains("Twitch")) outSender += " (Twitch)";
+                else if (src.contains("Discord")) outSender += " (Discord)";
+                outText = msg.mid(colonIndex + 2).trimmed();
+                return;
+            }
+        }
+    } else if (msg.contains(": ")) {
+        int colonIndex = msg.indexOf(": ");
+        if (colonIndex > 0 && colonIndex < 30 && !msg.startsWith("http://") && !msg.startsWith("https://")) {
+            QString potentialUser = msg.left(colonIndex).trimmed();
+            if (!potentialUser.contains(' ') && !potentialUser.contains('\n') && potentialUser != "Summary" && potentialUser != "Keywords") {
+                outSender = potentialUser;
+                outText = msg.mid(colonIndex + 2).trimmed();
+                return;
+            }
+        }
+    }
+
+    if (src.startsWith("[User]")) {
+        QString userStr = src.mid(6).trimmed();
+        outSender = userStr.isEmpty() ? "ユーザー" : userStr;
+        return;
+    } else if (src.startsWith("[Twitch]")) {
+        QString userStr = src.mid(8).trimmed();
+        outSender = userStr.isEmpty() ? "Twitchユーザー" : userStr + " (Twitch)";
+        return;
+    } else if (src.startsWith("[Discord]")) {
+        QString userStr = src.mid(9).trimmed();
+        outSender = userStr.isEmpty() ? "Discordユーザー" : userStr + " (Discord)";
+        return;
+    }
+
+    if (!src.isEmpty()) {
+        outSender = src;
+    } else {
+        outSender = "ユーザー";
+    }
 }
 
 QList<ConversationEntry> AIClientManager::getConversationEntries() const {
@@ -635,10 +691,13 @@ QList<ConversationEntry> AIClientManager::getConversationEntries() const {
                     if (processedKeys.contains(key)) continue;
                     processedKeys.insert(key);
 
+                    QString parsedSender, parsedText;
+                    parseSenderAndMessage("[User]", prompt, parsedSender, parsedText, m_avatarName);
+
                     ConversationEntry userEntry;
                     userEntry.timestamp = tsStr;
-                    userEntry.sender = "ユーザー";
-                    userEntry.text = prompt;
+                    userEntry.sender = parsedSender;
+                    userEntry.text = parsedText;
                     userEntry.isSummarized = false;
                     entries.append(userEntry);
 
@@ -667,17 +726,14 @@ QList<ConversationEntry> AIClientManager::getConversationEntries() const {
                     if (processedKeys.contains(key)) continue;
                     processedKeys.insert(key);
 
+                    QString src = chatObj.value("source").toString();
+                    QString parsedSender, parsedText;
+                    parseSenderAndMessage(src, msg, parsedSender, parsedText, m_avatarName);
+
                     ConversationEntry entry;
                     entry.timestamp = formattedTs;
-                    QString src = chatObj.value("source").toString();
-                    if (src == "[User]" || src.contains("User")) {
-                        entry.sender = "ユーザー";
-                    } else if (src == "[AI]" || src.contains("AI")) {
-                        entry.sender = m_avatarName.isEmpty() ? "アバター" : m_avatarName;
-                    } else {
-                        entry.sender = src;
-                    }
-                    entry.text = msg;
+                    entry.sender = parsedSender;
+                    entry.text = parsedText;
                     entry.isSummarized = false;
                     entries.append(entry);
                 }
@@ -1494,8 +1550,43 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
     if (success) {
         event.type = EventType::AIResponseReceived;
         
+        QString cleanText = responseText;
+
+        // 疑似ファンクション呼び出しタグ (<function=...>...</function>) の自動パース・実行 & 除去
+        static const QRegularExpression funcRegex("<function=([^>]+)>(.*?)</function>", QRegularExpression::DotMatchesEverythingOption);
+        QRegularExpressionMatchIterator it = funcRegex.globalMatch(cleanText);
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString funcName = match.captured(1).trimmed();
+            QString funcArgsRaw = match.captured(2).trimmed();
+
+            qDebug() << "AIClientManager: Detected pseudo function tag in response text. Function:" << funcName << "Args:" << funcArgsRaw;
+
+            if (funcName == "update_nickname") {
+                QJsonDocument argDoc = QJsonDocument::fromJson(funcArgsRaw.toUtf8());
+                if (argDoc.isObject()) {
+                    QJsonObject argObj = argDoc.object();
+                    QString targetUser = argObj.value("target_user").toString();
+                    QString nickname = argObj.value("nickname").toString();
+
+                    if (targetUser.isEmpty()) {
+                        targetUser = m_currentRequester;
+                    }
+
+                    if (!targetUser.isEmpty() && !nickname.isEmpty()) {
+                        qDebug() << "AIClientManager: Executing pseudo update_nickname call for target:" << targetUser << "nickname:" << nickname;
+                        handleNicknameUpdateRequest(targetUser, nickname);
+                    }
+                }
+            }
+        }
+
+        // タグを応答テキストから完全消去
+        cleanText.remove(funcRegex);
+        cleanText = cleanText.trimmed();
+
         // 応答テキストにマスク（伏字）処理を適用
-        QString filteredResponse = applyMask(responseText);
+        QString filteredResponse = applyMask(cleanText);
 
         if (m_isShoutoutRequest) {
             m_isShoutoutRequest = false;
