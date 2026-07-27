@@ -412,7 +412,7 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
     - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
   - **OpenRouter (`openrouter`)**:
     - エンドポイント: `https://openrouter.ai/api/v1/chat/completions`
-    - デフォルトモデル: `meta-llama/llama-3.1-8b-instruct:free`
+    - デフォルトモデル: `google/gemma-4-31b-it:free`
   - **さくらAI (`sakura`)**:
     - エンドポイント: `https://api.sakura.io/v1/chat/completions` (または可変指定URL)
     - デフォルトモデル: `sakura-llm`

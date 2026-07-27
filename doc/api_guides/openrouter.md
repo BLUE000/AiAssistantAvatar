@@ -31,9 +31,9 @@ OpenRouter（オープンルーター）は、世界中の様々な先進AIモ�
 OpenRouter は事前チャージ（プリペイド）制です。クレジットカードを登録してチャージしない限り、**勝手に請求されることは 100% ありません**。
 
 アプリ設定画面の「OpenRouter モデル」プルダウンで、語尾に **`:free`** とついた完全無料モデルを選択してお使いください：
-* **`meta-llama/llama-3.1-8b-instruct:free`** (推奨・無料)
-* **`google/gemma-2-9b-it:free`** (無料)
-* **`mistralai/mistral-7b-instruct:free`** (無料)
+* **`google/gemma-4-31b-it:free`** (推奨・最新無料)
+* **`openai/gpt-oss-20b:free`** (推奨・無料)
+* **`inclusionai/ling-3.0-flash:free`** (推奨・高速無料)
 
 ---
 

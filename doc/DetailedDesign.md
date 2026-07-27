@@ -495,7 +495,7 @@ TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャッ�
   - 認証ヘッダー: `Authorization: Bearer <huggingface_api_key>`
 - **`OpenRouterAIClient`**:
   - デフォルトエンドポイント: `https://openrouter.ai/api/v1/chat/completions`
-  - デフォルトモデル: `meta-llama/llama-3.1-8b-instruct:free`
+  - デフォルトモデル: `google/gemma-4-31b-it:free`
   - 認証ヘッダー: `Authorization: Bearer <openrouter_api_key>`, `HTTP-Referer: https://github.com/BLUE000/AiAssistantAvatar`
 - **`SakuraAIClient`**:
   - デフォルトエンドポイント: `https://api.sakura.io/v1/chat/completions`
@@ -1949,7 +1949,7 @@ Twitchレイド（Raid）受信時、またはコマンド/自然言語での要
   4. `mistralai/Mistral-7B-Instruct-v0.3`
 - **OpenRouter モデルプルダウン選択肢**:
   1. `meta-llama/llama-3.1-8b-instruct:free` (推奨・無料)
-  2. `google/gemma-2-9b-it:free` (無料)
+  2. `google/gemma-4-31b-it:free` (無料)
   3. `mistralai/mistral-7b-instruct:free` (無料)
   4. `qwen/qwen-2.5-72b-instruct`
 - **さくらAI 公式最新モデルプルダウン選択肢**:
