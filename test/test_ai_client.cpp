@@ -1591,7 +1591,7 @@ TEST(NewAIProvidersTest, AIClientManagerRegistrationTest) {
     obj["huggingface_api_key"] = "test_hf_key";
     obj["huggingface_model"] = "meta-llama/Llama-3.1-8B-Instruct";
     obj["openrouter_api_key"] = "test_or_key";
-    obj["openrouter_model"] = "google/gemma-2-9b-it:free";
+    obj["openrouter_model"] = "google/gemma-4-31b-it:free";
     obj["sakura_api_key"] = "test_sakura_key";
     obj["sakura_model"] = "llm-jp-3.1-8x13b-instruct4";
 
@@ -1603,7 +1603,7 @@ TEST(NewAIProvidersTest, ModelNameLoadingTest) {
     AIClientManager manager;
     QJsonObject obj;
     obj["huggingface_model"] = "custom/hf-model-v1";
-    obj["openrouter_model"] = "google/gemma-2-9b-it:free";
+    obj["openrouter_model"] = "google/gemma-4-31b-it:free";
     obj["sakura_model"] = "custom/sakura-model-v2";
 
     manager.loadSettingsFromJsonObject(obj);
@@ -1615,14 +1615,14 @@ TEST(NewAIProvidersTest, ModelNameLoadingTest) {
 TEST(NewAIProvidersTest, SaveLoadRoundtripTest) {
     QJsonObject savedObj;
     savedObj["huggingface_model"] = "meta-llama/Llama-3.1-8B-Instruct";
-    savedObj["openrouter_model"] = "google/gemma-2-9b-it:free";
+    savedObj["openrouter_model"] = "google/gemma-4-31b-it:free";
     savedObj["sakura_model"] = "llm-jp-3.1-8x13b-instruct4";
 
     AIClientManager manager;
     manager.loadSettingsFromJsonObject(savedObj);
 
     EXPECT_EQ(savedObj["huggingface_model"].toString(), "meta-llama/Llama-3.1-8B-Instruct");
-    EXPECT_EQ(savedObj["openrouter_model"].toString(), "google/gemma-2-9b-it:free");
+    EXPECT_EQ(savedObj["openrouter_model"].toString(), "google/gemma-4-31b-it:free");
     EXPECT_EQ(savedObj["sakura_model"].toString(), "llm-jp-3.1-8x13b-instruct4");
 }
 

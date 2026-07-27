@@ -1232,9 +1232,9 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_aiOpenRouterModelCombo = new QComboBox(scrollContent);
     m_aiOpenRouterModelCombo->setEditable(true);
     m_aiOpenRouterModelCombo->addItems({
-        "meta-llama/llama-3.1-8b-instruct:free",
-        "google/gemma-2-9b-it:free",
-        "mistralai/mistral-7b-instruct:free",
+        "google/gemma-4-31b-it:free",
+        "openai/gpt-oss-20b:free",
+        "inclusionai/ling-3.0-flash:free",
         "qwen/qwen-2.5-72b-instruct"
     });
 
@@ -1524,7 +1524,7 @@ void AvatarWindow::loadSettingsToUI() {
                 m_aiHuggingFaceModelCombo->setCurrentText(obj.value("huggingface_model").toString("meta-llama/Llama-3.1-8B-Instruct"));
             }
             if (m_aiOpenRouterModelCombo && obj.contains("openrouter_model")) {
-                m_aiOpenRouterModelCombo->setCurrentText(obj.value("openrouter_model").toString("meta-llama/llama-3.1-8b-instruct:free"));
+                m_aiOpenRouterModelCombo->setCurrentText(obj.value("openrouter_model").toString(ConfigDefaults::DEFAULT_OPENROUTER_MODEL));
             }
             if (m_aiSakuraModelCombo && obj.contains("sakura_model")) {
                 m_aiSakuraModelCombo->setCurrentText(obj.value("sakura_model").toString("llm-jp-3.1-8x13b-instruct4"));

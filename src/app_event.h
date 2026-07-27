@@ -38,7 +38,7 @@ namespace ConfigDefaults {
     inline const QString WAKE_WORD_MODE = QStringLiteral("contains");
     inline const QString AI_PROVIDER = QStringLiteral("dummy");
     inline const QString DEFAULT_HUGGINGFACE_MODEL = QStringLiteral("meta-llama/Llama-3.1-8B-Instruct");
-    inline const QString DEFAULT_OPENROUTER_MODEL = QStringLiteral("google/gemma-2-9b-it:free");
+    inline const QString DEFAULT_OPENROUTER_MODEL = QStringLiteral("google/gemma-4-31b-it:free");
     inline const QString DEFAULT_SAKURA_MODEL = QStringLiteral("llm-jp-3.1-8x13b-instruct4");
 }
 
