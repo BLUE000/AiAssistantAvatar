@@ -355,7 +355,21 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 ---
 
+### 3.23b フォールバック継続動作・自然言語エラー通知 (F-33) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-FALLBACK-01** | `AIClientManager::buildHumanReadableError` | HTTP 429 エラー、`metadata.provider_name` = `"Google AI Studio"` を含む JSON を入力。 | 返却文字列に「レート制限」「自動切り替え」等の自然言語表現が含まれ、生の数値コード `429` のみの表示でないこと。 |
+| **UT-FALLBACK-02** | `AIClientManager::buildHumanReadableError` | HTTP 401 エラー JSON を入力。 | 「API キー」「確認」等の自然言語が含まれ、フォールバック候補が提示されないこと。 |
+| **UT-FALLBACK-03** | `AIClientManager::buildHumanReadableError` | HTTP 404 エラー JSON を入力。 | 「モデル名」「AI設定タブ」等の自然言語が含まれること。 |
+| **UT-FALLBACK-04** | `AIClientManager::on_clientRequestFinished` (モック) | 選択プロバイダが 429 を返し、他に API キー設定済みプロバイダが存在する。 | 元プロンプトを保持したまま次プロバイダへ再送が行われ、UI への自然言語警告シグナルが発行されること。 |
+| **UT-FALLBACK-05** | `AIClientManager::on_clientRequestFinished` (モック) | 全プロバイダが 429 を返す。 | 最終エラーとして自然言語の終了メッセージが UI へ通知されること。 |
+| **UT-FALLBACK-06** | ログ出力確認 | HTTP 429 エラー時のログ出力を確認。 | ログに `error.message`, `provider_name`, `raw`, `provider_error_code` が全て出力されること。UI 向け自然言語メッセージとは別ルートで出力されること。 |
+
+---
+
 ### 3.24 ナレッジベース拡張 (F-29: インデックス・トリガー優先度・エラー診断) の単体試験
+
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
