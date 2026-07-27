@@ -17,7 +17,7 @@ DummyAIClient::DummyAIClient(QObject *parent)
         }
         QString mockResponse = QString("私はテスト用キャラクターの「%1」です。コメントありがとうございます！元気に稼働していますよ！")
                                    .arg(avatarName);
-        emit requestFinished(mockResponse, true);
+        emit requestFinished(mockResponse, true, 200);
     });
 }
 

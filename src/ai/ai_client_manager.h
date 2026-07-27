@@ -100,6 +100,9 @@ private:
     void processPendingRequests();
     bool selectAndPrepareClient();
 
+    QStringList m_fallbackProviders;  // F-33: APIキー設定済みプロバイダ（選択中プロバイダ除く）の優先順リスト
+    int m_fallbackIndex = 0;          // F-33: 現在のフォールバック試行インデックス
+
     void loadSessionContext();
     void saveSessionContext(const QString &context);
     void saveObfuscatedLog(const QString &logText); // TransCipherを用いたログ難読化保存
@@ -193,6 +196,11 @@ public:
     // 暗号化バックアップの復号・読み出し用I/F
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
 
+    // --- F-33: テストから呢び出し可能なヘルパー ---
+    void buildFallbackProviderList(); // loadCredentials() 後に呼んでリストを構築する
+    QString buildHumanReadableError(int httpCode, const QString &providerId,
+                                    const QJsonObject &errorJson) const;
+
 signals:
     void notifyEvent(const AppEvent &event);
     void chatHistoryUpdated(const QList<QPair<QString, QString>> &history); // 履歴更新シグナル
@@ -204,7 +212,7 @@ public slots:
     void on_requestAI(const QString &prompt, const QString &user = "");
     void on_twitchRaidReceived(const QString &username);
     void on_shoutoutSuccessReceived(const QString &username);
-    void on_clientRequestFinished(const QString &responseText, bool success);
+    void on_clientRequestFinished(const QString &responseText, bool success, int httpCode);
     void resetSession(bool isManual); // セッションリセット機能
     void forceSummarizeHistory(); // 手動強制サマリ化
     QList<ConversationEntry> getConversationEntries() const; // 会話履歴エントリ取得

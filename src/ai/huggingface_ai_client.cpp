@@ -49,7 +49,7 @@ ProviderStatus HuggingFaceAIClient::defaultStatus() const {
 
 void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     if (m_apiKey.isEmpty()) {
-        emit requestFinished("HuggingFace APIキーが設定されていません。local_settings.json を確認してください。", false);
+        emit requestFinished("HuggingFace APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;
     }
 
@@ -141,7 +141,7 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
             }
         }
 
-        emit requestFinished(QString("HuggingFace API エラー (%1): %2").arg(httpCode).arg(detailedErr), false);
+        emit requestFinished(QString("HuggingFace API エラー (%1): %2").arg(httpCode).arg(detailedErr), false, httpCode);
         return;
     }
 
@@ -173,11 +173,11 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     }
 
     if (replyText.isEmpty()) {
-        emit requestFinished("HuggingFace 応答テキストの解析に失敗しました。", false);
+        emit requestFinished("HuggingFace 応答テキストの解析に失敗しました。", false, 0);
         return;
     }
 
-    emit requestFinished(replyText.trimmed(), true);
+    emit requestFinished(replyText.trimmed(), true, 200);
 }
 
 void HuggingFaceAIClient::on_searchFinished(const QString &resultText, bool success) {

@@ -42,7 +42,7 @@ TEST_F(AIClientTest, HistoryAndAutoResetTest) {
     // 1. 初回のリクエスト実行
     manager.on_requestAI("Hello 1");
     // シグナル・スロット経由ではなく、直接完了イベントをシミュレートして同期実行
-    manager.on_clientRequestFinished("Response 1", true);
+    manager.on_clientRequestFinished("Response 1", true, 200);
 
     EXPECT_EQ(historySpy.count(), 1);
     auto history = manager.chatHistory();
@@ -53,16 +53,16 @@ TEST_F(AIClientTest, HistoryAndAutoResetTest) {
     // 2. 履歴が5ペア（10メッセージ）に到達するまで対話を繰り返す
     for (int i = 2; i <= 4; ++i) {
         manager.on_requestAI(QString("Hello %1").arg(i));
-        manager.on_clientRequestFinished(QString("Response %1").arg(i), true);
+        manager.on_clientRequestFinished(QString("Response %1").arg(i), true, 200);
     }
     EXPECT_EQ(manager.chatHistory().size(), 4);
 
     // 5回目の対話 (これで自動リセット閾値の5ペアに到達)
     manager.on_requestAI("Hello 5");
-    manager.on_clientRequestFinished("Response 5", true);
+    manager.on_clientRequestFinished("Response 5", true, 200);
 
     // 自動リセット要求が走っているはずなので、要約応答をシミュレートする
-    manager.on_clientRequestFinished("This is a summary markdown of the conversation.", true);
+    manager.on_clientRequestFinished("This is a summary markdown of the conversation.", true, 200);
 
     // 履歴サイズはクリアされて 0 になるはず
     EXPECT_EQ(manager.chatHistory().size(), 0);
@@ -91,7 +91,7 @@ TEST_F(AIClientTest, ManualResetTest) {
     manager.resetSession(true);
 
     // 要約応答シミュレート
-    manager.on_clientRequestFinished("# Summary\n- Q1 -> A1\n- Q2 -> A2", true);
+    manager.on_clientRequestFinished("# Summary\n- Q1 -> A1\n- Q2 -> A2", true, 200);
 
     // 手動リセット時は UI バルーン通知用のイベントが発行されること
     EXPECT_GE(eventSpy.count(), 1);
@@ -124,10 +124,10 @@ TEST_F(AIClientTest, AutoResetSilentTest) {
 
     // 5往復目を完了させて自動リセットをトリガー
     manager.on_requestAI("Q5");
-    manager.on_clientRequestFinished("A5", true);
+    manager.on_clientRequestFinished("A5", true, 200);
 
     // 要約応答をシミュレート
-    manager.on_clientRequestFinished("# Summary", true);
+    manager.on_clientRequestFinished("# Summary", true, 200);
 
     // 自動リセット時は「会話履歴をクリアし...」の UI 通知イベントが発生しない（サイレント）こと
     bool foundResetUIEvent = false;
@@ -152,7 +152,7 @@ TEST_F(AIClientTest, LoadAndImportBackupTest) {
     manager.setChatHistory(mockHistory);
     
     manager.resetSession(false); // サイレントリセット実行
-    manager.on_clientRequestFinished("# Summary Test", true);
+    manager.on_clientRequestFinished("# Summary Test", true, 200);
 
     // バックアップファイルの特定
     QDir logDir("log");
@@ -189,7 +189,7 @@ TEST_F(AIClientTest, ExportSessionBackupTest) {
     manager.setChatHistory(mockHistory);
     
     manager.resetSession(false);
-    manager.on_clientRequestFinished("# Summary Exp", true);
+    manager.on_clientRequestFinished("# Summary Exp", true, 200);
 
     // バックアップファイルの特定
     QDir logDir("log");
@@ -403,7 +403,7 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
 
     // C. 応答側のマスク検証 (シミュレートされたAI応答にブラックリストワードが含まれるケース)
     eventSpy.clear();
-    manager.on_clientRequestFinished("彼の言動はbakaであり、暴力はお勧めしません。", true);
+    manager.on_clientRequestFinished("彼の言動はbakaであり、暴力はお勧めしません。", true, 200);
     
     // 受信イベント内のテキストがマスクされているか検証
     ASSERT_GE(eventSpy.count(), 1);
@@ -413,7 +413,7 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
 
     // D. ホワイトリストの保護検証 (出力側)
     eventSpy.clear();
-    manager.on_clientRequestFinished("私たちのclassでは、WTFと発言するのは禁止です。", true);
+    manager.on_clientRequestFinished("私たちのclassでは、WTFと発言するのは禁止です。", true, 200);
     receivedEvent = eventSpy.at(0).at(0).value<AppEvent>();
     // class (assを含む) や WTF (fを含む) が保護されること
     EXPECT_EQ(receivedEvent.text, "私たちのclassでは、WTFと発言するのは禁止です。");
@@ -426,7 +426,7 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
 
     // AIからの応答にブラックリストワードが含まれる
     eventSpy.clear();
-    manager.on_clientRequestFinished("これはbaka（ドラえもん）です。", true);
+    manager.on_clientRequestFinished("これはbaka（ドラえもん）です。", true, 200);
     receivedEvent = eventSpy.at(0).at(0).value<AppEvent>();
     // 出力段階で正しくマスクされること
     EXPECT_EQ(receivedEvent.text, "これは****（ドラえもん）です。");
@@ -485,7 +485,7 @@ TEST_F(AIClientTest, PseudoFunctionTagAndUserExtractionTest) {
 
     // AIからの応答に疑似ファンクションタグが含まれているケース
     QString rawResponse = "こんにちは！<function=update_nickname>{\"nickname\": \"\\u3055\\u3093\\u3054\", \"target_user\": \"taro_san\"}</function>お元気ですか？";
-    manager.on_clientRequestFinished(rawResponse, true);
+    manager.on_clientRequestFinished(rawResponse, true, 200);
 
     ASSERT_GE(spy.count(), 1);
     AppEvent ev = spy.at(0).at(0).value<AppEvent>();
@@ -511,7 +511,7 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     EXPECT_EQ(sentEvent.text, "trans en Hello World");
 
     // 完了シミュレート
-    manager.on_clientRequestFinished("Hello World", true);
+    manager.on_clientRequestFinished("Hello World", true, 200);
 
     // AIResponseReceived イベントを確認
     EXPECT_GE(eventSpy.count(), 2);
@@ -528,7 +528,7 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     historySpy.clear();
 
     manager.on_requestAI("trans こんにちは");
-    manager.on_clientRequestFinished("Hello", true);
+    manager.on_clientRequestFinished("Hello", true, 200);
 
     EXPECT_GE(eventSpy.count(), 2);
     EXPECT_EQ(eventSpy.at(0).at(0).value<AppEvent>().type, EventType::AIRequestSent);
@@ -690,7 +690,7 @@ TEST_F(AIClientTest, DiscordPlatformMessageTest) {
 
     // 1. Discord プレフィックス付きリクエスト
     manager.on_requestAI("こんにちは", "[Discord:channel123] alice");
-    manager.on_clientRequestFinished("こんにちは！aliceさん", true);
+    manager.on_clientRequestFinished("こんにちは！aliceさん", true, 200);
 
     // 履歴に [Discord] タグ付きで保存されていることを検証
     auto history = manager.chatHistory();
@@ -763,7 +763,7 @@ TEST_F(AIClientTest, HierarchicalMemoryArchiveAndRecallTest) {
     // 2. 過去想起ワード「以前」および「ゲーム開発」キーワードを含む発言を投げる
     manager.on_requestAI("以前話したゲーム開発について覚えている？", "alice");
 
-    manager.on_clientRequestFinished("はい、覚えています。", true);
+    manager.on_clientRequestFinished("はい、覚えています。", true, 200);
 
     QDir("log").removeRecursively();
 }
@@ -806,10 +806,10 @@ TEST_F(AIClientTest, MetaSummaryMergeTest) {
     manager.resetSession(false);
     
     // 最初のAIリクエスト (個別サマリの要約) の完了シミュレート
-    manager.on_clientRequestFinished("Keywords: キーワードA, キーワードB\nSummary: 個別要約文", true);
+    manager.on_clientRequestFinished("Keywords: キーワードA, キーワードB\nSummary: 個別要約文", true, 200);
 
     // メタサマリマージ処理 (m_isMergingSummaries) が開始されているため、AIマージ要約完了シミュレート
-    manager.on_clientRequestFinished("Keywords: 総合A, 総合B\nSummary: 10件マージした総合サマリ文", true);
+    manager.on_clientRequestFinished("Keywords: 総合A, 総合B\nSummary: 10件マージした総合サマリ文", true, 200);
 
     // メタサマリファイルが生成されたか検証
     QDir archiveDir("log/archive");
@@ -1265,7 +1265,7 @@ TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
     manager.on_requestAI("テストプロンプト", "userA");
 
     // 2. 擬似的に 429 エラーレスポンスを注入する
-    manager.on_clientRequestFinished("Error status code 429", false);
+    manager.on_clientRequestFinished("Error status code 429", false, 429);
 
     // 3. 非同期の dummy の応答完了を待つ (dummyは2秒でタイムアウトするため最大3.5秒待つ)
     for (int i = 0; i < 4; ++i) {
@@ -1540,7 +1540,7 @@ TEST_F(AIClientTest, ShoutoutAnnounceAndCommandRoutingTest) {
     QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
 
     // UT-SHOUTOUT-01: AIレスポンス受信時に /announce blue プレフィックスが自動付与されること
-    manager.on_clientRequestFinished("raider_user さんのレイドありがとうございます！", true);
+    manager.on_clientRequestFinished("raider_user さんのレイドありがとうございます！", true, 200);
 
     bool foundAnnounceText = false;
     for (int i = 0; i < eventSpy.count(); ++i) {
@@ -1627,4 +1627,95 @@ TEST(NewAIProvidersTest, SaveLoadRoundtripTest) {
 }
 
 
+// ======================================================================
+// UT-FALLBACK: F-33 エラーハンドリング・フォールバック・自然言語UI通知テスト
+// ======================================================================
 
+// UT-FALLBACK-01: 429 エラー時に自然言語UIメッセージが生成されること
+TEST(FallbackTest, BuildHumanReadableError_429) {
+    AIClientManager manager;
+
+    // OpenRouter からの 429 JSON エラーボディを模擬
+    QJsonObject meta;
+    meta["provider_name"] = "Google AI Studio";
+    QJsonObject errInner;
+    errInner["message"] = "You exceeded your current quota";
+    errInner["metadata"] = meta;
+    QJsonObject errorJson;
+    errorJson["error"] = errInner;
+
+    QString msg = manager.buildHumanReadableError(429, "openrouter", errorJson);
+    EXPECT_TRUE(msg.startsWith("⚠️"));
+    EXPECT_TRUE(msg.contains("Google AI Studio") || msg.contains("openrouter"));
+}
+
+// UT-FALLBACK-02: 401 エラーは ❌ メッセージを返しフォールバックしないこと
+TEST(FallbackTest, BuildHumanReadableError_401_PermanentError) {
+    AIClientManager manager;
+
+    QString msg = manager.buildHumanReadableError(401, "groq", QJsonObject());
+    EXPECT_TRUE(msg.startsWith("❌"));
+    EXPECT_TRUE(msg.contains("API") || msg.contains("キー"));
+}
+
+// UT-FALLBACK-03: 503 エラー時に ⚠️ メッセージが生成されること
+TEST(FallbackTest, BuildHumanReadableError_503) {
+    AIClientManager manager;
+
+    QString msg = manager.buildHumanReadableError(503, "mistral", QJsonObject());
+    EXPECT_TRUE(msg.startsWith("⚠️"));
+    EXPECT_TRUE(msg.contains("mistral") || msg.contains("一時的"));
+}
+
+// UT-FALLBACK-04: 429 発生時に notifyEvent（UI 警告）が発火すること
+TEST(FallbackTest, On429_TriggersUIWarning) {
+    AIClientManager manager;
+
+    // groq と cerebras をフォールバック候補として登録
+    QJsonObject settings;
+    settings["groq_api_key"]     = "dummy_groq_key";
+    settings["cerebras_api_key"] = "dummy_cerebras_key";
+    settings["ai_provider"]      = "groq";
+    manager.loadSettingsFromJsonObject(settings);
+
+    {
+        ProviderStatus sg = manager.tracker().statusOf("groq");
+        sg.available = true;
+        sg.rpmRemaining = 10;
+        manager.tracker().registerClient(sg);
+    }
+    {
+        ProviderStatus sc = manager.tracker().statusOf("cerebras");
+        sc.available = true;
+        sc.rpmRemaining = 10;
+        manager.tracker().registerClient(sc);
+    }
+
+    manager.buildFallbackProviderList();
+
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    // OpenRouter 形式の JSON エラーを注入
+    QJsonObject meta;
+    meta["provider_name"] = "Google AI Studio";
+    QJsonObject errInner;
+    errInner["message"] = "Rate limit exceeded";
+    errInner["metadata"] = meta;
+    QJsonObject errorRoot;
+    errorRoot["error"] = errInner;
+    QString errorJson = QString::fromUtf8(QJsonDocument(errorRoot).toJson(QJsonDocument::Compact));
+
+    manager.on_clientRequestFinished(errorJson, false, 429);
+
+    // UI 警告イベントが発火していること
+    ASSERT_GE(spy.count(), 1);
+    bool hasWarning = false;
+    for (int i = 0; i < spy.count(); ++i) {
+        AppEvent ev = spy.at(i).at(0).value<AppEvent>();
+        if (ev.text.startsWith("⚠️")) {
+            hasWarning = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(hasWarning) << "429 発生時にUI警告（⚠️）が通知されること";
+}

@@ -49,7 +49,7 @@ ProviderStatus SakuraAIClient::defaultStatus() const {
 
 void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     if (m_apiKey.isEmpty()) {
-        emit requestFinished("さくらAI APIキーが設定されていません。local_settings.json を確認してください。", false);
+        emit requestFinished("さくらAI APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;
     }
 
@@ -144,26 +144,26 @@ void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
             qWarning() << "さくらAI API Rate Limit Exceeded (HTTP 429)";
         }
 
-        emit requestFinished(QString("さくらAI API エラー (%1): %2").arg(httpCode).arg(detailMessage), false);
+        emit requestFinished(QString("さくらAI API エラー (%1): %2").arg(httpCode).arg(detailMessage), false, httpCode);
         return;
     }
 
     QByteArray responseData = reply->readAll();
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (!doc.isObject()) {
-        emit requestFinished("さくらAI 無効なJSONレスポンス形式", false);
+        emit requestFinished("さくらAI 無効なJSONレスポンス形式", false, 0);
         return;
     }
 
     QJsonObject obj = doc.object();
     if (!obj.contains("choices")) {
-        emit requestFinished("さくらAI レスポンスにchoicesが含まれていません", false);
+        emit requestFinished("さくらAI レスポンスにchoicesが含まれていません", false, 0);
         return;
     }
 
     QJsonArray choices = obj["choices"].toArray();
     if (choices.isEmpty()) {
-        emit requestFinished("さくらAI 空のchoicesレスポンス", false);
+        emit requestFinished("さくらAI 空のchoicesレスポンス", false, 0);
         return;
     }
 
@@ -171,7 +171,7 @@ void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     QJsonObject messageObj = firstChoice["message"].toObject();
     QString replyText = messageObj["content"].toString();
 
-    emit requestFinished(replyText.trimmed(), true);
+    emit requestFinished(replyText.trimmed(), true, 200);
 }
 
 void SakuraAIClient::on_searchFinished(const QString &resultText, bool success) {

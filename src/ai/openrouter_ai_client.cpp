@@ -49,7 +49,7 @@ ProviderStatus OpenRouterAIClient::defaultStatus() const {
 
 void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     if (m_apiKey.isEmpty()) {
-        emit requestFinished("OpenRouter APIキーが設定されていません。local_settings.json を確認してください。", false);
+        emit requestFinished("OpenRouter APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;
     }
 
@@ -121,41 +121,39 @@ void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QString errStr = reply->errorString();
         QByteArray errBody = reply->readAll();
-        qWarning() << "OpenRouter API Request Failed. Code:" << httpCode << "Error:" << errStr << "Body:" << errBody;
+        // F-33: 生の JSON エラーボディを全文渡し、AIClientManager 側で詳細ログを出力する
+        qWarning() << "[OpenRouterAIClient] HTTP Error" << httpCode << errStr << "Body:" << errBody;
 
-        QString detailedErr = errStr;
+        // エラーボディが JSON の場合はそのまま渡す（AIClientManager が metadata 等を解析）
+        // JSON でない場合は簡易文字列に変換
+        QString emitText;
         QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
-        if (errDoc.isObject() && errDoc.object().contains("error")) {
-            QJsonValue errVal = errDoc.object().value("error");
-            if (errVal.isObject() && errVal.toObject().contains("message")) {
-                detailedErr = errVal.toObject().value("message").toString();
-            } else if (errVal.isString()) {
-                detailedErr = errVal.toString();
-            }
-        } else if (!errBody.isEmpty()) {
-            detailedErr = QString::fromUtf8(errBody).left(120);
+        if (!errBody.isEmpty() && errDoc.isObject()) {
+            emitText = QString::fromUtf8(errBody);
+        } else {
+            emitText = QString("OpenRouter API エラー (%1): %2").arg(httpCode).arg(errStr);
         }
 
-        emit requestFinished(QString("OpenRouter API エラー (%1): %2").arg(httpCode).arg(detailedErr), false);
+        emit requestFinished(emitText, false, httpCode);
         return;
     }
 
     QByteArray responseData = reply->readAll();
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (!doc.isObject()) {
-        emit requestFinished("OpenRouter 無効なJSONレスポンス形式", false);
+        emit requestFinished("OpenRouter 無効なJSONレスポンス形式", false, 0);
         return;
     }
 
     QJsonObject obj = doc.object();
     if (!obj.contains("choices")) {
-        emit requestFinished("OpenRouter レスポンスにchoicesが含まれていません", false);
+        emit requestFinished("OpenRouter レスポンスにchoicesが含まれていません", false, 0);
         return;
     }
 
     QJsonArray choices = obj["choices"].toArray();
     if (choices.isEmpty()) {
-        emit requestFinished("OpenRouter 空のchoicesレスポンス", false);
+        emit requestFinished("OpenRouter 空のchoicesレスポンス", false, 0);
         return;
     }
 
@@ -163,7 +161,7 @@ void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     QJsonObject messageObj = firstChoice["message"].toObject();
     QString replyText = messageObj["content"].toString();
 
-    emit requestFinished(replyText.trimmed(), true);
+    emit requestFinished(replyText.trimmed(), true, 200);
 }
 
 void OpenRouterAIClient::on_searchFinished(const QString &resultText, bool success) {

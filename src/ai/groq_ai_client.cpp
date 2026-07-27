@@ -41,7 +41,7 @@ void GroqAIClient::setTavilyApiKey(const QString &tavilyKey) {
 
 void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
     if (m_apiKey.isEmpty()) {
-        emit requestFinished("Groq APIキーが設定されていません。local_settings.json を確認してください。", false);
+        emit requestFinished("Groq APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;
     }
 
@@ -228,11 +228,12 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     reply->deleteLater();
 
     if (reply->error() != QNetworkReply::NoError) {
+        int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QString errorMsg = QString("ネットワークエラー: %1 (%2)")
                             .arg(reply->errorString())
-                            .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
+                            .arg(httpCode);
         qWarning() << "GroqAIClient Error:" << errorMsg;
-        emit requestFinished(errorMsg, false);
+        emit requestFinished(errorMsg, false, httpCode);
         return;
     }
 
@@ -240,7 +241,7 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     qDebug() << "GroqAIClient: Received response:" << QString::fromUtf8(responseData);
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (doc.isNull() || !doc.isObject()) {
-        emit requestFinished("レスポンスJSONの解析に失敗しました。", false);
+        emit requestFinished("レスポンスJSONの解析に失敗しました。", false, 0);
         return;
     }
 
@@ -384,13 +385,13 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
                 // 通常のテキスト応答
                 QString replyText = messageObj["content"].toString();
-                emit requestFinished(replyText.trimmed(), true);
+                emit requestFinished(replyText.trimmed(), true, 200);
                 return;
             }
         }
     }
 
-    emit requestFinished("レスポンスから適切なメッセージが見つかりませんでした。", false);
+    emit requestFinished("レスポンスから適切なメッセージが見つかりませんでした。", false, 0);
 }
 
 void GroqAIClient::on_searchFinished(const QString &resultText, bool success) {

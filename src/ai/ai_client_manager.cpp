@@ -303,6 +303,9 @@ void AIClientManager::loadCredentials() {
                      << "Manager AI enabled:" << m_managerEnabled
                      << "Manager AI Provider:" << m_managerProvider
                      << "Manager AI Model:" << m_managerModel;
+
+            // F-33: フォールバック候補リストを構築
+            buildFallbackProviderList();
         }
     }
 }
@@ -1246,6 +1249,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     }
 
     m_lastPrompt = filteredPrompt;
+    m_fallbackIndex = 0; // F-33: 新規リクエストなのでフォールバックインデックスをリセット
 
     // 4. ナレッジ登録対話中のプロンプトインジェクション
     if (isDirectInput && m_importState == KnowledgeImportState::QandAMode) {
@@ -1354,7 +1358,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     }
 }
 
-void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success) {
+void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success, int httpCode) {
     if (m_apiCallStartTimeMs > 0 && m_currentClient) {
         int elapsed = QDateTime::currentMSecsSinceEpoch() - m_apiCallStartTimeMs;
         m_tracker.recordLatency(m_currentClient->clientId(), elapsed);
@@ -1362,8 +1366,9 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
     }
     m_tracker.saveToFile("log/usage_stats.json");
 
-    qDebug() << "AIClientManager: Client request finished. Success:" << success 
-             << "Resetting:" << m_isResetting 
+    qDebug() << "AIClientManager: Client request finished. Success:" << success
+             << "HttpCode:" << httpCode
+             << "Resetting:" << m_isResetting
              << "Merging:" << m_isMergingSummaries
              << "Translation:" << m_isTranslationRequest;
 
@@ -1667,42 +1672,85 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         }
 
     } else {
-        // レートリミットエラー (429等) や APIキー未設定エラー等のチェックとフォールバック処理
-        QString lowerErr = responseText.toLower();
-        bool isRetryableError = lowerErr.contains("429") || 
-                               lowerErr.contains("too many requests") || 
-                               lowerErr.contains("rate limit") || 
-                               lowerErr.contains("rate-limit") ||
-                               lowerErr.contains("apiキーが設定されていません") ||
-                               lowerErr.contains("api_key") ||
-                               lowerErr.contains("api key") ||
-                               lowerErr.contains("tls initialization failed");
+        // --- F-33: エラーハンドリング ---
+        // 1. JSON エラーボディのパース（OpenRouter 等が返す構造化エラー）
+        QString errMessage;
+        QString providerName;
+        QString rawProviderError;
+        int providerErrCode = 0;
 
-        if (isRetryableError && m_currentClient) {
-            QString failedId = m_currentClient->clientId();
-            qWarning() << "AIClientManager: Detected retryable error for client:" << failedId << "Error:" << responseText;
-            
-            m_tracker.forceRateLimit(failedId, 60);
+        QJsonDocument errDoc = QJsonDocument::fromJson(responseText.toUtf8());
+        if (errDoc.isObject()) {
+            QJsonObject errRoot = errDoc.object();
+            QJsonObject errObj = errRoot.value("error").toObject();
+            errMessage = errObj.value("message").toString();
+            QJsonObject meta = errObj.value("metadata").toObject();
+            providerName = meta.value("provider_name").toString();
+            rawProviderError = meta.value("raw").toString();
+            providerErrCode = meta.value("provider_error_code").toString().toInt();
+        }
 
-            // ユーザーが特定プロバイダを明示的に選択している場合は他AIへの無限リトライ・すり替えを行わない
-            if (m_provider.isEmpty()) {
-                if (selectAndPrepareClient()) {
-                    qDebug() << "AIClientManager: Retrying with next client:" << m_currentClient->clientId();
-                    
-                    AppEvent retryEvent;
-                    retryEvent.type = EventType::AIRequestSent;
-                    retryEvent.source = "AIClientManager";
-                    retryEvent.text = m_lastPrompt;
-                    emit notifyEvent(retryEvent);
+        // 2. 詳細ログ出力（F-33-3: ログへは生エラー詳細を全文出力）
+        QString currentClientId = m_currentClient ? m_currentClient->clientId() : "unknown";
+        qWarning() << QString("[AIClientManager] HTTP Error %1 from %2").arg(httpCode).arg(currentClientId);
+        if (!errMessage.isEmpty())
+            qWarning() << "  error.message   :" << errMessage;
+        if (!providerName.isEmpty())
+            qWarning() << "  provider_name   :" << providerName;
+        if (providerErrCode > 0)
+            qWarning() << "  provider_code   :" << providerErrCode;
+        if (!rawProviderError.isEmpty())
+            qWarning() << "  raw             :" << rawProviderError;
+        if (errMessage.isEmpty() && providerName.isEmpty())
+            qWarning() << "  raw response    :" << responseText.left(300);
 
-                    m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory, m_sessionContext, m_lastAdditionalSystemPrompt);
+        // 3. 一時エラー（429/503）→ フォールバック試行（F-33-1/2）
+        bool isTemporaryError = (httpCode == 429 || httpCode == 503);
+        if (isTemporaryError && m_currentClient) {
+            // 現プロバイダをレートリミット扱いにする
+            m_tracker.forceRateLimit(currentClientId, 60);
+
+            if (m_fallbackIndex < m_fallbackProviders.size()) {
+                // 次のフォールバック先を選択
+                QString nextProvider = m_fallbackProviders.at(m_fallbackIndex);
+                ++m_fallbackIndex;
+
+                if (m_clientMap.contains(nextProvider)) {
+                    m_currentClient = m_clientMap[nextProvider];
+                    m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
+
+                    // F-33-3 UI 警告（自然言語）
+                    QString displayProvider = providerName.isEmpty() ? currentClientId : providerName;
+                    QString uiWarn = buildHumanReadableError(httpCode, currentClientId,
+                                                             errDoc.isObject() ? errDoc.object() : QJsonObject());
+                    qDebug() << "AIClientManager: Fallback triggered." << currentClientId
+                             << "->" << nextProvider << "UI msg:" << uiWarn;
+
+                    AppEvent warnEvent;
+                    warnEvent.type = EventType::AIResponseReceived;
+                    warnEvent.source = "AIClientManager";
+                    warnEvent.text = uiWarn;
+                    emit notifyEvent(warnEvent);
+
+                    // 元プロンプトをそのまま次プロバイダへ再送
+                    m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory,
+                                                  m_sessionContext, m_lastAdditionalSystemPrompt);
                     return;
                 }
             }
+
+            // 全フォールバック先も失敗した場合
+            event.type = EventType::ErrorOccurred;
+            event.text = "❌ 全ての AI プロバイダがレート制限中です。しばらく待ってから再試行してください。";
+            emit notifyEvent(event);
+            processPendingRequests();
+            return;
         }
 
+        // 4. 恒久エラー（400/401/403/404 等）→ 自然言語メッセージで即時通知（フォールバックなし）
         event.type = EventType::ErrorOccurred;
-        event.text = responseText;
+        event.text = buildHumanReadableError(httpCode, currentClientId,
+                                             errDoc.isObject() ? errDoc.object() : QJsonObject());
         emit notifyEvent(event);
     }
     processPendingRequests();
@@ -2570,6 +2618,90 @@ void AIClientManager::processPendingRequests() {
         on_requestAI(req.prompt, req.user);
     }
 }
+
+// ---- F-33 ここから ----
+
+void AIClientManager::buildFallbackProviderList() {
+    // API キー設定済みプロバイダを優先順に並べ、現在選択中のプロバイダを除外する
+    // 優先順序: groq → cerebras → mistral → huggingface → openrouter → sakura
+    static const QStringList priorityOrder = {
+        "groq", "cerebras", "mistral", "huggingface", "openrouter", "sakura"
+    };
+    m_fallbackProviders.clear();
+    for (const QString &id : priorityOrder) {
+        if (id == m_provider) continue;            // 選択中プロバイダはスキップ
+        if (!m_clientMap.contains(id)) continue;   // 存在しないプロバイダはスキップ
+        ProviderStatus s = m_tracker.statusOf(id);
+        if (s.available) {                         // APIキー設定済みのみ
+            m_fallbackProviders.append(id);
+        }
+    }
+    qDebug() << "AIClientManager: Fallback provider list built:" << m_fallbackProviders;
+}
+
+QString AIClientManager::buildHumanReadableError(int httpCode, const QString &providerId,
+                                                  const QJsonObject &errorJson) const {
+    // JSON からメタ情報を抽出
+    QString errMsg    = errorJson.value("error").toObject().value("message").toString();
+    QString provName  = errorJson.value("error").toObject()
+                                 .value("metadata").toObject()
+                                 .value("provider_name").toString();
+    QString rawErr    = errorJson.value("error").toObject()
+                                 .value("metadata").toObject()
+                                 .value("raw").toString();
+
+    // フォールバック先プロバイダ名（次の候補）
+    QString nextProvider;
+    if (m_fallbackIndex < m_fallbackProviders.size()) {
+        nextProvider = m_fallbackProviders.at(m_fallbackIndex);
+    }
+
+    // 自然言語メッセージ生成
+    QString displayProvider = provName.isEmpty() ? providerId : provName;
+
+    switch (httpCode) {
+    case 429: {
+        if (!nextProvider.isEmpty()) {
+            return QString("⚠️ %1 がレート制限中のため、%2 に自動切り替えしました")
+                       .arg(displayProvider, nextProvider);
+        } else {
+            return QString("⚠️ %1 がレート制限中です。しばらく待ってから再試行してください")
+                       .arg(displayProvider);
+        }
+    }
+    case 503:
+        if (!nextProvider.isEmpty()) {
+            return QString("⚠️ %1 が一時的に利用できないため、%2 に自動切り替えしました")
+                       .arg(displayProvider, nextProvider);
+        } else {
+            return QString("⚠️ %1 が一時的に利用できません。しばらく待ってから再試行してください")
+                       .arg(displayProvider);
+        }
+    case 401:
+        return QString("❌ API キーが正しくありません (%1)。AI設定タブでキーを確認してください")
+                   .arg(providerId);
+    case 403:
+        return QString("❌ API キーの権限が不足しています (%1)。AI設定タブでキーを確認してください")
+                   .arg(providerId);
+    case 404:
+        return QString("❌ 指定したモデル名が見つかりません (%1)。AI設定タブでモデル名を確認してください")
+                   .arg(providerId);
+    case 400:
+        return QString("❌ リクエストが無効です (%1): %2")
+                   .arg(providerId, errMsg.isEmpty() ? "不正なリクエスト形式" : errMsg);
+    default:
+        if (httpCode > 0) {
+            return QString("❌ AI エラー (HTTP %1, %2): %3")
+                       .arg(httpCode).arg(providerId)
+                       .arg(errMsg.isEmpty() ? rawErr.left(100) : errMsg);
+        }
+        // httpCode == 0 の場合（非 HTTP エラー）
+        return QString("❌ AI 通信エラー (%1): %2")
+                   .arg(providerId, errMsg.isEmpty() ? rawErr.left(100) : errMsg);
+    }
+}
+
+// ---- F-33 ここまで ----
 
 bool AIClientManager::selectAndPrepareClient() {
     // ユーザーが明示的にプロバイダを選択している場合は他AIへの無断フォールバックを行わない
