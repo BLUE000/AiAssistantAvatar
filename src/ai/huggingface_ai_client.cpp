@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QUrl>
+#include <QThread>
 #include <QDebug>
 
 HuggingFaceAIClient::HuggingFaceAIClient(QObject *parent)
@@ -61,6 +62,10 @@ ProviderStatus HuggingFaceAIClient::defaultStatus() const {
 }
 
 void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
+    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
+        m_networkManager->moveToThread(QThread::currentThread());
+    }
+
     if (m_apiKey.isEmpty()) {
         emit requestFinished("HuggingFace APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;

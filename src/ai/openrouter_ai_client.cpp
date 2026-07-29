@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QUrl>
+#include <QThread>
 #include <QDebug>
 
 OpenRouterAIClient::OpenRouterAIClient(QObject *parent)
@@ -48,6 +49,10 @@ ProviderStatus OpenRouterAIClient::defaultStatus() const {
 }
 
 void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
+    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
+        m_networkManager->moveToThread(QThread::currentThread());
+    }
+
     if (m_apiKey.isEmpty()) {
         emit requestFinished("OpenRouter APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;
