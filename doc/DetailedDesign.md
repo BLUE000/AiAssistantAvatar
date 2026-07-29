@@ -484,7 +484,7 @@ TaskFlow(予定管理システム) 連携設定を独立化し、Twitch チャ�
 追加プロバイダ クラス（`HuggingFaceAIClient`, `OpenRouterAIClient`, `SakuraAIClient`）の詳細設計仕様。
 
 #### 1. クラス構造とインターフェース継承
-3 クラスともに `IAIClient` を継承し、OpenAI 互換 Chat Completions HTTP POST 通信を行う。
+3 クラスともに `IAIClient` を継承し、OpenAI 互換 Chat Completions HTTP POST 通信を行う。また `IAIClient` インターフェースに `virtual QString currentModelName() const` メソッドを追加し、現在アクティブなモデル名（全自動選出モデルまたは指定モデル）を返却する。F-21（システム固定自動応答）ではこのメソッドを用いて「現在稼働しているAIは <プロバイダ名> (モデル: <モデル名>) です。」形式のレスポンスを動的生成する。
 
 - **`HuggingFaceAIClient`**:
   - デフォルトエンドポイント: `https://router.huggingface.co/v1/chat/completions`
