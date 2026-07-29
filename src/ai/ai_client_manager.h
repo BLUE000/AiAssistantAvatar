@@ -98,7 +98,7 @@ private:
     };
     QList<PendingRequest> m_pendingRequests;
     void processPendingRequests();
-    bool selectAndPrepareClient();
+    bool selectAndPrepareClient(const QString &prompt = "");
 
     QStringList m_fallbackProviders;  // F-33: APIキー設定済みプロバイダ（選択中プロバイダ除く）の優先順リスト
     int m_fallbackIndex = 0;          // F-33: 現在のフォールバック試行インデックス

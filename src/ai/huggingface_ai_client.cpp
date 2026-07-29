@@ -32,6 +32,10 @@ void HuggingFaceAIClient::setApiKey(const QString &apiKey) {
 }
 
 void HuggingFaceAIClient::fetchAvailableModels() {
+    if (thread() != QThread::currentThread()) {
+        QMetaObject::invokeMethod(this, "fetchAvailableModels", Qt::QueuedConnection);
+        return;
+    }
     if (m_apiKey.isEmpty() || m_isFetchingModels) return;
     m_isFetchingModels = true;
 
