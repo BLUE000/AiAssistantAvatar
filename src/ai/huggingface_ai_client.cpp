@@ -9,7 +9,7 @@
 #include <QDebug>
 
 HuggingFaceAIClient::HuggingFaceAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false), m_model("meta-llama/Llama-3.1-8B-Instruct")
+    : IAIClient(parent), m_isToolCalling(false), m_model("Qwen/Qwen2.5-Coder-32B-Instruct")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,
@@ -25,6 +25,19 @@ HuggingFaceAIClient::~HuggingFaceAIClient() {
 
 void HuggingFaceAIClient::setApiKey(const QString &apiKey) {
     m_apiKey = apiKey;
+    if (!m_apiKey.isEmpty()) {
+        fetchAvailableModels();
+    }
+}
+
+void HuggingFaceAIClient::fetchAvailableModels() {
+    if (m_apiKey.isEmpty() || m_isFetchingModels) return;
+    m_isFetchingModels = true;
+
+    QUrl url("https://router.huggingface.co/v1/models");
+    QNetworkRequest request(url);
+    request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+    m_networkManager->get(request);
 }
 
 void HuggingFaceAIClient::setModel(const QString &model) {
@@ -56,7 +69,7 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
 
-    QString modelName = m_model.isEmpty() ? "meta-llama/Llama-3.1-8B-Instruct" : m_model;
+    QString modelName = m_model.isEmpty() ? "Qwen/Qwen2.5-Coder-32B-Instruct" : m_model;
     QString urlStr = "https://router.huggingface.co/v1/chat/completions";
     QUrl url(urlStr);
     QNetworkRequest request(url);
@@ -92,7 +105,7 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
     for (const auto &pair : history) {
         QJsonObject userMsg;
         userMsg["role"] = "user";
-        userMsg["content"] = pair.first;
+        userMsg["content"] = cleanHistoryPrompt(pair.first);
         messages.append(userMsg);
 
         QJsonObject modelMsg;
@@ -116,6 +129,31 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
 
 void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     reply->deleteLater();
+
+    if (m_isFetchingModels && reply->url().toString().contains("/models")) {
+        m_isFetchingModels = false;
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (doc.isObject() && doc.object().contains("data")) {
+                QJsonArray arr = doc.object()["data"].toArray();
+                for (const QJsonValue &val : arr) {
+                    if (val.isObject()) {
+                        QString id = val.toObject().value("id").toString();
+                        if (id.contains("Qwen2.5-Coder", Qt::CaseInsensitive) ||
+                            id.contains("Qwen2.5-72B", Qt::CaseInsensitive) ||
+                            id.contains("Qwen2.5-7B", Qt::CaseInsensitive) ||
+                            id.contains("Mistral-7B", Qt::CaseInsensitive)) {
+                            m_model = id;
+                            qDebug() << "HuggingFaceAIClient: Automatically selected model:" << m_model;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
 
     if (reply->error() != QNetworkReply::NoError) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();

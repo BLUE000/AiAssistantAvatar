@@ -91,7 +91,7 @@ void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
     for (const auto &pair : history) {
         QJsonObject userMsg;
         userMsg["role"] = "user";
-        userMsg["content"] = pair.first;
+        userMsg["content"] = cleanHistoryPrompt(pair.first);
         messages.append(userMsg);
 
         QJsonObject modelMsg;

@@ -17,6 +17,19 @@ public:
     virtual ProviderStatus defaultStatus() const = 0;
     virtual QString currentModelName() const { return QString(); }
 
+    static QString cleanHistoryPrompt(const QString &text) {
+        QString cleaned = text;
+        if (cleaned.startsWith("[Direct] ")) {
+            cleaned = cleaned.mid(9);
+        } else if (cleaned.startsWith("[Twitch] ") || cleaned.startsWith("[Discord] ")) {
+            int colonIdx = cleaned.indexOf(": ");
+            if (colonIdx != -1) {
+                cleaned = cleaned.mid(colonIdx + 2);
+            }
+        }
+        return cleaned.trimmed();
+    }
+
 signals:
     // AI応答完了通知（成功フラグ・HTTPステータスコード付き）
     // httpCode: HTTP ステータスコード（非 HTTP エラーや成功時は 0 または 200）
