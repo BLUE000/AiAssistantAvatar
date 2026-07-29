@@ -201,8 +201,6 @@ private:
     QWidget *m_aiSettingsTab = nullptr;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
-    QLineEdit *m_twitchClientIdEdit = nullptr;
-    QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
@@ -462,18 +460,17 @@ Twitch IRC WebSocket コネクションの半開状態（サイレントドロ�
    - ※「OBS用HTTPサーバー有効化:」チェックボックスは廃止し常時起動。
 3. **「Twitch 連携設定」グループボックス (スリム化)**:
    - チャンネル名 (`m_twitchChannelEdit`)
-   - クライアント ID (`m_twitchClientIdEdit`)
-   - OAuth用ポート (`m_twitchPortEdit`)
    - 起動時挨拶 (`m_twitchGreetingCheckbox`)
+   - ※ クライアント ID および OAuth用ポートは UI から削除し、設定ファイル (`local_settings.json`) のみで保持・管理する。
 
 ---
 
-### 3.2.10 TaskFlow 独立連携 ＆ 全プラットフォーム対応仕様 (F-31)
+### 3.2.10 TaskFlow(予定管理システム) 独立連携 ＆ 全プラットフォーム対応仕様 (F-31)
 
-TaskFlow 連携設定を独立化し、Twitch チャット・Discord チャット・UI直接入力を問わず予定参照を可能とする仕様。
+TaskFlow(予定管理システム) 連携設定を独立化し、Twitch チャット・Discord チャット・UI直接入力を問わず予定参照を可能とする仕様。
 
 #### 設定構造とコンテキスト注入ロジック
-1. **「TaskFlow 連携設定」グループボックス (`QGroupBox`)**:
+1. **「TaskFlow(予定管理システム)連携設定」グループボックス (`QGroupBox`)**:
    - **連携有効化 (`m_taskFlowEnabledCheckbox`)**: "TaskFlow 連携を有効にする" チェックボックス。
    - **自由可変 API URL (`m_taskFlowApiUrlEdit`)**: ユーザー固有の TaskFlow schedules.php エンドポイントURL設定。
 2. **全入力ソース共通の予定取得・プロンプトインジェクション**:

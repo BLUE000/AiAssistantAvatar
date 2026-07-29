@@ -82,13 +82,13 @@ int main(int argc, char *argv[]) {
 #endif
 
     auto loadAndStartHttpServer = [httpServer, settingsPath]() {
-        bool enabled = false;
+        bool enabled = true;
         quint16 port = 58082;
         QFile file(settingsPath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
             file.close();
-            enabled = obj.value("obs_http_enabled").toBool(false);
+            enabled = obj.value("obs_http_enabled").toBool(true);
             port = obj.value("obs_http_port").toInt(58082);
         }
         if (enabled) {

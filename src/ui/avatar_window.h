@@ -142,8 +142,6 @@ private:
     class QListWidget *m_shoutoutQueueListWidget = nullptr;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
-    QLineEdit *m_twitchClientIdEdit = nullptr;
-    QLineEdit *m_twitchPortEdit = nullptr;
     QLineEdit *m_twitchWakeWordEdit = nullptr;
     QComboBox *m_twitchWakeWordModeCombo = nullptr;
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
@@ -207,7 +205,6 @@ private:
     QLineEdit *m_obsPathEdit = nullptr;
     QLineEdit *m_avatarNameEdit = nullptr;
     QCheckBox *m_nameReactionCheckbox = nullptr;
-    QCheckBox *m_obsHttpEnabledCheckbox = nullptr;
     QLineEdit *m_obsHttpPortEdit = nullptr;
 
     int m_bubbleDisplayShortSec = 5;

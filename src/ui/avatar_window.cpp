@@ -959,14 +959,8 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     mainLayout->setSpacing(8);
 
     m_wsPortEdit = new QLineEdit(scrollContent);
-    m_obsHttpEnabledCheckbox = new QCheckBox("簡易HTTPサーバーを有効にする（別PCのOBS接続用）", scrollContent);
     m_obsHttpPortEdit = new QLineEdit(scrollContent);
     m_twitchChannelEdit = new QLineEdit(scrollContent);
-    
-    m_twitchClientIdEdit = new QLineEdit(scrollContent);
-    m_twitchClientIdEdit->setEchoMode(QLineEdit::Password);
-
-    m_twitchPortEdit = new QLineEdit(scrollContent);
     m_twitchWakeWordEdit = new QLineEdit(scrollContent);
     
     m_twitchWakeWordModeCombo = new QComboBox(scrollContent);
@@ -1027,7 +1021,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     obsLayout->setContentsMargins(10, 10, 10, 10);
     obsLayout->setSpacing(6);
     obsLayout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
-    obsLayout->addRow("簡易HTTP機能:", m_obsHttpEnabledCheckbox);
     obsLayout->addRow("HTTP配信ポート:", m_obsHttpPortEdit);
 
     // 表示秒数の横並びレイアウト
@@ -1082,13 +1075,11 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     twitchLayout->setContentsMargins(10, 10, 10, 10);
     twitchLayout->setSpacing(6);
     twitchLayout->addRow("チャンネル:", m_twitchChannelEdit);
-    twitchLayout->addRow("クライアント ID:", m_twitchClientIdEdit);
-    twitchLayout->addRow("OAuth用ポート:", m_twitchPortEdit);
     twitchLayout->addRow("起動時挨拶:", m_twitchGreetingCheckbox);
     mainLayout->addWidget(twitchGroup);
 
-    // 4. TaskFlow 連携設定グループ
-    QGroupBox *taskflowGroup = new QGroupBox("TaskFlow 連携設定", scrollContent);
+    // 4. TaskFlow(予定管理システム) 連携設定グループ
+    QGroupBox *taskflowGroup = new QGroupBox("TaskFlow(予定管理システム)連携設定", scrollContent);
     QFormLayout *taskflowLayout = new QFormLayout(taskflowGroup);
     taskflowLayout->setContentsMargins(10, 10, 10, 10);
     taskflowLayout->setSpacing(6);
@@ -1489,8 +1480,6 @@ void AvatarWindow::loadSettingsToUI() {
             }
             loadSkin(skin);
             if (m_twitchChannelEdit) m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
-            if (m_twitchClientIdEdit) m_twitchClientIdEdit->setText(obj.value("twitch_client_id").toString());
-            if (m_twitchPortEdit) m_twitchPortEdit->setText(QString::number(obj.value("twitch_port").toInt(ConfigDefaults::TWITCH_PORT)));
             if (m_twitchWakeWordEdit) {
                 if (obj.contains("twitch_wakeword")) {
                     m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString());
@@ -1621,7 +1610,6 @@ void AvatarWindow::loadSettingsToUI() {
                 m_taskFlowApiUrlEdit->setText(obj.value("taskflow_api_url").toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php"));
             }
 
-            if (m_obsHttpEnabledCheckbox) m_obsHttpEnabledCheckbox->setChecked(true);
             int httpPort = obj.value("obs_http_port").toInt(4080);
             if (httpPort <= 0) httpPort = 4080;
             if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(httpPort));
@@ -1686,8 +1674,12 @@ void AvatarWindow::saveSettingsFromUI() {
         loadSkin(selectedSkin);
     }
     obj["twitch_channel"] = m_twitchChannelEdit->text().trimmed();
-    obj["twitch_client_id"] = m_twitchClientIdEdit->text().trimmed();
-    obj["twitch_port"] = m_twitchPortEdit->text().trimmed().toInt();
+    if (!obj.contains("twitch_client_id")) {
+        obj["twitch_client_id"] = "";
+    }
+    if (!obj.contains("twitch_port")) {
+        obj["twitch_port"] = ConfigDefaults::TWITCH_PORT;
+    }
     obj["twitch_wakeword"] = m_twitchWakeWordEdit->text().trimmed();
     obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
     QString provider = "dummy";
