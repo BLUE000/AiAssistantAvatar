@@ -2123,11 +2123,12 @@ void AvatarWindow::initNicknameTab(QWidget *parent) {
     usersLayout->setSpacing(6);
 
     m_usersTable = new QTableWidget(usersGroup);
-    m_usersTable->setColumnCount(6);
-    m_usersTable->setHorizontalHeaderLabels({"管理ID", "優先呼び名", "Twitch ID", "Discord 名", "愛称リスト", "操作"});
+    m_usersTable->setObjectName("m_usersTable");
+    m_usersTable->setColumnCount(5);
+    m_usersTable->setHorizontalHeaderLabels({"優先呼び名", "Twitch ID", "Discord 名", "愛称リスト", "操作"});
     m_usersTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    m_usersTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
-    m_usersTable->setColumnWidth(5, 80);
+    m_usersTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
+    m_usersTable->setColumnWidth(4, 80);
     m_usersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     
     // テーブルセル編集時の接続
@@ -2187,6 +2188,9 @@ void AvatarWindow::updateNicknameTables() {
         QJsonObject userData = usersMap.value(user).toObject();
         QString preferred = userData.value("preferred").toString();
         QString twitchId = userData.value("twitch_id").toString();
+        if (twitchId.isEmpty()) {
+            twitchId = user; // 既存データ補完
+        }
         QString discordId = userData.value("discord_id").toString();
 
         QJsonArray nicknamesArray = userData.value("nicknames").toArray();
@@ -2195,30 +2199,31 @@ void AvatarWindow::updateNicknameTables() {
             nicknames.append(val.toString());
         }
 
-        // 0: 管理ID (編集不可)
-        QTableWidgetItem *itemUser = new QTableWidgetItem(user);
-        itemUser->setFlags(itemUser->flags() & ~Qt::ItemIsEditable);
-        m_usersTable->setItem(i, 0, itemUser);
+        // 0: 優先呼び名 (編集可能)
+        QTableWidgetItem *itemPref = new QTableWidgetItem(preferred);
+        itemPref->setData(Qt::UserRole, user);
+        m_usersTable->setItem(i, 0, itemPref);
 
-        // 1: 優先呼び名 (編集可能)
-        m_usersTable->setItem(i, 1, new QTableWidgetItem(preferred));
+        // 1: Twitch ID (編集可能)
+        QTableWidgetItem *itemTwitch = new QTableWidgetItem(twitchId);
+        itemTwitch->setData(Qt::UserRole, user);
+        m_usersTable->setItem(i, 1, itemTwitch);
 
-        // 2: Twitch ID (編集可能)
-        m_usersTable->setItem(i, 2, new QTableWidgetItem(twitchId));
+        // 2: Discord 名 (編集可能)
+        QTableWidgetItem *itemDiscord = new QTableWidgetItem(discordId);
+        itemDiscord->setData(Qt::UserRole, user);
+        m_usersTable->setItem(i, 2, itemDiscord);
 
-        // 3: Discord 名 (編集可能)
-        m_usersTable->setItem(i, 3, new QTableWidgetItem(discordId));
-
-        // 4: 愛称リスト (編集不可)
+        // 3: 愛称リスト (編集不可)
         QTableWidgetItem *itemNicks = new QTableWidgetItem(nicknames.join(", "));
         itemNicks->setFlags(itemNicks->flags() & ~Qt::ItemIsEditable);
-        m_usersTable->setItem(i, 4, itemNicks);
+        m_usersTable->setItem(i, 3, itemNicks);
 
-        // 5: 削除ボタン
+        // 4: 削除ボタン
         QPushButton *btnDelete = new QPushButton("削除");
         btnDelete->setProperty("username", user);
         connect(btnDelete, &QPushButton::clicked, this, &AvatarWindow::onDeleteUserClicked);
-        m_usersTable->setCellWidget(i, 5, btnDelete);
+        m_usersTable->setCellWidget(i, 4, btnDelete);
     }
 
     // cellChanged を再接続
@@ -2322,21 +2327,24 @@ void AvatarWindow::onAddUserClicked() {
 }
 
 void AvatarWindow::onUserTableCellChanged(int row, int column) {
-    if (!m_usersTable || column < 1 || column > 3) return;
+    if (!m_usersTable || column < 0 || column > 2) return;
 
-    QTableWidgetItem *itemProfile = m_usersTable->item(row, 0);
-    QTableWidgetItem *itemPref    = m_usersTable->item(row, 1);
-    QTableWidgetItem *itemTwitch  = m_usersTable->item(row, 2);
-    QTableWidgetItem *itemDiscord = m_usersTable->item(row, 3);
-    if (!itemProfile || !itemPref || !itemTwitch || !itemDiscord) return;
+    QTableWidgetItem *itemPref    = m_usersTable->item(row, 0);
+    QTableWidgetItem *itemTwitch  = m_usersTable->item(row, 1);
+    QTableWidgetItem *itemDiscord = m_usersTable->item(row, 2);
+    if (!itemPref || !itemTwitch || !itemDiscord) return;
 
-    QString profileId = itemProfile->text().trimmed();
+    QString profileId = itemPref->data(Qt::UserRole).toString();
+    if (profileId.isEmpty()) profileId = itemTwitch->data(Qt::UserRole).toString();
+    if (profileId.isEmpty()) profileId = itemDiscord->data(Qt::UserRole).toString();
+    if (profileId.isEmpty()) return;
+
     QString preferred = itemPref->text().trimmed();
     QString twitchId  = itemTwitch->text().trimmed();
     QString discordId = itemDiscord->text().trimmed();
 
     emit updateUserMappingRequested(profileId, preferred, twitchId, discordId);
-    statusBar()->showMessage(QString("ユーザー「%1」の対応付け設定を更新しました。").arg(profileId));
+    statusBar()->showMessage(QString("ユーザー「%1」の対応付け設定を更新しました。").arg(preferred.isEmpty() ? profileId : preferred));
 }
 
 void AvatarWindow::initKnowledgeTab(QWidget *parent) {

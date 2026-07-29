@@ -91,6 +91,7 @@ classDiagram
 | **UT-NICK-01** | `AIClientManager` (プラットフォームID手動対応付け保存) | `updateUserMapping("profile_1", "AAA", "twitch_alice", "alice_discord")` を実行する。 | 1. `user_names.json` に `twitch_id` および `discord_id` が保存されること。<br>2. `userNamesUpdated` シグナルが発火し、UIに通知されること。 |
 | **UT-NICK-02** | `AIClientManager` (重複レコード自動マージ・統合) | レコード1 (`twitch_id`: `aaaa`) と レコード2 (`discord_id`: `bbbb`) がある状態で、レコード1の `discord_id` に `bbbb` を設定する。 | 1. レコード2が自動検出され、レコード1に統合（マージ）されること。<br>2. レコード2が削除され、JSONが同期保存されること。 |
 | **UT-NICK-03** | `AIClientManager` (優先呼び名未設定時のプラットフォーム別ID呼びかけ) | `preferred` が空で `twitch_id`: `john_t`, `discord_id`: `john_d` が設定されたプロファイルで、Twitch および Discord から `on_requestAI` を呼ぶ。 | 1. Twitchからの発言時：システム指示に「`john_tさん`」が含まれること（推測カタカナ変換なし）。<br>2. Discordからの発言時：システム指示に「`john_dさん`」が含まれること（推測カタカナ変換なし）。 |
+| **UT-NICK-04** | `AvatarWindow` (UIテーブル5列構造と管理ID列排除) | 「ニックネーム」管理タブを表示し `m_usersTable` のヘッダー列数とラベルを検証する。 | 1. 列数が 5 列であること。<br>2. ヘッダー名が `{"優先呼び名", "Twitch ID", "Discord 名", "愛称リスト", "操作"}` と一致し、「管理ID」列が存在しないこと。 |
 
 
 ---

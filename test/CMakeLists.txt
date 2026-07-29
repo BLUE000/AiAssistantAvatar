@@ -9,7 +9,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 # Qt6 パッケージのロード
-find_package(Qt6 COMPONENTS Core Gui Network WebSockets Test REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Widgets Network WebSockets Test REQUIRED)
 
 # Google Test の取得
 include(FetchContent)
@@ -47,6 +47,9 @@ set(TEST_SOURCES
     ../src/search/tavily_search_provider.cpp
     ../src/search/duckduckgo_search_provider.cpp
     ../src/search/markdown_table_engine.cpp
+    ../src/ui/avatar_window.cpp
+    ../src/ui/avatar_skin_builder_dialog.cpp
+    ../src/ui/history_viewer_dialog.cpp
     test_obs_http_server.cpp
     ../src/obs/obs_http_server.cpp
     test_score_moderation.cpp
@@ -72,6 +75,7 @@ target_link_libraries(AiAssistantAvatarTest PRIVATE
     gtest_main
     Qt6::Core
     Qt6::Gui
+    Qt6::Widgets
     Qt6::Network
     Qt6::WebSockets
     Qt6::Test

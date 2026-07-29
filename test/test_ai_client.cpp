@@ -13,6 +13,8 @@
 #include "cipher_engine.h"
 #include "twitch/twitch_reader.h"
 #include "discord/discord_reader.h"
+#include "ui/avatar_window.h"
+#include <QTableWidget>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -1794,5 +1796,20 @@ TEST(UserMappingTest, PlatformSpecificIDCallWithoutPreferred) {
     manager.on_requestAI("こんにちは", "[Discord:12345] john_d");
     EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_dさん"));
 }
+
+// UT-NICK-04: UIテーブルの5列構造と管理ID列排除テスト
+TEST(UserMappingTest, Verify5ColumnTableLayout) {
+    AvatarWindow window;
+    QTableWidget *usersTable = window.findChild<QTableWidget*>("m_usersTable");
+    ASSERT_NE(usersTable, nullptr);
+
+    EXPECT_EQ(usersTable->columnCount(), 5);
+    EXPECT_EQ(usersTable->horizontalHeaderItem(0)->text(), "優先呼び名");
+    EXPECT_EQ(usersTable->horizontalHeaderItem(1)->text(), "Twitch ID");
+    EXPECT_EQ(usersTable->horizontalHeaderItem(2)->text(), "Discord 名");
+    EXPECT_EQ(usersTable->horizontalHeaderItem(3)->text(), "愛称リスト");
+    EXPECT_EQ(usersTable->horizontalHeaderItem(4)->text(), "操作");
+}
+
 
 
