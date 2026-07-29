@@ -504,7 +504,7 @@ TaskFlow(予定管理システム) 連携設定を独立化し、Twitch チャ�
 - **UI 設定項目**:
   - AIプロバイダー選択チェックボックス (`m_aiProviderHuggingFaceCheckbox`, `m_aiProviderOpenRouterCheckbox`, `m_aiProviderSakuraCheckbox`)
   - 各プロバイダ API キー入力欄 (`m_huggingfaceApiKeyEdit`, `m_openrouterApiKeyEdit`, `m_sakuraApiKeyEdit`)
-  - (※全自動モデル取得が行われる HuggingFace および OpenRouter の Model 入力欄 `m_huggingfaceModelEdit`, `m_openrouterModelEdit` は UI から削除し画面レイアウトを洗練化)
+  - (※全自動モデル選出が行われる HuggingFace および OpenRouter は API キー入力欄のみのシンプルな画面構成)
 - **JSON キー名**:
   - `ai_provider`: `"huggingface"` | `"openrouter"` | `"sakura"`
   - `huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`
