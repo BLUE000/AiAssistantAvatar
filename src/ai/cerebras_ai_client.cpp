@@ -25,16 +25,25 @@ CerebrasAIClient::~CerebrasAIClient() {
 }
 
 void CerebrasAIClient::setApiKey(const QString &apiKey) {
+    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
+        m_networkManager->moveToThread(QThread::currentThread());
+    }
     m_apiKey = apiKey;
 }
 
 void CerebrasAIClient::setModel(const QString &model) {
+    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
+        m_networkManager->moveToThread(QThread::currentThread());
+    }
     if (!model.isEmpty()) {
         m_model = model;
     }
 }
 
 void CerebrasAIClient::setTavilyApiKey(const QString &tavilyKey) {
+    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
+        m_networkManager->moveToThread(QThread::currentThread());
+    }
     if (m_searchManager) {
         m_searchManager->setTavilyApiKey(tavilyKey);
     }
