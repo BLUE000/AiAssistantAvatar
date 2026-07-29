@@ -21,6 +21,8 @@ private:
     QString m_activeToolCallId;
     bool m_isToolCalling;
     QJsonArray m_toolsArray;
+    bool m_isFetchingModels = false;
+    void fetchAvailableModels();
 
 public:
     explicit OpenRouterAIClient(QObject *parent = nullptr);

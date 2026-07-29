@@ -29,6 +29,22 @@ void OpenRouterAIClient::setApiKey(const QString &apiKey) {
         m_networkManager->moveToThread(QThread::currentThread());
     }
     m_apiKey = apiKey;
+    if (!m_apiKey.isEmpty()) {
+        fetchAvailableModels();
+    }
+}
+
+void OpenRouterAIClient::fetchAvailableModels() {
+    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
+        m_networkManager->moveToThread(QThread::currentThread());
+    }
+    if (m_apiKey.isEmpty() || m_isFetchingModels) return;
+    m_isFetchingModels = true;
+
+    QUrl url("https://openrouter.ai/api/v1/models");
+    QNetworkRequest request(url);
+    request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+    m_networkManager->get(request);
 }
 
 void OpenRouterAIClient::setModel(const QString &model) {
@@ -92,7 +108,7 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
         avatarName = manager->avatarName();
     }
 
-    QString systemPrompt = QString("あなたはデスクトップマスコットのキャラクター「%1」です。自己紹介や名前を聞かれた際は、必ず「%1」と名乗ってください。自分自身を「AIアシスタント」や「AI」といった一般名詞で呼ばず、必ずキャラクター名「%1」または「私」と名乗ってください。それ以外の名前を使用しないでください。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。")
+    QString systemPrompt = QString("あなたはデスクトップマスコットのキャラクター「%1」です。自己紹介や名前を聞かれた際は、必ず「%1」と名乗ってください。自分自身を「AIアシスタント」や「AI」といった一般名詞で呼ばず、必ずキャラクター名「%1」または「私」と名乗ってください。それ以外の名前を使用しないでください。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。対話相手のお名前や呼び名が明示的に指定されていない場合は、相手のお名前を推測・捏造せず、お名前を呼ばずにそのまま回答してください。")
                             .arg(avatarName);
 
     if (!systemInstruction.isEmpty()) {
@@ -156,6 +172,35 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
 
 void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     reply->deleteLater();
+
+    if (reply->request().url().path().endsWith("/models")) {
+        m_isFetchingModels = false;
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (doc.isObject() && doc.object().contains("data")) {
+                QJsonArray modelsArray = doc.object().value("data").toArray();
+                QString chosenModel;
+                for (const QJsonValue &val : modelsArray) {
+                    QJsonObject mObj = val.toObject();
+                    QString id = mObj.value("id").toString();
+                    if (id.endsWith(":free")) {
+                        chosenModel = id;
+                        // llama-3.1 系の free モデルを最優先
+                        if (id.contains("llama-3.1-8b") || id.contains("llama-3-8b")) {
+                            chosenModel = id;
+                            break;
+                        }
+                    }
+                }
+                if (!chosenModel.isEmpty()) {
+                    m_model = chosenModel;
+                    qDebug() << "[OpenRouterAIClient] Auto-selected active free model:" << m_model;
+                }
+            }
+        }
+        return;
+    }
 
     if (reply->error() != QNetworkReply::NoError) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
