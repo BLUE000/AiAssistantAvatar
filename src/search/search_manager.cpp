@@ -16,16 +16,10 @@ SearchManager::~SearchManager() {
 }
 
 void SearchManager::setTavilyApiKey(const QString &apiKey) {
-    if (thread() != QThread::currentThread()) {
-        moveToThread(QThread::currentThread());
-    }
     m_tavilyApiKey = apiKey;
 }
 
 void SearchManager::executeSearch(const QString &query) {
-    if (thread() != QThread::currentThread()) {
-        moveToThread(QThread::currentThread());
-    }
     m_query = query;
     m_useTavily = !m_tavilyApiKey.isEmpty();
     startNextProvider();

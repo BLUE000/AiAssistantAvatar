@@ -25,9 +25,6 @@ HuggingFaceAIClient::~HuggingFaceAIClient() {
 }
 
 void HuggingFaceAIClient::setApiKey(const QString &apiKey) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     m_apiKey = apiKey;
     if (!m_apiKey.isEmpty()) {
         fetchAvailableModels();
@@ -35,9 +32,6 @@ void HuggingFaceAIClient::setApiKey(const QString &apiKey) {
 }
 
 void HuggingFaceAIClient::fetchAvailableModels() {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (m_apiKey.isEmpty() || m_isFetchingModels) return;
     m_isFetchingModels = true;
 
@@ -48,18 +42,12 @@ void HuggingFaceAIClient::fetchAvailableModels() {
 }
 
 void HuggingFaceAIClient::setModel(const QString &model) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (!model.isEmpty()) {
         m_model = model;
     }
 }
 
 void HuggingFaceAIClient::setTavilyApiKey(const QString &tavilyKey) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (m_searchManager) {
         m_searchManager->setTavilyApiKey(tavilyKey);
     }
@@ -74,10 +62,6 @@ ProviderStatus HuggingFaceAIClient::defaultStatus() const {
 }
 
 void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
-
     if (m_apiKey.isEmpty()) {
         emit requestFinished("HuggingFace APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;

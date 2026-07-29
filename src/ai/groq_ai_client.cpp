@@ -25,35 +25,22 @@ GroqAIClient::~GroqAIClient() {
 }
 
 void GroqAIClient::setApiKey(const QString &apiKey) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     m_apiKey = apiKey;
 }
 
 void GroqAIClient::setModel(const QString &model) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (!model.isEmpty()) {
         m_model = model;
     }
 }
 
 void GroqAIClient::setTavilyApiKey(const QString &tavilyKey) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (m_searchManager) {
         m_searchManager->setTavilyApiKey(tavilyKey);
     }
 }
 
 void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
-
     if (m_apiKey.isEmpty()) {
         emit requestFinished("Groq APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;

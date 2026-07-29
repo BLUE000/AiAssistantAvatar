@@ -25,9 +25,6 @@ OpenRouterAIClient::~OpenRouterAIClient() {
 }
 
 void OpenRouterAIClient::setApiKey(const QString &apiKey) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     m_apiKey = apiKey;
     if (!m_apiKey.isEmpty()) {
         fetchAvailableModels();
@@ -35,9 +32,6 @@ void OpenRouterAIClient::setApiKey(const QString &apiKey) {
 }
 
 void OpenRouterAIClient::fetchAvailableModels() {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (m_apiKey.isEmpty() || m_isFetchingModels) return;
     m_isFetchingModels = true;
 
@@ -48,18 +42,12 @@ void OpenRouterAIClient::fetchAvailableModels() {
 }
 
 void OpenRouterAIClient::setModel(const QString &model) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (!model.isEmpty()) {
         m_model = model;
     }
 }
 
 void OpenRouterAIClient::setTavilyApiKey(const QString &tavilyKey) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
     if (m_searchManager) {
         m_searchManager->setTavilyApiKey(tavilyKey);
     }
@@ -74,10 +62,6 @@ ProviderStatus OpenRouterAIClient::defaultStatus() const {
 }
 
 void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history, const QString &sessionContext, const QString &systemInstruction) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
-
     if (m_apiKey.isEmpty()) {
         emit requestFinished("OpenRouter APIキーが設定されていません。local_settings.json を確認してください。", false, 0);
         return;

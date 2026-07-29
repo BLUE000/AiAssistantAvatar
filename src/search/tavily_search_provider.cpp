@@ -16,10 +16,6 @@ TavilySearchProvider::TavilySearchProvider(const QString &apiKey, QObject *paren
 }
 
 void TavilySearchProvider::search(const QString &query) {
-    if (m_networkManager && m_networkManager->thread() != QThread::currentThread()) {
-        m_networkManager->moveToThread(QThread::currentThread());
-    }
-
     if (m_apiKey.isEmpty()) {
         emit searchFinished("Tavily API key is empty.", false);
         return;
