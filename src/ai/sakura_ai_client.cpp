@@ -105,7 +105,33 @@ void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
     currentMessage["content"] = prompt;
     messages.append(currentMessage);
 
+    m_pendingMessages = messages;
     requestBody["messages"] = messages;
+    requestBody["max_tokens"] = 1024;
+
+    // tools (Function Calling / Web Search)
+    QJsonObject tool;
+    tool["type"] = "function";
+    QJsonObject functionObj;
+    functionObj["name"] = "web_search";
+    functionObj["description"] = "天気、最新ニュース、リアルタイム情報を取得するために使用します。";
+    QJsonObject parameters;
+    parameters["type"] = "object";
+    QJsonObject properties;
+    QJsonObject queryProp;
+    queryProp["type"] = "string";
+    queryProp["description"] = "The search query to retrieve information for.";
+    properties["query"] = queryProp;
+    parameters["properties"] = properties;
+    QJsonArray requiredArray;
+    requiredArray.append("query");
+    parameters["required"] = requiredArray;
+    functionObj["parameters"] = parameters;
+    tool["function"] = functionObj;
+
+    QJsonArray tools;
+    tools.append(tool);
+    requestBody["tools"] = tools;
 
     QJsonDocument doc(requestBody);
     m_networkManager->post(request, doc.toJson());
@@ -169,12 +195,76 @@ void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
     QJsonObject firstChoice = choices.first().toObject();
     QJsonObject messageObj = firstChoice["message"].toObject();
-    QString replyText = messageObj["content"].toString();
 
+    if (messageObj.contains("tool_calls")) {
+        QJsonArray toolCalls = messageObj["tool_calls"].toArray();
+        if (!toolCalls.isEmpty()) {
+            QJsonObject callObj = toolCalls.first().toObject();
+            m_activeToolCallId = callObj.value("id").toString();
+            QJsonObject funcObj = callObj.value("function").toObject();
+            QString funcName = funcObj.value("name").toString();
+
+            if (funcName == "web_search" && m_searchManager) {
+                QString argsStr = funcObj.value("arguments").toString();
+                QJsonDocument argsDoc = QJsonDocument::fromJson(argsStr.toUtf8());
+                QString query = argsDoc.object().value("query").toString();
+                if (query.isEmpty()) query = m_pendingPrompt;
+
+                m_isToolCalling = true;
+                m_searchManager->executeSearch(query);
+                return;
+            }
+        }
+    }
+
+    QString replyText = messageObj["content"].toString();
     emit requestFinished(replyText.trimmed(), true, 200);
 }
 
 void SakuraAIClient::on_searchFinished(const QString &resultText, bool success) {
-    Q_UNUSED(resultText);
-    Q_UNUSED(success);
+    if (!m_isToolCalling) return;
+    m_isToolCalling = false;
+
+    if (!success || resultText.isEmpty()) {
+        emit requestFinished("すみません、現在の天気情報を取得できません。", true, 200);
+        return;
+    }
+
+    QString targetModel = m_model.isEmpty() ? "llm-jp-3.1-8x13b-instruct4" : m_model;
+    QUrl url("https://api.ai.sakura.ad.jp/v1/chat/completions");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+
+    QJsonObject requestBody;
+    requestBody["model"] = targetModel;
+
+    QJsonArray messages = m_pendingMessages;
+
+    QJsonObject assistantToolMsg;
+    assistantToolMsg["role"] = "assistant";
+    QJsonArray toolCalls;
+    QJsonObject tc;
+    tc["id"] = m_activeToolCallId;
+    tc["type"] = "function";
+    QJsonObject func;
+    func["name"] = "web_search";
+    func["arguments"] = QString("{\"query\":\"%1\"}").arg(m_pendingPrompt);
+    tc["function"] = func;
+    toolCalls.append(tc);
+    assistantToolMsg["tool_calls"] = toolCalls;
+    messages.append(assistantToolMsg);
+
+    QJsonObject toolMsg;
+    toolMsg["role"] = "tool";
+    toolMsg["tool_call_id"] = m_activeToolCallId;
+    toolMsg["name"] = "web_search";
+    toolMsg["content"] = resultText;
+    messages.append(toolMsg);
+
+    requestBody["messages"] = messages;
+    requestBody["max_tokens"] = 1024;
+
+    QJsonDocument doc(requestBody);
+    m_networkManager->post(request, doc.toJson());
 }
