@@ -38,7 +38,7 @@ graph TD
 | **Discordモジュール**| `DiscordReader` | Discordスレッド | ・Discordボット接続（WebSocketゲートウェイ）の維持および定期ハートビート送信<br>・対象チャンネルでのメッセージ受信（`MESSAGE_CREATE`）監視とイベント通知<br>・AI応答を指定されたDiscordチャンネルへ非同期でPOST送信（REST API） |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
-| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御。さらに、UI直接入力（Direct Input）に限定した対話型Markdownナレッジ登録（10分タイマー監視、メタデータ管理、本登録）の制御<br>・**2段目（Client）**: 各AI API固有 of HTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御、およびナレッジ本登録ツール・フォルダオープンツール呼び出しの制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
+| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御。さらに、UI直接入力（Direct Input）に限定した対話型Markdownナレッジ登録（10分タイマー監視、メタデータ管理、本登録）の制御。**【さくらAI限定代理ルーティング】さくらAI選択時のWeb検索必要クエリに対して、モデルの安全拒否を回避するため Manager AI (Groq等) への自動代理ルーティングを実行**<br>・**2段目（Client）**: 各AI API固有 of HTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御、およびナレッジ本登録ツール・フォルダオープンツール呼び出しの制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
 
 ---
 

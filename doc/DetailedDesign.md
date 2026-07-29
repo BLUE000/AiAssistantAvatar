@@ -1718,16 +1718,20 @@ client->sendRequest(prompt, history, sessionContext, systemInstruction);
 // ※ 使用後に updateFromReply() で残量更新（レスポンスヘッダー解析）
 ```
 
-#### D. Manager AI フォールバック（将来フェーズ準備）
+#### D. さくらAI限定 Manager AI Web検索代理ルーティング仕様
 
-現フェーズではManagerロールの処理はC++ロジックのみ（API呼び出しなし）。
-将来フェーズで以下を追加:
+1. **概要**:
+   さくらAI (`sakura`) が優先プロバイダとして選択されている場合、モデル自身の安全性制限ガードにより「リアルタイムの情報にはアクセスできません」と誤拒否される現象を回避するため、天気、為替、最新ニュース等の Web 検索を要する入力に対して `AIClientManager` が Manager AI (Groq 等) へ代理ルーティングを行い、Tavily 検索とキャラクター応答生成を実行させる。
 
-```cpp
-// Manager AI へ最小プロンプトを送信
-QString managerId = m_router.selectClient(AIRole::Manager, m_tracker, m_managerPriority);
-if (!managerId.isEmpty()) {
-    QString miniPrompt = buildManagerPrompt(availableWorkers);
+2. **対象と適用条件**:
+   - **選択中プロバイダ**: `sakura` (さくらAI)
+   - **判定条件**: `needsSearch(prompt)` が `true`（天気、為替、ニュース、最新等の検索キーワード検出）
+
+3. **動作フロー**:
+   - `AIClientManager::on_requestAI` 受信。
+   - `m_preferredClient == "sakura"` かつ `needsSearch` の場合、さくらAIの代わりに `m_managerClient` (Groq 等) の `sendRequest` を呼び出す。
+   - Manager AI が Tavily Web 検索を実施し、取得データを元にキャラクター（「ぶるたろう」等）としてアバター応答を返却する。
+   - 他のプロバイダ選択時は本代理ルーティングは発動せず、ダイレクト通信を維持する。
     m_managerClient->sendRequest(miniPrompt, {}, "", "");
     // Manager AI の応答 "use:groq" → workerId 決定
 }
