@@ -770,30 +770,39 @@ sequenceDiagram
     AI->>UI: userNamesUpdated(data) シグナルでUIテーブル更新
 ```
 
-### 5.13 ニックネーム管理データ構造 (`user_names.json`)
+### 5.13 ニックネーム・プラットフォームID対応付け管理データ構造 (`user_names.json`)
 
-ニックネームの愛称リストおよび保留中のリクエストは、以下のスキーマの JSON 形式で永続化する。
+ニックネームの愛称リスト、プラットフォームID対応付け（`twitch_id`, `discord_id`）、および保留中のリクエストは、以下のスキーマの JSON 形式で永続化する。
 
 ```json
 {
   "users": {
-    "alice": {
+    "alice_profile": {
+      "preferred": "ありりん",
       "nicknames": [
         "ありちゃん",
         "ありりん"
       ],
-      "preferred": "ありりん"
+      "twitch_id": "twitch_alice",
+      "discord_id": "alice_discord"
     }
   },
   "pending_requests": [
     {
       "requester": "bob",
-      "target": "alice",
+      "target": "alice_profile",
       "nickname": "ありんこ",
       "timestamp": "2026-06-29T23:00:00Z"
     }
   ]
 }
+```
+
+#### F-34 既存テーブル拡張およびレコードマージ仕様
+- `AvatarWindow` の「ニックネーム」管理タブ内の `m_usersTable` の列を `{"管理ID", "優先呼び名", "Twitch ID", "Discord 名", "愛称リスト", "操作"}` に拡張する。
+- 配信主がテーブルの空欄セル（例: `Discord 名`）に対応するID（例: `alice_discord`）を入力した際、同じIDを持つ別レコードが自動検索される。
+- 該当する別レコードが存在する場合、2つのレコードは1つのプロファイルに自動的にマージ（統合）され、重複行が排除される。
+
 
 ### 5.14 Discord独立会話処理シーケンス
 

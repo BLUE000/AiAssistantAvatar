@@ -1719,3 +1719,25 @@ TEST(FallbackTest, On429_TriggersUIWarning) {
     }
     EXPECT_TRUE(hasWarning) << "429 発生時にUI警告（⚠️）が通知されること";
 }
+
+// UT-AI-17: [Twitch] タグ解読と大文字小文字（case-insensitive）によるニックネーム照合テスト
+TEST(NicknameTest, TagParsingAndCaseInsensitiveLookup) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // 1. 小文字の "aaaa" に優先呼び名 "AAA" を設定する
+    manager.updateNicknamePreferred("aaaa", "AAA");
+
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    // 2. [Twitch] Aaaa （コロンなし＋大文字混じり）でリクエストを送信
+    manager.on_requestAI("こんにちは", "[Twitch] Aaaa");
+
+    // イベント発火を確認
+    ASSERT_GE(spy.count(), 1);
+    
+    // manager.lastAdditionalSystemPrompt() に優先呼び名「AAA」が含まれていることを検証
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("AAA"))
+        << "[Twitch] Aaaa からタグが除去され、小文字の aaaa 辞書引きで AAAさん が適用されること";
+}
+

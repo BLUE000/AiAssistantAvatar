@@ -957,10 +957,12 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     } else if (user.startsWith("[Twitch:")) {
         int closeBracketIdx = user.indexOf(']');
-            if (closeBracketIdx != -1) {
+        if (closeBracketIdx != -1) {
             twitchChannel = user.mid(8, closeBracketIdx - 8);
             cleanUser = user.mid(closeBracketIdx + 1).trimmed();
         }
+    } else if (user.startsWith("[Twitch]")) {
+        cleanUser = user.mid(8).trimmed();
     }
     m_currentDiscordChannelId = channelId;
     m_currentTwitchChannel = twitchChannel;
@@ -1203,8 +1205,9 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         QString systemInstructions;
         QString platformName = m_currentDiscordChannelId.isEmpty() ? "Twitch" : "Discord";
         QJsonObject usersMap = m_userNamesObj.value("users").toObject();
-        if (usersMap.contains(cleanUser)) {
-            QJsonObject userData = usersMap.value(cleanUser).toObject();
+        QString cleanUserLower = cleanUser.trimmed().toLower();
+        if (usersMap.contains(cleanUserLower)) {
+            QJsonObject userData = usersMap.value(cleanUserLower).toObject();
             QString preferred = userData.value("preferred").toString().trimmed();
             QJsonArray nicknamesArray = userData.value("nicknames").toArray();
             QStringList nicknames;

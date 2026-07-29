@@ -184,6 +184,7 @@ public:
     KnowledgeImportState importState() const { return m_importState; }
     QJsonObject knowledgeMetadata() const { return m_knowledgeMetadata; }
     QString lastFinalPrompt() const { return m_lastFinalPrompt; }
+    QString lastAdditionalSystemPrompt() const { return m_lastAdditionalSystemPrompt; }
     QString avatarName() const { return m_avatarName; }
 
     RateLimitTracker& tracker() { return m_tracker; }

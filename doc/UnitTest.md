@@ -87,9 +87,14 @@ classDiagram
 | **UT-AI-14** | `OpenRouterAIClient` (モデル名補正 & エラーパース) | 空のモデル名で呼び出し、および HTTP 400 エラーレスポンスを受信する。 | 1. デフォルトモデル名 `meta-llama/llama-3.1-8b-instruct:free` が補正適用されること。<br>2. `error.message` が可読テキストとしてデコード抽出されること。 |
 | **UT-AI-15** | `AIClientManager` (疑似ファンクションタグ解析・消去) | AI応答テキストに `<function=update_nickname>{"nickname": "\u3055\u3093\u3054", "target_user": "kobanzame_igc"}</function>` が含まれる状態で受信する。 | 1. `handleNicknameUpdateRequest` が発火し、`kobanzame_igc` のニックネームに「さんご」が登録されること。<br>2. 応答テキストから該当タグが完全消去され、会話本文のみが吹き出しイベントに渡されること。 |
 | **UT-AI-16** | `AIClientManager` (会話履歴ユーザー名解読) | `[Twitch] blue002` や `buchiushi] blue002: テスト` の形式を含む対話ログを読み込む。 | `parseSenderAndMessage` により `blue002 (Twitch)` 等の送信者名と綺麗に整形されたメッセージ文が抽出され、会話履歴エントリに設定されること。 |
+| **UT-AI-17** | `AIClientManager` (送信元タグ解読・小文字照合インジェクション) | 小文字 `aaaa` に優先呼び名「AAA」を登録した状態で、`[Twitch] Aaaa` や `[Twitch:channel] Aaaa` の大文字混じり・プレフィックス付きユーザー名で `on_requestAI` を呼び出す。 | 1. プレフィックスタグが正しく除去され、アカウント名 `aaaa` として辞書引きされること。<br>2. 大文字小文字の違い（`Aaaa` ⇄ `aaaa`）が吸収され、インジェクトされるシステム指示に「AAAさん」が含まれること。 |
+| **UT-NICK-01** | `AIClientManager` (プラットフォームID手動対応付け保存) | `updateUserMapping("profile_1", "AAA", "twitch_alice", "alice_discord")` を実行する。 | 1. `user_names.json` に `twitch_id` および `discord_id` が保存されること。<br>2. `userNamesUpdated` シグナルが発火し、UIに通知されること。 |
+| **UT-NICK-02** | `AIClientManager` (重複レコード自動マージ・統合) | レコード1 (`twitch_id`: `aaaa`) と レコード2 (`discord_id`: `bbbb`) がある状態で、レコード1の `discord_id` に `bbbb` を設定する。 | 1. レコード2が自動検出され、レコード1に統合（マージ）されること。<br>2. レコード2が削除され、JSONが同期保存されること。 |
+| **UT-NICK-03** | `AIClientManager` (優先呼び名未設定時のプラットフォーム別ID呼びかけ) | `preferred` が空で `twitch_id`: `john_t`, `discord_id`: `john_d` が設定されたプロファイルで、Twitch および Discord から `on_requestAI` を呼ぶ。 | 1. Twitchからの発言時：システム指示に「`john_tさん`」が含まれること（推測カタカナ変換なし）。<br>2. Discordからの発言時：システム指示に「`john_dさん`」が含まれること（推測カタカナ変換なし）。 |
 
 
 ---
+
 
 ### 3.4 `AvatarWindow` (UIロジック) の単体試験
 
