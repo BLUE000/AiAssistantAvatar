@@ -15,6 +15,7 @@ public:
     virtual void setTavilyApiKey(const QString &tavilyKey) { Q_UNUSED(tavilyKey); }
     virtual QString clientId() const = 0;
     virtual ProviderStatus defaultStatus() const = 0;
+    virtual QString currentModelName() const { return QString(); }
 
 signals:
     // AI応答完了通知（成功フラグ・HTTPステータスコード付き）

@@ -16,4 +16,5 @@ public:
     void setApiKey(const QString &apiKey) override;
     QString clientId() const override { return QStringLiteral("dummy"); }
     ProviderStatus defaultStatus() const override;
+    QString currentModelName() const override { return QStringLiteral("dummy-model"); }
 };

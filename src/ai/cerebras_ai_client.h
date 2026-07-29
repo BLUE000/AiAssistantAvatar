@@ -31,6 +31,7 @@ public:
     void setTavilyApiKey(const QString &tavilyKey) override;
     QString clientId() const override { return QStringLiteral("cerebras"); }
     ProviderStatus defaultStatus() const override;
+    QString currentModelName() const override { return m_model; }
 
 private slots:
     void on_networkReplyFinished(QNetworkReply *reply);

@@ -548,10 +548,25 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     if (hasBackupSettings) {
         QFile::rename("local_settings.json", "local_settings.json.bak");
     }
+    bool hasBackupConfigSettings = QFile::exists("Config/local_settings.json");
+    if (hasBackupConfigSettings) {
+        QFile::rename("Config/local_settings.json", "Config/local_settings.json.bak");
+    }
+
     bool hasBackupUserNames = QFile::exists("user_names.json");
     if (hasBackupUserNames) {
         QFile::rename("user_names.json", "user_names.json.bak");
     }
+    bool hasBackupConfigUserNames = QFile::exists("Config/user_names.json");
+    if (hasBackupConfigUserNames) {
+        QFile::rename("Config/user_names.json", "Config/user_names.json.bak");
+    }
+
+    QString appConfigDir = QCoreApplication::applicationDirPath() + "/Config";
+    QString appUserNames = appConfigDir + "/user_names.json";
+    QString appSettings = appConfigDir + "/local_settings.json";
+    QFile::remove(appUserNames);
+    QFile::remove(appSettings);
 
     // テスト用の設定ファイルを作成して配信主を設定
     QJsonObject localSettings;
@@ -568,10 +583,25 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     initialUserNames["users"] = QJsonObject();
     initialUserNames["pending_requests"] = QJsonArray();
     
-    QFile userNamesFile("user_names.json");
+    QDir().mkpath("Config");
+    QDir().mkpath(appConfigDir);
+
+    QFile userNamesFile("Config/user_names.json");
     ASSERT_TRUE(userNamesFile.open(QIODevice::WriteOnly | QIODevice::Text));
     userNamesFile.write(QJsonDocument(initialUserNames).toJson());
     userNamesFile.close();
+
+    QFile appUserNamesFile(appUserNames);
+    if (appUserNamesFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        appUserNamesFile.write(QJsonDocument(initialUserNames).toJson());
+        appUserNamesFile.close();
+    }
+
+    QFile userNamesRootFile("user_names.json");
+    if (userNamesRootFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        userNamesRootFile.write(QJsonDocument(initialUserNames).toJson());
+        userNamesRootFile.close();
+    }
 
     AIClientManager manager;
     manager.on_settingsUpdated(); // 設定の読み込みを実行
@@ -673,14 +703,24 @@ TEST_F(AIClientTest, NicknameManagementTest) {
 
     // クリーンアップ
     QFile::remove("local_settings.json");
+    QFile::remove("Config/local_settings.json");
     QFile::remove("user_names.json");
+    QFile::remove("Config/user_names.json");
+    QFile::remove(appUserNames);
+    QFile::remove(appSettings);
 
     // バックアップから復元
     if (hasBackupSettings) {
         QFile::rename("local_settings.json.bak", "local_settings.json");
     }
+    if (hasBackupConfigSettings) {
+        QFile::rename("Config/local_settings.json.bak", "Config/local_settings.json");
+    }
     if (hasBackupUserNames) {
         QFile::rename("user_names.json.bak", "user_names.json");
+    }
+    if (hasBackupConfigUserNames) {
+        QFile::rename("Config/user_names.json.bak", "Config/user_names.json");
     }
 }
 

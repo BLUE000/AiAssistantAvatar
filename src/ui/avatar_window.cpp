@@ -1266,10 +1266,8 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     aiLayout->addRow("Groq モデル:", m_aiGroqModelCombo);
     aiLayout->addRow("HuggingFace 使用:", m_aiProviderHuggingFaceCheckbox);
     aiLayout->addRow("HuggingFace API キー:", m_aiHuggingFaceApiKeyEdit);
-    aiLayout->addRow("HuggingFace モデル:", m_aiHuggingFaceModelCombo);
     aiLayout->addRow("OpenRouter 使用:", m_aiProviderOpenRouterCheckbox);
     aiLayout->addRow("OpenRouter API キー:", m_aiOpenRouterApiKeyEdit);
-    aiLayout->addRow("OpenRouter モデル:", m_aiOpenRouterModelCombo);
     aiLayout->addRow("さくらAI 使用:", m_aiProviderSakuraCheckbox);
     aiLayout->addRow("さくらAI API キー:", m_aiSakuraApiKeyEdit);
     aiLayout->addRow("さくらAI モデル:", m_aiSakuraModelCombo);

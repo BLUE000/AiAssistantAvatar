@@ -109,6 +109,7 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
     messages.append(currentMessage);
 
     requestBody["messages"] = messages;
+    requestBody["max_tokens"] = 1024;
 
     QJsonDocument doc(requestBody);
     m_networkManager->post(request, doc.toJson());

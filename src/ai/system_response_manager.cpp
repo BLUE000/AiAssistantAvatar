@@ -12,7 +12,7 @@ SystemResponseManager::~SystemResponseManager()
 {
 }
 
-QString SystemResponseManager::processPrompt(const QString &prompt, const QString &currentProvider, const QString &avatarName) {
+QString SystemResponseManager::processPrompt(const QString &prompt, const QString &currentProvider, const QString &avatarName, const QString &currentModel) {
     QString trimmed = prompt.trimmed();
     if (trimmed.isEmpty()) return "";
 
@@ -107,12 +107,19 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
             bool hasOtherAI = (lowerTrimmed.contains("chatgpt") || lowerTrimmed.contains("openai") || lowerTrimmed.contains("gemini") || lowerTrimmed.contains("claude"));
             if (!hasOtherAI) {
                 QString friendlyName = currentProvider;
-                if (currentProvider == "mistral") friendlyName = "Mistral AI";
+                if (currentProvider == "huggingface") friendlyName = "Hugging Face";
+                else if (currentProvider == "openrouter") friendlyName = "OpenRouter";
+                else if (currentProvider == "sakura") friendlyName = "さくらAI";
+                else if (currentProvider == "mistral") friendlyName = "Mistral AI";
                 else if (currentProvider == "groq") friendlyName = "Groq";
                 else if (currentProvider == "cerebras") friendlyName = "Cerebras";
                 else if (currentProvider == "dummy") friendlyName = "ダミーAIクライアント";
                 else if (!friendlyName.isEmpty()) {
                     friendlyName[0] = friendlyName[0].toUpper(); // 先頭大文字化
+                }
+
+                if (!currentModel.isEmpty()) {
+                    return QString("現在稼働しているAIは %1 (モデル: %2) です。").arg(friendlyName, currentModel);
                 }
                 return QString("現在稼働しているAIは %1 です。").arg(friendlyName);
             }

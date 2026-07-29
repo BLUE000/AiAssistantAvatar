@@ -1105,7 +1105,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     }
 
     // システム固定応答モジュールによる判定
-    QString staticResponse = m_systemResponseManager->processPrompt(trimmedPrompt, m_provider, m_avatarName);
+    QString activeModel = m_currentClient ? m_currentClient->currentModelName() : QString();
+    QString staticResponse = m_systemResponseManager->processPrompt(trimmedPrompt, m_provider, m_avatarName, activeModel);
     if (!staticResponse.isEmpty()) {
         AppEvent responseEvent;
         responseEvent.source = "AIClientManager";

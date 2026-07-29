@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "iai_client.h"
 #include "provider_status.h"
 #include <QNetworkAccessManager>
@@ -35,6 +35,7 @@ public:
     void setTavilyApiKey(const QString &tavilyKey) override;
     QString clientId() const override { return QStringLiteral("groq"); }
     ProviderStatus defaultStatus() const override;
+    QString currentModelName() const override { return m_model; }
 
 private slots:
     void on_networkReplyFinished(QNetworkReply *reply);

@@ -107,6 +107,8 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
     messages.append(currentMessage);
 
     requestBody["messages"] = messages;
+    requestBody["max_tokens"] = 1024;
+    requestBody["stream"] = false;
 
     QJsonDocument doc(requestBody);
     m_networkManager->post(request, doc.toJson());
@@ -121,24 +123,40 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         QByteArray errBody = reply->readAll();
         qWarning() << "HuggingFace API Request Failed. Code:" << httpCode << "Error:" << errStr << "Body:" << errBody;
 
-        QString detailedErr = errStr;
+        QString detailedErr;
         if (!errBody.isEmpty()) {
             QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
             if (errDoc.isObject()) {
                 QJsonObject errObj = errDoc.object();
-                if (errObj.contains("error")) {
+                if (errObj.contains("detail")) {
+                    QJsonValue detVal = errObj["detail"];
+                    if (detVal.isString()) {
+                        detailedErr = detVal.toString();
+                    } else if (detVal.isArray()) {
+                        QJsonArray detArr = detVal.toArray();
+                        if (!detArr.isEmpty() && detArr.first().isObject()) {
+                            detailedErr = detArr.first().toObject().value("msg").toString();
+                        }
+                    }
+                }
+                if (detailedErr.isEmpty() && errObj.contains("error")) {
                     QJsonValue errVal = errObj["error"];
                     if (errVal.isObject() && errVal.toObject().contains("message")) {
                         detailedErr = errVal.toObject()["message"].toString();
                     } else if (errVal.isString()) {
                         detailedErr = errVal.toString();
                     }
-                } else if (errObj.contains("message")) {
+                }
+                if (detailedErr.isEmpty() && errObj.contains("message")) {
                     detailedErr = errObj["message"].toString();
                 }
             } else {
                 detailedErr = QString::fromUtf8(errBody).trimmed();
             }
+        }
+
+        if (detailedErr.isEmpty()) {
+            detailedErr = errStr;
         }
 
         emit requestFinished(QString("HuggingFace API エラー (%1): %2").arg(httpCode).arg(detailedErr), false, httpCode);
