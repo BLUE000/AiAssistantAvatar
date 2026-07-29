@@ -103,8 +103,7 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
     QString adjustedInstruction = systemInstruction;
     QString searchToolInstruction = "また、ユーザーから天気、為替レート、最新ニュース、リアルタイム情報、またはあなたが最新の正確な知識を持っていない事柄について質問された場合は、自身の過去の知識で回答しようとせず、必ず『web_search』ツールを呼び出して最新情報を検索してください。";
     if (adjustedInstruction.contains(searchToolInstruction)) {
-        adjustedInstruction.replace(searchToolInstruction,
-            "また、ユーザーから天気、為替レート、最新ニュース、リアルタイム情報について質問された際、プロンプト内に【最新Web検索結果（情報源）】が与えられている場合は、その情報を参照して親切に回答してください。");
+        adjustedInstruction.replace(searchToolInstruction, "");
     }
 
     if (!adjustedInstruction.isEmpty()) {
@@ -215,7 +214,7 @@ void SakuraAIClient::on_searchFinished(const QString &resultText, bool success) 
 
     QString searchContext;
     if (success && !resultText.isEmpty()) {
-        searchContext = QString("【最新Web検索結果（情報源）】\n%1\n※上記の情報に基づいて回答してください。").arg(resultText);
+        searchContext = QString("【以下のデータに基づいて回答してください】\n%1").arg(resultText);
     }
 
     sendRealSakuraRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction, searchContext);
