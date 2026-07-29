@@ -367,6 +367,7 @@ signals:
     void rejectNicknameRequested(const QString &requester, const QString &target, const QString &nickname);
     void deleteNicknameRequested(const QString &user);
     void updateNicknamePreferredRequested(const QString &user, const QString &preferred);
+    void updateUserMappingRequested(const QString &profileId, const QString &preferred, const QString &twitchId, const QString &discordId);
 
 public slots:
     // コアから通知を受け取るスロット

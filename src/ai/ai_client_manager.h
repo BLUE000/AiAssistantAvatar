@@ -228,6 +228,9 @@ public slots:
     void rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
     void deleteNickname(const QString &user);
     void updateNicknamePreferred(const QString &user, const QString &preferred);
+    void updateUserMapping(const QString &profileId, const QString &preferred, const QString &twitchId, const QString &discordId, const QStringList &nicknames = {});
+    void mergeUserProfiles(const QString &targetProfileId, const QString &sourceProfileId);
+    QJsonObject findUserProfile(const QString &userLower, QString *outProfileKey = nullptr) const;
 
     // ナレッジ管理スロット
     void deleteKnowledge(const QString &id);

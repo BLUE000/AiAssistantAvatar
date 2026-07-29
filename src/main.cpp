@@ -217,6 +217,10 @@ int main(int argc, char *argv[]) {
                      ai, &AIClientManager::deleteNickname, Qt::QueuedConnection);
     QObject::connect(&window, &AvatarWindow::updateNicknamePreferredRequested,
                      ai, &AIClientManager::updateNicknamePreferred, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::updateUserMappingRequested,
+                     ai, [ai](const QString &pId, const QString &pref, const QString &tId, const QString &dId){
+                         ai->updateUserMapping(pId, pref, tId, dId);
+                     }, Qt::QueuedConnection);
 
     // UI -> Core (ナレッジ管理要求)
     QObject::connect(&window, &AvatarWindow::deleteKnowledgeRequested,

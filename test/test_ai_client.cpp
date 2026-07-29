@@ -1741,3 +1741,58 @@ TEST(NicknameTest, TagParsingAndCaseInsensitiveLookup) {
         << "[Twitch] Aaaa からタグが除去され、小文字の aaaa 辞書引きで AAAさん が適用されること";
 }
 
+// UT-NICK-01: プラットフォームID手動対応付け保存とJSON永続化テスト
+TEST(UserMappingTest, UpdateUserMappingAndSave) {
+    AIClientManager manager;
+    manager.updateUserMapping("profile_1", "AAA", "twitch_alice", "alice_discord");
+
+    QJsonObject obj = manager.findUserProfile("twitch_alice");
+    EXPECT_FALSE(obj.isEmpty());
+    EXPECT_EQ(obj.value("preferred").toString(), "AAA");
+    EXPECT_EQ(obj.value("twitch_id").toString(), "twitch_alice");
+    EXPECT_EQ(obj.value("discord_id").toString(), "alice_discord");
+
+    QJsonObject objDisc = manager.findUserProfile("alice_discord");
+    EXPECT_FALSE(objDisc.isEmpty());
+    EXPECT_EQ(objDisc.value("preferred").toString(), "AAA");
+}
+
+// UT-NICK-02: 重複レコードの自動マージ（統合）テスト
+TEST(UserMappingTest, AutoMergeDuplicateRecords) {
+    AIClientManager manager;
+
+    // レコード1 (twitch_id: aaaa) と レコード2 (discord_id: bbbb) を作成
+    manager.updateUserMapping("rec1", "ありちゃん", "aaaa", "");
+    manager.updateUserMapping("rec2", "", "", "bbbb");
+
+    // レコード1の discord_id に bbbb を設定 ➜ レコード2が自動マージされる
+    manager.updateUserMapping("rec1", "ありちゃん", "aaaa", "bbbb");
+
+    QJsonObject usersMap = manager.userNamesObj().value("users").toObject();
+    EXPECT_TRUE(usersMap.contains("rec1"));
+    EXPECT_FALSE(usersMap.contains("rec2")); // マージされて消去
+
+    QJsonObject merged = usersMap.value("rec1").toObject();
+    EXPECT_EQ(merged.value("preferred").toString(), "ありちゃん");
+    EXPECT_EQ(merged.value("twitch_id").toString(), "aaaa");
+    EXPECT_EQ(merged.value("discord_id").toString(), "bbbb");
+}
+
+// UT-NICK-03: 優先呼び名未設定時のプラットフォーム別IDそのまま呼びかけテスト
+TEST(UserMappingTest, PlatformSpecificIDCallWithoutPreferred) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // 優先呼び名空欄で ID を手動紐づけ
+    manager.updateUserMapping("john_profile", "", "john_t", "john_d");
+
+    // 1. Twitch から発言 ➜ john_tさん (推測カタカナ変換なし)
+    manager.on_requestAI("こんにちは", "[Twitch] john_t");
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_tさん"));
+
+    // 2. Discord から発言 ➜ john_dさん (推測カタカナ変換なし)
+    manager.on_requestAI("こんにちは", "[Discord:12345] john_d");
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_dさん"));
+}
+
+

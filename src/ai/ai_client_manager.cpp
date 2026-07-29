@@ -1206,8 +1206,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         QString platformName = m_currentDiscordChannelId.isEmpty() ? "Twitch" : "Discord";
         QJsonObject usersMap = m_userNamesObj.value("users").toObject();
         QString cleanUserLower = cleanUser.trimmed().toLower();
-        if (usersMap.contains(cleanUserLower)) {
-            QJsonObject userData = usersMap.value(cleanUserLower).toObject();
+        QJsonObject userData = findUserProfile(cleanUserLower);
+        if (!userData.isEmpty()) {
             QString preferred = userData.value("preferred").toString().trimmed();
             QJsonArray nicknamesArray = userData.value("nicknames").toArray();
             QStringList nicknames;
@@ -1229,15 +1229,15 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
                     "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。愛称（呼び名）の候補は「%3」です。回答の冒頭で、これらの愛称候補からいずれか1つをランダムに選んで『〇〇さん、』や『〇〇ちゃん、』などと呼びかけて回答してください。また、もし今回のコメント内で「〇〇と呼んで」のような呼び方の指定・変更指示、あるいは「〇〇です」といった自己紹介があった場合は、その指示した呼び方を最優先で使用し、今後の回答でもその呼び方を使用してください。]"
                 ).arg(platformName).arg(cleanUser).arg(nicknamesStr);
             } else {
-                // 登録はあるが愛称リストも優先呼び名も空の場合
+                // 登録はあるが愛称リストも優先呼び名も空の場合 (アカウント名そのまま)
                 systemInstructions = QString(
                     "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。冒頭で『%2さん、』と呼びかけて回答してください。もし今回のコメントで別の呼び方の指示や「〇〇です」などの自己紹介があれば、その指示した呼び方を使用してください。]"
                 ).arg(platformName).arg(cleanUser);
             }
         } else {
-            // 新規ユーザー（JSONに未登録）の場合
+            // 未登録ユーザーの場合：推測変換を行わずアカウント名そのまま＋さん
             systemInstructions = QString(
-                "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。アカウント名（英語等）から、自然な日本語の読み方（カタカナなど）や愛称をあなたが推測し、冒頭で『〇〇さん、』などと呼びかけて回答してください。もし今回のコメント内で「〇〇と呼んで」などの呼び方の指定・変更指示、または「〇〇です」といった自己紹介があった場合は、その指示した呼び方を使用してください。]"
+                "[システム指示: このコメントの投稿者の%1アカウント名は「%2」です。冒頭で『%2さん、』と呼びかけて回答してください。もし今回のコメント内で「〇〇と呼んで」などの呼び方の指定・変更指示、または「〇〇です」といった自己紹介があった場合は、その指示した呼び方を使用してください。]"
             ).arg(platformName).arg(cleanUser);
         }
 
@@ -2209,6 +2209,117 @@ void AIClientManager::updateNicknamePreferred(const QString &user, const QString
     usersMap[userLower] = userData;
     m_userNamesObj["users"] = usersMap;
     
+    saveUserNames();
+}
+
+QJsonObject AIClientManager::findUserProfile(const QString &userLower, QString *outProfileKey) const {
+    QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+    if (userLower.isEmpty()) return QJsonObject();
+
+    if (usersMap.contains(userLower)) {
+        if (outProfileKey) *outProfileKey = userLower;
+        return usersMap.value(userLower).toObject();
+    }
+
+    for (auto it = usersMap.begin(); it != usersMap.end(); ++it) {
+        QJsonObject obj = it.value().toObject();
+        QString tid = obj.value("twitch_id").toString().trimmed().toLower();
+        QString did = obj.value("discord_id").toString().trimmed().toLower();
+        if ((!tid.isEmpty() && tid == userLower) || (!did.isEmpty() && did == userLower)) {
+            if (outProfileKey) *outProfileKey = it.key();
+            return obj;
+        }
+    }
+
+    if (outProfileKey) *outProfileKey = QString();
+    return QJsonObject();
+}
+
+void AIClientManager::updateUserMapping(const QString &profileId, const QString &preferred, const QString &twitchId, const QString &discordId, const QStringList &nicknames) {
+    QString pKey = profileId.trimmed().toLower();
+    if (pKey.isEmpty()) return;
+
+    QString tId = twitchId.trimmed().toLower();
+    QString dId = discordId.trimmed().toLower();
+    QString pref = preferred.trimmed();
+
+    QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+    QJsonObject userData = usersMap.value(pKey).toObject();
+
+    userData["preferred"] = pref;
+    if (!tId.isEmpty()) userData["twitch_id"] = tId;
+    if (!dId.isEmpty()) userData["discord_id"] = dId;
+
+    if (!nicknames.isEmpty()) {
+        QJsonArray arr;
+        for (const QString &n : nicknames) {
+            if (!n.trimmed().isEmpty()) arr.append(n.trimmed());
+        }
+        userData["nicknames"] = arr;
+    }
+
+    usersMap[pKey] = userData;
+    m_userNamesObj["users"] = usersMap;
+
+    // 重複レコードの自動検出 & マージ
+    QString duplicateKey;
+    if (!tId.isEmpty() || !dId.isEmpty()) {
+        for (auto it = usersMap.begin(); it != usersMap.end(); ++it) {
+            if (it.key() == pKey) continue;
+            QJsonObject other = it.value().toObject();
+            QString oTid = other.value("twitch_id").toString().trimmed().toLower();
+            QString oDid = other.value("discord_id").toString().trimmed().toLower();
+            if ((!tId.isEmpty() && (it.key() == tId || oTid == tId)) ||
+                (!dId.isEmpty() && (it.key() == dId || oDid == dId))) {
+                duplicateKey = it.key();
+                break;
+            }
+        }
+    }
+
+    if (!duplicateKey.isEmpty()) {
+        mergeUserProfiles(pKey, duplicateKey);
+    } else {
+        saveUserNames();
+    }
+}
+
+void AIClientManager::mergeUserProfiles(const QString &targetProfileId, const QString &sourceProfileId) {
+    QString targetKey = targetProfileId.trimmed().toLower();
+    QString sourceKey = sourceProfileId.trimmed().toLower();
+    if (targetKey.isEmpty() || sourceKey.isEmpty() || targetKey == sourceKey) return;
+
+    QJsonObject usersMap = m_userNamesObj.value("users").toObject();
+    if (!usersMap.contains(targetKey) || !usersMap.contains(sourceKey)) return;
+
+    QJsonObject targetData = usersMap.value(targetKey).toObject();
+    QJsonObject sourceData = usersMap.value(sourceKey).toObject();
+
+    if (targetData.value("preferred").toString().trimmed().isEmpty()) {
+        targetData["preferred"] = sourceData.value("preferred").toString().trimmed();
+    }
+    if (targetData.value("twitch_id").toString().trimmed().isEmpty()) {
+        targetData["twitch_id"] = sourceData.value("twitch_id").toString().trimmed();
+    }
+    if (targetData.value("discord_id").toString().trimmed().isEmpty()) {
+        targetData["discord_id"] = sourceData.value("discord_id").toString().trimmed();
+    }
+
+    QJsonArray tArr = targetData.value("nicknames").toArray();
+    QJsonArray sArr = sourceData.value("nicknames").toArray();
+    QSet<QString> nSet;
+    for (const QJsonValue &v : tArr) nSet.insert(v.toString().trimmed());
+    for (const QJsonValue &v : sArr) nSet.insert(v.toString().trimmed());
+    QJsonArray newArr;
+    for (const QString &n : nSet) {
+        if (!n.isEmpty()) newArr.append(n);
+    }
+    targetData["nicknames"] = newArr;
+
+    usersMap[targetKey] = targetData;
+    usersMap.remove(sourceKey);
+
+    m_userNamesObj["users"] = usersMap;
     saveUserNames();
 }
 

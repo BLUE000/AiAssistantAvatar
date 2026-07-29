@@ -2123,11 +2123,11 @@ void AvatarWindow::initNicknameTab(QWidget *parent) {
     usersLayout->setSpacing(6);
 
     m_usersTable = new QTableWidget(usersGroup);
-    m_usersTable->setColumnCount(4);
-    m_usersTable->setHorizontalHeaderLabels({"ユーザーID", "優先呼び名", "愛称リスト", "操作"});
+    m_usersTable->setColumnCount(6);
+    m_usersTable->setHorizontalHeaderLabels({"管理ID", "優先呼び名", "Twitch ID", "Discord 名", "愛称リスト", "操作"});
     m_usersTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    m_usersTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
-    m_usersTable->setColumnWidth(3, 80);
+    m_usersTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
+    m_usersTable->setColumnWidth(5, 80);
     m_usersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     
     // テーブルセル編集時の接続
@@ -2186,31 +2186,39 @@ void AvatarWindow::updateNicknameTables() {
         QString user = sortedUsers[i];
         QJsonObject userData = usersMap.value(user).toObject();
         QString preferred = userData.value("preferred").toString();
+        QString twitchId = userData.value("twitch_id").toString();
+        QString discordId = userData.value("discord_id").toString();
+
         QJsonArray nicknamesArray = userData.value("nicknames").toArray();
         QStringList nicknames;
         for (const QJsonValue &val : nicknamesArray) {
             nicknames.append(val.toString());
         }
 
-        // ユーザーID (編集不可)
+        // 0: 管理ID (編集不可)
         QTableWidgetItem *itemUser = new QTableWidgetItem(user);
         itemUser->setFlags(itemUser->flags() & ~Qt::ItemIsEditable);
         m_usersTable->setItem(i, 0, itemUser);
 
-        // 優先呼び名 (編集可能)
-        QTableWidgetItem *itemPref = new QTableWidgetItem(preferred);
-        m_usersTable->setItem(i, 1, itemPref);
+        // 1: 優先呼び名 (編集可能)
+        m_usersTable->setItem(i, 1, new QTableWidgetItem(preferred));
 
-        // 愛称リスト (編集不可)
+        // 2: Twitch ID (編集可能)
+        m_usersTable->setItem(i, 2, new QTableWidgetItem(twitchId));
+
+        // 3: Discord 名 (編集可能)
+        m_usersTable->setItem(i, 3, new QTableWidgetItem(discordId));
+
+        // 4: 愛称リスト (編集不可)
         QTableWidgetItem *itemNicks = new QTableWidgetItem(nicknames.join(", "));
         itemNicks->setFlags(itemNicks->flags() & ~Qt::ItemIsEditable);
-        m_usersTable->setItem(i, 2, itemNicks);
+        m_usersTable->setItem(i, 4, itemNicks);
 
-        // 削除ボタン
+        // 5: 削除ボタン
         QPushButton *btnDelete = new QPushButton("削除");
         btnDelete->setProperty("username", user);
         connect(btnDelete, &QPushButton::clicked, this, &AvatarWindow::onDeleteUserClicked);
-        m_usersTable->setCellWidget(i, 3, btnDelete);
+        m_usersTable->setCellWidget(i, 5, btnDelete);
     }
 
     // cellChanged を再接続
@@ -2314,17 +2322,21 @@ void AvatarWindow::onAddUserClicked() {
 }
 
 void AvatarWindow::onUserTableCellChanged(int row, int column) {
-    if (column != 1 || !m_usersTable) return;
+    if (!m_usersTable || column < 1 || column > 3) return;
 
-    QTableWidgetItem *itemUser = m_usersTable->item(row, 0);
-    QTableWidgetItem *itemPref = m_usersTable->item(row, 1);
-    if (!itemUser || !itemPref) return;
+    QTableWidgetItem *itemProfile = m_usersTable->item(row, 0);
+    QTableWidgetItem *itemPref    = m_usersTable->item(row, 1);
+    QTableWidgetItem *itemTwitch  = m_usersTable->item(row, 2);
+    QTableWidgetItem *itemDiscord = m_usersTable->item(row, 3);
+    if (!itemProfile || !itemPref || !itemTwitch || !itemDiscord) return;
 
-    QString user = itemUser->text();
+    QString profileId = itemProfile->text().trimmed();
     QString preferred = itemPref->text().trimmed();
+    QString twitchId  = itemTwitch->text().trimmed();
+    QString discordId = itemDiscord->text().trimmed();
 
-    emit updateNicknamePreferredRequested(user, preferred);
-    statusBar()->showMessage(QString("%1 さんの優先呼び名を「%2」に更新しました。").arg(user).arg(preferred));
+    emit updateUserMappingRequested(profileId, preferred, twitchId, discordId);
+    statusBar()->showMessage(QString("ユーザー「%1」の対応付け設定を更新しました。").arg(profileId));
 }
 
 void AvatarWindow::initKnowledgeTab(QWidget *parent) {
