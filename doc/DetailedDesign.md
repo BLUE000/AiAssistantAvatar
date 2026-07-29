@@ -488,11 +488,12 @@ TaskFlow(予定管理システム) 連携設定を独立化し、Twitch チャ�
 
 - **`HuggingFaceAIClient`**:
   - デフォルトエンドポイント: `https://router.huggingface.co/v1/chat/completions`
-  - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
+  - 動的モデル取得: `GET https://router.huggingface.co/v1/models` を呼び出し、アカウントで現在アクセス可能な対話用 `Instruct/Chat` モデルを全自動抽出し動的に適用。
+  - リクエスト補正: `max_tokens: 1024`, `stream: false` を送信 JSON に明示付与。
   - 認証ヘッダー: `Authorization: Bearer <huggingface_api_key>`
 - **`OpenRouterAIClient`**:
   - デフォルトエンドポイント: `https://openrouter.ai/api/v1/chat/completions`
-  - デフォルトモデル: `google/gemma-4-31b-it:free`
+  - 動的モデル取得: `GET https://openrouter.ai/api/v1/models` を呼び出し、現在利用可能な `:free` 無料枠または最良オープンモデルを全自動抽出し動的に適用。
   - 認証ヘッダー: `Authorization: Bearer <openrouter_api_key>`, `HTTP-Referer: https://github.com/BLUE000/AiAssistantAvatar`
 - **`SakuraAIClient`**:
   - デフォルトエンドポイント: `https://api.sakura.io/v1/chat/completions`

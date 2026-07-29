@@ -418,20 +418,24 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
   - 3 プロバイダともに OpenAI 互換の Chat Completions API 規格（`https://.../v1/chat/completions`）に準拠した通信方式を採用する。
   - **HuggingFace (`huggingface`)**:
     - エンドポイント: `https://router.huggingface.co/v1/chat/completions`
-    - デフォルトモデル: `meta-llama/Llama-3.1-8B-Instruct`
+    - 動的モデル取得: `/v1/models` エンドポイントを呼び出し、ユーザーアカウントで即座に利用可能な `Instruct/Chat` 対応オープンモデルを全自動抽出し動的に適用する。
   - **OpenRouter (`openrouter`)**:
     - エンドポイント: `https://openrouter.ai/api/v1/chat/completions`
-    - デフォルトモデル: `google/gemma-4-31b-it:free`
+    - 動的モデル取得: `/v1/models` エンドポイントを呼び出し、現在利用可能な `:free` 無料枠モデルまたは最適なオープンモデルを全自動抽出し動的に適用する。
   - **さくらAI (`sakura`)**:
     - エンドポイント: `https://api.sakura.io/v1/chat/completions` (または可変指定URL)
     - デフォルトモデル: `sakura-llm`
 - **UI 設定および保存仕様**:
   - 設定画面（`AvatarWindow`）の「AIプロバイダー選択」に各プロバイダを選択できるチェックボックスを追加する（排他制御）。
-  - 各プロバイダごとに個別 API Key 入力欄および Model 名入力欄を配置し、`local_settings.json`（`huggingface_api_key`, `openrouter_api_key`, `sakura_api_key`, `huggingface_model`, `openrouter_model`, `sakura_model`）へ双方向に永続保存・漏れなく再読み込み可能とする（設定保存とロード処理の完全整合性を担保）。
+  - 各プロバイダごとに個別 API Key 入力欄および Model 名入力欄を配置し（HuggingFace/OpenRouter等では全自動選択を標準とし手動入力も可）、`Config/local_settings.json` へ双方向に永続保存・再読み込み可能とする。
 
 ### F-33: AI プロバイダ一時エラー時のフォールバック継続動作と自然言語エラー通知
 
-#### F-33-1: 可用性保証フォールバック
+#### F-33-1: 可用性保証フォールバックおよびエラー診断強化
+- **モデル非サポート・アクセス制限（400/404）時の全自動リトライ＆動的補正**:
+  - 指定されたモデルが廃止やアクセス権限制限（Gated models）でエラー（HTTP 400 Bad Request / 404 Not Found）になった場合、全自動で `/v1/models` から稼働中の最適モデルを取得して再送信する。
+  - リクエスト送信時に `max_tokens: 1024` や `stream: false` などの安全な標準パラメータを明示付与し、バリデーションエラーを防止する。
+  - サーバーから返された生のエラー構造（`detail`, `error`, `message` 等）から詳細なエラー理由を抽出して画面・ログに表示し、ユーザーが原因を一目で把握できるように改善する。
 - Discord・Twitch 等の外部入力チャンネルはストリーマー以外の不特定多数が利用するため、AI プロバイダ側の一時的な障害でボットが無応答になることを防ぐ。
 - 選択プロバイダから HTTP `429`（レート制限）または `503`（一時不可）が返された場合、元のプロンプトを保持し、API キーが設定済みの別プロバイダへ自動的に再送する。
 - フォールバック先の優先順位: API キー設定済みの他プロバイダを登録順に試行する。全プロバイダが失敗した場合にのみ最終エラーとして処理を終了する。
