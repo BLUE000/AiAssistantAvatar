@@ -52,6 +52,7 @@
   - **設定タブ**: `local_settings.json` の設定値（WebSocketポート、Twitchチャンネル、ウェイクワード、ウェイクワードモード）をGUIから編集・適用可能とする（※TwitchクライアントIDおよびOAuth用ポートは設定ファイルにのみ保持しGUIからは入力不可とする）。また、Twitch/Discordの接続時挨拶の有効/無効を個別のチェックボックスで編集・保存可能とする。
   - **AI設定タブ**: AIに関する設定値（AIプロバイダ（Mistral AI / Cerebras AI を選択する排他チェックボックス）、各APIキー（Mistral / Cerebras）、Cerebras モデル選択（プルダウン）、Tavily APIキー）をGUIから編集・適用可能とする。
   - **セキュリティ保護**: 秘密情報である「Mistral APIキー」、「Cerebras APIキー」、および「Tavily APIキー」の入力欄は、パスワード入力モード（文字を隠すマスク表示）とする（※TwitchクライアントIDはUI上から削除され設定ファイルでのみ管理される）。
+  - **設定ファイル群の保存場所 (`Config/` フォルダ)**: `local_settings.json` や `user_names.json`、モデレーション用単語ファイル（`blacklist.txt`, `whitelist.txt`）は、実行ファイルと同階層の `Config/` フォルダ配下（`Config/local_settings.json` 等）に一元保存・管理する（起動時・保存時にフォルダおよびファイルを動的参照/生成する）。
   - **Twitch OAuth 再認可ボタン**: 設定タブ内にボタンを配置し、押下時に既存トークンを破棄してブラウザでTwitch認証画面を開き、自動認証フローを即時再実行する。
 - **右クリックメニューからは、不要となった「バリアント切り替え」、「アニメーション」に加えて、重複となる「直接テキスト入力」および「音声入力開始(STT)」を削除し、メニューのシンプル化を図る。**
 

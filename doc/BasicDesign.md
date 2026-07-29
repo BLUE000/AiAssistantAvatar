@@ -770,9 +770,9 @@ sequenceDiagram
     AI->>UI: userNamesUpdated(data) シグナルでUIテーブル更新
 ```
 
-### 5.13 ニックネーム・プラットフォームID対応付け管理データ構造 (`user_names.json`)
+### 5.13 ニックネーム・プラットフォームID対応付け管理データ構造 (`Config/user_names.json`)
 
-ニックネームの愛称リスト、プラットフォームID対応付け（`twitch_id`, `discord_id`）、および保留中のリクエストは、以下のスキーマの JSON 形式で永続化する。
+ニックネームの愛称リスト、プラットフォームID対応付け（`twitch_id`, `discord_id`）、および保留中のリクエストは、実行ファイルと同階層の `Config/` フォルダ配下（`Config/user_names.json`）の JSON 形式で一元永続化・管理する。
 
 ```json
 {

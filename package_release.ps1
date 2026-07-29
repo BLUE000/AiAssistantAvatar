@@ -33,8 +33,10 @@ foreach ($dll in $mingwDlls) {
 }
 
 # 4. アセット・テキスト設定ファイルのコピー
-Copy-Item "blacklist.txt" -Destination "$releaseDir/" -Force
-Copy-Item "whitelist.txt" -Destination "$releaseDir/" -Force
+$configReleaseDir = "$releaseDir/Config"
+New-Item -ItemType Directory -Force -Path $configReleaseDir | Out-Null
+if (Test-Path "blacklist.txt") { Copy-Item "blacklist.txt" -Destination "$configReleaseDir/" -Force }
+if (Test-Path "whitelist.txt") { Copy-Item "whitelist.txt" -Destination "$configReleaseDir/" -Force }
 Copy-Item "README.md" -Destination "$releaseDir/" -Force
 if (Test-Path "pic") {
     Copy-Item -Recurse -Force "pic" -Destination "$releaseDir/"

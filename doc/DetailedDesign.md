@@ -1311,7 +1311,7 @@ OBSブラウザソース接続時等に、現在の最新状態を同期する�
 不適切な入力がAIに渡されるのを防ぎ、またAIの不適切な応答（すり抜けによる応答や自発的な応答）がアバターを通じて出力されるのを防ぐため、`AIClientManager` は以下の処理フローを実行する。
 
 1. **ブラックリスト・ホワイトリストのロード (`loadBlacklist`, `loadWhitelist`)**
-   - 設定ファイル等から `blacklist_enabled` が `true` の場合、指定のディレクトリ優先順位から `blacklist.txt` および `whitelist.txt` を読み込む。
+   - 設定ファイル等から `blacklist_enabled` が `true` の場合、実行ファイルと同階層の `Config/` フォルダ配下（`Config/blacklist.txt`, `Config/whitelist.txt`）を最優先とするディレクトリ優先順位から読み込む。
    - それぞれUTF-8でデコードし、1行につき1つの単語またはフレーズとして `m_blacklist` (QStringList) および `m_whitelist` (QStringList) に登録する。空行や `#` で始まるコメント行は除外する。
 
 2. **マスクの適用 (`applyMask`)**

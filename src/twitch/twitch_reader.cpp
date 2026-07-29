@@ -38,8 +38,17 @@ void TwitchReader::setSettings(const QString &channel, const QString &token, con
 void TwitchReader::loadSettings() {
     QString actualPath = m_configPath;
     if (actualPath.isEmpty()) {
-        actualPath = "local_settings.json";
+        actualPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+        if (!QFile::exists(actualPath)) {
+            actualPath = "Config/local_settings.json";
+        }
+        if (!QFile::exists(actualPath)) {
+            actualPath = "local_settings.json";
+        }
 #ifdef PROJECT_SOURCE_DIR
+        if (!QFile::exists(actualPath)) {
+            actualPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
+        }
         if (!QFile::exists(actualPath)) {
             actualPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
         }

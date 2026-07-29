@@ -29,8 +29,17 @@ DiscordReader::~DiscordReader() {
 void DiscordReader::loadSettings() {
     QString configPath = m_configPath;
     if (configPath.isEmpty()) {
-        configPath = "local_settings.json";
+        configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+        if (!QFile::exists(configPath)) {
+            configPath = "Config/local_settings.json";
+        }
+        if (!QFile::exists(configPath)) {
+            configPath = "local_settings.json";
+        }
 #ifdef PROJECT_SOURCE_DIR
+        if (!QFile::exists(configPath)) {
+            configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
+        }
         if (!QFile::exists(configPath)) {
             configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
         }

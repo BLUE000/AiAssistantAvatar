@@ -1438,11 +1438,20 @@ void AvatarWindow::initShoutoutTab(QWidget *parent) {
 }
 
 void AvatarWindow::loadSettingsToUI() {
-    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+    if (!QFile::exists(configPath)) {
+        configPath = "Config/local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
     if (!QFile::exists(configPath)) {
         configPath = "local_settings.json";
     }
 #ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
+    }
     if (!QFile::exists(configPath)) {
         configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
     }
@@ -1637,21 +1646,27 @@ void AvatarWindow::loadSettingsToUI() {
 }
 
 void AvatarWindow::saveSettingsFromUI() {
-    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    if (!QFile::exists(configPath)) {
+    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+    if (!QFile::exists(configPath) && QFile::exists("Config/local_settings.json")) {
+        configPath = "Config/local_settings.json";
+    }
+    if (!QFile::exists(configPath) && QFile::exists("local_settings.json")) {
         configPath = "local_settings.json";
     }
 #ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) {
+    if (!QFile::exists(configPath) && QFile::exists(QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json")) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
+    }
+    if (!QFile::exists(configPath) && QFile::exists(QString(PROJECT_SOURCE_DIR) + "/local_settings.json")) {
         configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
     }
 #endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    if (!QFile::exists(configPath) && QFile::exists(QCoreApplication::applicationDirPath() + "/local_settings.json")) {
+        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
     }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-    }
+
+    QFileInfo fileInfo(configPath);
+    QDir().mkpath(fileInfo.absolutePath());
 
     QJsonObject obj;
     QFile file(configPath);
@@ -1880,8 +1895,17 @@ void AvatarWindow::onTwitchReauthClicked() {
 // OBS WebSocket サーバーの制御
 void AvatarWindow::startWebSocketServer() {
     int port = ConfigDefaults::WEBSOCKET_PORT;
-    QString configPath = "local_settings.json";
+    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+    if (!QFile::exists(configPath)) {
+        configPath = "Config/local_settings.json";
+    }
+    if (!QFile::exists(configPath)) {
+        configPath = "local_settings.json";
+    }
 #ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) {
+        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
+    }
     if (!QFile::exists(configPath)) {
         configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
     }
@@ -2490,9 +2514,12 @@ void AvatarWindow::onLimitProviderChanged(int index) {
     m_limitRemainingLabel->setText("残り制限: --- / ---");
 
     // 既存設定ファイルから上限値をロードしてUIに仮表示
-    QString configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+    if (!QFile::exists(configPath)) configPath = "Config/local_settings.json";
+    if (!QFile::exists(configPath)) configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
     if (!QFile::exists(configPath)) configPath = "local_settings.json";
 #ifdef PROJECT_SOURCE_DIR
+    if (!QFile::exists(configPath)) configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
     if (!QFile::exists(configPath)) configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
 #endif
     if (!QFile::exists(configPath)) configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
