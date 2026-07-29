@@ -15,12 +15,18 @@ private:
     QString m_model;           // デフォルト: "sakura-llm"
     SearchManager *m_searchManager;
 
-    // Function Calling 状態管理用
+    // 事前検索 (RAG 方式) 用状態管理
     QString m_pendingPrompt;
-    QJsonArray m_pendingMessages;
-    QString m_activeToolCallId;
-    bool m_isToolCalling;
-    QJsonArray m_toolsArray;
+    QList<QPair<QString, QString>> m_pendingHistory;
+    QString m_pendingSessionContext;
+    QString m_pendingSystemInstruction;
+    bool m_isPreSearching = false;
+
+    void sendRealSakuraRequest(const QString &prompt,
+                               const QList<QPair<QString,QString>> &history,
+                               const QString &sessionContext,
+                               const QString &systemInstruction,
+                               const QString &webSearchResultContext);
 
 public:
     explicit SakuraAIClient(QObject *parent = nullptr);
