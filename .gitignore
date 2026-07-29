@@ -22,3 +22,8 @@ err.txt
 out.txt
 knowledge_index.json
 /log/
+
+# Root pic dummy assets
+/pic/*.png
+/pic/avatar_settings.json
+
