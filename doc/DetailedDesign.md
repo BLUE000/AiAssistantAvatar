@@ -2082,5 +2082,13 @@ public:
     // トリガー一致＆優先度解決
     KnowledgeIndexEntry resolveBestEntryForTrigger(const QString &triggerWord) const;
 };
+
+#### 13.3 さくらAI Web検索ダイレクト応答・Userロール最適化仕様 (F-16-6 Revision)
+
+- **処理フロー**:
+  1. `SakuraAIClient::sendRequest` において、天気、ニュース、株価・為替、Wikipedia、日付依存質問（「今日の○○」）を検知した場合、事前に Tavily 検索を実行する。
+  2. `SakuraAIClient::on_searchFinished` にて、検索テキストから `https?://\S+`, `URL:`, `[1]` などのメタデータノイズおよび無関係な未来日付（週間天気等）・各種指数を `QRegularExpression` で除去・クレンジングする。
+  3. 200〜300文字にスリム化された参考テキストを `system` メッセージではなく **`user` ロールメッセージ (`{"role": "user", "content": "【参考情報】..."}`)** として質問メッセージの直前に独立挿入する。
+  4. さくらAI (vLLM) へ HTTP POST リクエストを送信し、モデル内蔵ガードの誤発動を回避して指定アバターキャラクターとして回答を生成させる。
 ```
 

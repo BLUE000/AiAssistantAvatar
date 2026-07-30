@@ -356,7 +356,7 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | :--- | :--- | :--- | :--- |
 | **UT-PROVIDER-01** | `HuggingFaceAIClient::request` | `huggingface` プロバイダを選択し、プロンプト要求を送信する。 | OpenAI 互換 Chat Completions API (`https://router.huggingface.co/v1/chat/completions`) に対し、指定した API キーおよびモデル名でリクエストが正しく構築・送信され、レスポンスが正常パースされること。 |
 | **UT-PROVIDER-02** | `OpenRouterAIClient::request` | `openrouter` プロバイダを選択し、プロンプト要求を送信する。 | OpenRouter エンドポイント (`https://openrouter.ai/api/v1/chat/completions`) に対し、リファラヘッダーを含めてリクエストが構築・送信され、レスポンスがパースされること。 |
-| **UT-PROVIDER-03** | `SakuraAIClient::request` | `sakura` プロバイダを選択し、プロンプト要求を送信する。 | さくらAI エンドポイント (`https://api.sakura.io/v1/chat/completions`) に対しリクエストが構築・送信され、レスポンスが正しくパースされること。 |
+| **UT-PROVIDER-03** | `SakuraAIClient::sendRequest` / `on_searchFinished` | `sakura` プロバイダ選択時に天気等の検索クエリを送信する。 | 1. 事前 Tavily 検索が起動すること。<br>2. 検索テキストから URL リストやメタデータノイズが除外・スリム化されること。<br>3. 抽出された参考テキストが `system` メッセージではなく `user` ロールメッセージとして質問の直前に挿入されて送信されること。 |
 | **UT-PROVIDER-04** | `AIClientManager::loadSettingsFromJsonObject` | `local_settings.json` から 3 プロバイダの API Key および Model 設定 (`huggingface_model`, `openrouter_model`, `sakura_model`) をロードする。 | `m_huggingfaceKey`, `m_openrouterKey`, `m_sakuraKey` および `m_huggingfaceModel`, `m_openrouterModel`, `m_sakuraModel` がすべて漏れなくパース・読み込まれ、各クライアントに設定されること。 |
 | **UT-PROVIDER-05** | `AIClientManager` / `AvatarWindow` (Save/Load ラウンドトリップ) | JSON オブジェクトに保存されたモデル設定を `loadSettingsFromJsonObject` で読み込むラウンドトリップ試験を実施。 | 保存されたモデル文字列と読み込み後のモデル文字列が 100% 一致し、Save と Load の完全同期がアサート検証されること。 |
 
