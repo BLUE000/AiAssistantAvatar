@@ -10,6 +10,7 @@
 #include "dummy_ai_client.h"
 #include "system_response_manager.h"
 #include "../moderation/score_moderation_engine.h"
+#include "../search/search_manager.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
 #include <QNetworkAccessManager>
@@ -37,6 +38,7 @@ AIClientManager::AIClientManager(QObject *parent)
     : QObject(parent), m_provider(ConfigDefaults::AI_PROVIDER) 
 {
     m_systemResponseManager = new SystemResponseManager(this);
+    m_searchManager = new SearchManager(this);
     m_helixClient = new TwitchHelixClient(this);
     m_currentResetStartTime = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     m_importTimeoutTimer = new QTimer(this);
@@ -221,6 +223,10 @@ void AIClientManager::loadCredentials() {
             QString twitchClientId = obj["twitch_client_id"].toString();
             if (m_helixClient) {
                 m_helixClient->setCredentials(twitchToken, twitchClientId);
+            }
+
+            if (m_searchManager) {
+                m_searchManager->setTavilyApiKey(m_tavilyApiKey);
             }
 
             // 各クライアントにキーとモデルを設定
@@ -1365,13 +1371,13 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     }
 
-    // 常に現在日時(JST)をシステム指示の先頭に動的注入し、時間ハルシネーションを根絶する
+    // 常に現在日時(JST)および数式表記指示をシステム指示に動的注入し、時間ハルシネーションとLaTeX文字化けを根絶する
     {
         QDateTime now = QDateTime::currentDateTime();
         static const QStringList days = {"", "月", "火", "水", "木", "金", "土", "日"};
         int dayOfWeek = now.date().dayOfWeek();
         QString dayStr = (dayOfWeek >= 1 && dayOfWeek <= 7) ? days.at(dayOfWeek) : "";
-        QString nowStr = QString("※現在の日時は %1(%2) %3 です（日本標準時/JST）。")
+        QString nowStr = QString("※現在の日時は %1(%2) %3 です（日本標準時/JST）。\n計算式や数式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。")
                             .arg(now.toString("yyyy-MM-dd"))
                             .arg(dayStr)
                             .arg(now.toString("HH:mm:ss"));
@@ -1380,6 +1386,54 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             additionalSystemPrompt = nowStr + "\n\n" + additionalSystemPrompt;
         } else {
             additionalSystemPrompt = nowStr;
+        }
+    }
+
+    // 6. 全 AI プロバイダ共通 事前Web検索 RAG (天気・ニュース・株価・為替・Wikipedia・日付依存質問等)
+    QString lowerPrompt = filteredPrompt.toLower();
+    bool needsSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
+                        lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
+                        lowerPrompt.contains("今日") || lowerPrompt.contains("明日") ||
+                        lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
+                        lowerPrompt.contains("ドル") || lowerPrompt.contains("円") ||
+                        lowerPrompt.contains("日経") || lowerPrompt.contains("wiki") ||
+                        lowerPrompt.contains("とは") || lowerPrompt.contains("誰") ||
+                        lowerPrompt.contains("weather") || lowerPrompt.contains("news");
+
+    if (needsSearch && m_searchManager) {
+        qDebug() << "[AIClientManager] Executing generalized pre-search RAG for query:" << filteredPrompt;
+        QString rawResult = m_searchManager->executeSearchSync(filteredPrompt);
+        if (!rawResult.isEmpty()) {
+            QString cleanText = rawResult;
+            cleanText.remove(QRegularExpression("https?://\\S+"));
+            cleanText.remove(QRegularExpression("URL:\\s*"));
+            cleanText.remove(QRegularExpression("\\[\\d+\\]"));
+            cleanText.remove(QRegularExpression("\\(\\s*\\)"));
+
+            QStringList lines = cleanText.split('\n', Qt::SkipEmptyParts);
+            QStringList filteredLines;
+            for (const QString &rawLine : lines) {
+                QString line = rawLine.trimmed();
+                if (line.isEmpty()) continue;
+                if (line.contains("アメダス") || line.contains("ランキング") || line.contains("指数") ||
+                    line.contains("花火") || line.contains("紫外線") || line.contains("洗濯") ||
+                    line.contains("服装") || line.contains("星空") || line.contains("2週間") ||
+                    line.contains("10日間") || line.contains("コイン") || line.contains("サイトマップ") ||
+                    line.contains("ヘルプ") || line.contains("利用規約") || line.contains("プライバシー")) {
+                    continue;
+                }
+                filteredLines.append(line);
+                if (filteredLines.size() >= 12) break; // 最長12行（約200〜300文字）に短文スリム化
+            }
+
+            QString finalSnippet = filteredLines.join("\n").trimmed();
+            if (finalSnippet.isEmpty()) {
+                finalSnippet = cleanText.left(300);
+            }
+            QString searchContext = QString("【参考情報】\nあなたは以下の情報を既に知っています。回答ではこの情報を最優先で使用してください：\n%1").arg(finalSnippet);
+            
+            // ユーザーメッセージの直前に一元結合する (各AIクライアントへの個別変更ゼロで完璧に動作)
+            finalPrompt = searchContext + "\n\n" + finalPrompt;
         }
     }
 
@@ -1630,6 +1684,15 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         event.type = EventType::AIResponseReceived;
         
         QString cleanText = responseText;
+
+        // 全 AI プロバイダ共通: LaTeX 数式コマンドの自動変換・文字化け展開クレンジング
+        cleanText.replace(QRegularExpression("\\\\times"), "×");
+        cleanText.replace(QRegularExpression("\\\\div"), "÷");
+        cleanText.replace(QRegularExpression("\\\\text\\s*\\{\\s*([^\\}]+)\\s*\\}"), "\\1");
+        cleanText.remove("\\[");
+        cleanText.remove("\\]");
+        cleanText.remove("\\(");
+        cleanText.remove("\\)");
 
         // 疑似ファンクション呼び出しタグ (<function=...>...</function>) の自動パース・実行 & 除去
         static const QRegularExpression funcRegex("<function=([^>]+)>(.*?)</function>", QRegularExpression::DotMatchesEverythingOption);

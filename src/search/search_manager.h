@@ -19,6 +19,7 @@ public:
     ~SearchManager();
     void setTavilyApiKey(const QString &apiKey);
     void executeSearch(const QString &query);
+    QString executeSearchSync(const QString &query);
 
 signals:
     void searchFinished(const QString &resultText, bool success);

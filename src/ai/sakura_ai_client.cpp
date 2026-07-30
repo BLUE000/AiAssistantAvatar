@@ -101,7 +101,7 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
         avatarName = manager->avatarName();
     }
 
-    QString systemPrompt = QString("あなたはデスクトップマスコットのキャラクター「%1」です。自己紹介や名前を聞かれた際は、必ず「%1」と名乗ってください。自分自身を「AIアシスタント」や「AI」といった一般名詞で呼ばず、必ずキャラクター名「%1」または「私」と名乗ってください。それ以外の名前を使用しないでください。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。対話相手のお名前や呼び名が明示的に指定されていない場合は、相手のお名前を推測・捏造せず、お名前を呼ばずにそのまま回答してください。")
+    QString systemPrompt = QString("あなたはデスクトップマスコットのキャラクター「%1」です。自己紹介や名前を聞かれた際は、必ず「%1」と名乗ってください。自分自身を「AIアシスタント」や「AI」といった一般名詞で呼ばず、必ずキャラクター名「%1」または「私」と名乗ってください。それ以外の名前を使用しないでください。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。対話相手のお名前や呼び名が明示的に指定されていない場合は、相手のお名前を推測・捏造せず、お名前を呼ばずにそのまま回答してください。数式や計算式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。")
                             .arg(avatarName);
 
     QString adjustedInstruction = systemInstruction;
@@ -215,6 +215,16 @@ void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     QJsonObject messageObj = firstChoice["message"].toObject();
 
     QString replyText = messageObj["content"].toString();
+
+    // LaTeX 数式コマンドの自動変換・文字化け展開クレンジング
+    replyText.replace(QRegularExpression("\\\\times"), "×");
+    replyText.replace(QRegularExpression("\\\\div"), "÷");
+    replyText.replace(QRegularExpression("\\\\text\\s*\\{\\s*([^\\}]+)\\s*\\}"), "\\1");
+    replyText.remove("\\[");
+    replyText.remove("\\]");
+    replyText.remove("\\(");
+    replyText.remove("\\)");
+
     emit requestFinished(replyText.trimmed(), true, 200);
 }
 

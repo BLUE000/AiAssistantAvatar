@@ -70,6 +70,7 @@ private:
     RateLimitTracker m_tracker;
     AIRouter m_router;
     MarkdownTableEngine m_tableEngine;
+    class SearchManager *m_searchManager = nullptr;
 
     bool m_managerEnabled = false;
     QString m_managerProvider = "groq";

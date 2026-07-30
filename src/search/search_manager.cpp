@@ -2,6 +2,8 @@
 #include "tavily_search_provider.h"
 #include "duckduckgo_search_provider.h"
 #include <QThread>
+#include <QEventLoop>
+#include <QTimer>
 #include <QDebug>
 
 SearchManager::SearchManager(QObject *parent)
@@ -23,6 +25,28 @@ void SearchManager::executeSearch(const QString &query) {
     m_query = query;
     m_useTavily = !m_tavilyApiKey.isEmpty();
     startNextProvider();
+}
+
+QString SearchManager::executeSearchSync(const QString &query) {
+    QString result;
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+
+    QMetaObject::Connection conn = connect(this, &SearchManager::searchFinished, [&](const QString &resText, bool success){
+        if (success) {
+            result = resText;
+        }
+        loop.quit();
+    });
+    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    timer.start(5000);
+    executeSearch(query);
+    loop.exec();
+
+    disconnect(conn);
+    return result;
 }
 
 void SearchManager::startNextProvider() {
