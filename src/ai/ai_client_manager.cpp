@@ -2861,25 +2861,9 @@ QString AIClientManager::buildHumanReadableError(int httpCode, const QString &pr
 // ---- F-33 ここまで ----
 
 bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
-    // さくらAI選択時かつWeb検索が必要なクエリ（天気、ニュース等）の場合は、さくらAIのモデル内蔵拒否ガードを回避するため
-    // 自動的かつサイレントに Manager AI (Groq等) へ代理ルーティングする (F-16-6)
-    if (m_provider == "sakura" && !prompt.isEmpty()) {
-        QString lowerPrompt = prompt.toLower();
-        bool needsSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
-                            lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
-                            lowerPrompt.contains("今") || lowerPrompt.contains("明日") ||
-                            lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
-                            lowerPrompt.contains("weather") || lowerPrompt.contains("news");
-        if (needsSearch) {
-            QString managerId = m_router.selectClient(AIRole::Manager, m_tracker, managerPriorityOrder());
-            if (!managerId.isEmpty() && m_clientMap.contains(managerId)) {
-                m_currentClient = m_clientMap[managerId];
-                qDebug() << "AIClientManager: [F-16-6 Proxy Routing] Sakura AI selected for search query, delegating to Manager AI:" << managerId;
-                m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
-                return true;
-            }
-        }
-    }
+    // ※ F-16-6 Revision: さくらAI (`sakura`) は SakuraAIClient 自身が事前に Tavily 検索を行い、
+    // 検索データのノイズ除去・スリム化を行った上で User ロールとして挿入して直接応答するため、
+    // 他 AI への代理ルーティングは行わず、選択されたプロバイダ通信ルートを維持する。
 
     // ユーザーが明示的にプロバイダを選択している場合は他AIへの無断フォールバックを行わない
     if (!m_provider.isEmpty() && m_clientMap.contains(m_provider)) {

@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QUrl>
 #include <QThread>
+#include <QRegularExpression>
 #include <QDebug>
 
 SakuraAIClient::SakuraAIClient(QObject *parent)
@@ -54,12 +55,15 @@ void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
         return;
     }
 
-    // 検索が必要なクエリかどうかの判定 (方法B: 事前判定型 RAG)
+    // 検索が必要なクエリかどうかの判定 (天気・ニュース・株価・為替・Wikipedia・日付依存質問等)
     QString lowerPrompt = prompt.toLower();
     bool needsSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
                         lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
-                        lowerPrompt.contains("今") || lowerPrompt.contains("明日") ||
+                        lowerPrompt.contains("今日") || lowerPrompt.contains("明日") ||
                         lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
+                        lowerPrompt.contains("ドル") || lowerPrompt.contains("円") ||
+                        lowerPrompt.contains("日経") || lowerPrompt.contains("wiki") ||
+                        lowerPrompt.contains("とは") || lowerPrompt.contains("誰") ||
                         lowerPrompt.contains("weather") || lowerPrompt.contains("news");
 
     if (needsSearch && m_searchManager) {
@@ -109,9 +113,6 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
     if (!adjustedInstruction.isEmpty()) {
         systemPrompt += "\n" + adjustedInstruction;
     }
-    if (!webSearchResultContext.isEmpty()) {
-        systemPrompt += "\n\n" + webSearchResultContext;
-    }
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n" + sessionContext;
     }
@@ -131,6 +132,14 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
         messages.append(modelMsg);
     }
 
+    // 検索結果 (RAG) がある場合は system ではなく user ロールとして質問の直前に挿入する
+    if (!webSearchResultContext.isEmpty()) {
+        QJsonObject searchContextMsg;
+        searchContextMsg["role"] = "user";
+        searchContextMsg["content"] = webSearchResultContext;
+        messages.append(searchContextMsg);
+    }
+
     QJsonObject currentMessage;
     currentMessage["role"] = "user";
     currentMessage["content"] = prompt;
@@ -142,6 +151,7 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
     // ※ さくらAI (vLLM) の Bad Request (400) 回避のため tools は送信しない
 
     QJsonDocument doc(requestBody);
+    qDebug().noquote() << "[SakuraAIClient] Full Request JSON:\n" << doc.toJson(QJsonDocument::Indented);
     m_networkManager->post(request, doc.toJson());
 }
 
@@ -214,7 +224,37 @@ void SakuraAIClient::on_searchFinished(const QString &resultText, bool success) 
 
     QString searchContext;
     if (success && !resultText.isEmpty()) {
-        searchContext = QString("【以下のデータに基づいて回答してください】\n%1").arg(resultText);
+        QString cleanText = resultText;
+        // URL や Web検索用メタデータ・ノイズを削除
+        cleanText.remove(QRegularExpression("https?://\\S+"));
+        cleanText.remove(QRegularExpression("URL:\\s*"));
+        cleanText.remove(QRegularExpression("\\[\\d+\\]"));
+        cleanText.remove(QRegularExpression("\\(\\s*\\)"));
+
+        // Web検索用メタデータ・ノイズを削除
+        QStringList lines = cleanText.split('\n', Qt::SkipEmptyParts);
+        QStringList filteredLines;
+        for (const QString &rawLine : lines) {
+            QString line = rawLine.trimmed();
+            if (line.isEmpty()) continue;
+            // 無関係な指数・ランキング・広告・各種ヘッダーノイズ等を排除
+            if (line.contains("アメダス") || line.contains("ランキング") || line.contains("指数") ||
+                line.contains("花火") || line.contains("紫外線") || line.contains("洗濯") ||
+                line.contains("服装") || line.contains("星空") || line.contains("2週間") ||
+                line.contains("10日間") || line.contains("コイン") || line.contains("サイトマップ") ||
+                line.contains("ヘルプ") || line.contains("利用規約") || line.contains("プライバシー")) {
+                continue;
+            }
+            filteredLines.append(line);
+            if (filteredLines.size() >= 12) break; // 最長12行（約200〜300文字）に短文スリム化
+        }
+
+        QString finalSnippet = filteredLines.join("\n").trimmed();
+        if (finalSnippet.isEmpty()) {
+            finalSnippet = cleanText.left(300); // 抽出できなかった場合のフォールバック
+        }
+
+        searchContext = QString("【参考情報】\nあなたは以下の情報を既に知っています。回答ではこの情報を最優先で使用してください：\n%1").arg(finalSnippet);
     }
 
     sendRealSakuraRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction, searchContext);
