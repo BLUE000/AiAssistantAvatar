@@ -415,6 +415,12 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-TASK-05** | `AIClientManager::on_requestAI` | マネージャー層で事前 RAG 検索が完了したプロンプトを全 AI クライアント (`IAIClient`) へ転送する。 | 下流の全 AI クライアント内部での二重 Web 検索（`needsSearch` / `executeSearch`）が発火せず、マネージャーによる 1 回の検索のみで直ちに LLM へリクエストが送信されること。 |
 | **UT-TASK-06** | `AIClientManager::analyzeAndDecomposeTasks` | 複数要求文（「明日の横浜の天気と潮汐を調べたうえで、釣りに行くタイミングを知りたい」）を入力する。 | `Task 1: 天気` と `Task 2: 潮汐` の 2 つの独立検索タスクが `QList<ExecutionTask>` に分解・抽出されること。 |
 | **UT-TASK-07** | `AIClientManager::validateExtractedData` | 潮汐要求があるが検索結果に「干潮・満潮」のデータが含まれない場合。 | 「潮汐データ未取得のため数値を推測・捏造せず回答せよ」というガード制約がプロンプトに追加注入されること。 |
+| **UT-ROUTER-03** | `AIClientManager::selectAndPrepareClient` | Release ビルド (`#ifndef QT_DEBUG`) で `provider` に `"dummy"` または空文字列（全選択解除）が指定された場合。 | `DummyAIClient` が選択されず、登録プロバイダの中から利用可能な最適な AI クライアントが選定されること。 |
+| **UT-ROUTER-04** | `AIRouter::selectBestAvailableClient` | 全プロバイダが利用可能で、プロバイダ A の RPM 残容量が 30、プロバイダ B の RPM 残容量が 100 の場合。 | 使用枠・残容量が最も多いプロバイダ B が自動選定されること。 |
+| **UT-ROUTER-05** | `AIClientManager::on_requestAI` | 登録された全プロバイダの API キーが空（未設定）の状態でプロンプトを送信する。 | 外部 API リクエストが送信されず、「APIキーが設定されていません。設定画面で設定してください。」という案内通知が即座に生成されること。 |
+| **UT-ROUTER-06** | `AIClientManager::selectAndPrepareClient` | 設定済みプロバイダが全枯渇し、未設定プロバイダが存在する場合。 | 「全設定プロバイダが上限到達中。解除まで【約〇分〇秒】。未設定の[〇〇]キーを登録するとすぐ使えます」と案内が生成されること。 |
+| **UT-ROUTER-07** | `AIClientManager::selectAndPrepareClient` | 全プロバイダのキーが設定済みで、全プロバイダが枯渇している場合。 | 「すべてのAIプロバイダが上限到達中。解除まで【約〇分〇秒】ほどお待ちください」と案内が生成されること。 |
+| **UT-TASKFLOW-01** | `AIClientManager::fetchSchedules` | `m_taskFlowApiUrl` が未設定（空）の状態で `fetchSchedules` を実行する。 | 特定個人ドメインへの HTTP リクエストが発生せず、即時に空文字列が返却されること。 |
 
 
 

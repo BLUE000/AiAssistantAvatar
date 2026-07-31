@@ -1144,6 +1144,36 @@ TEST_F(AIClientTest, ValidatorTideGuardInjectionTest) {
     EXPECT_TRUE(additionalSystemPrompt.contains("潮汐データは取得できなかったため"));
 }
 
+TEST_F(AIClientTest, BestAvailableClientSelectionTest) {
+    RateLimitTracker tracker;
+
+    ProviderStatus p1;
+    p1.provider = "mistral";
+    p1.available = true;
+    p1.rpmRemaining = 30;
+    p1.rpdRemaining = 1000;
+
+    ProviderStatus p2;
+    p2.provider = "groq";
+    p2.available = true;
+    p2.rpmRemaining = 100;
+    p2.rpdRemaining = 1000;
+
+    tracker.registerClient(p1);
+    tracker.registerClient(p2);
+
+    // UT-ROUTER-04: 残容量が多い groq (100) が優先選択されること
+    EXPECT_EQ(tracker.selectBestAvailableClient(), "groq");
+}
+
+TEST_F(AIClientTest, TaskFlowUnconfiguredSafetyTest) {
+    AIClientManager manager;
+    // URL未設定の状態で fetchSchedules を呼び出す
+    QString result = manager.fetchSchedules("配信", QDate::currentDate(), 7);
+    // UT-TASKFLOW-01: 特定個人ドメインへの無断通信が発生せず、即時に空文字列が返却されること
+    EXPECT_TRUE(result.isEmpty());
+}
+
 TEST_F(AIClientTest, RateLimitTrackerTest) {
     RateLimitTracker tracker;
     

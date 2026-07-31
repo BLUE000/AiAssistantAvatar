@@ -2888,44 +2888,97 @@ QString AIClientManager::buildHumanReadableError(int httpCode, const QString &pr
 // ---- F-33 ここまで ----
 
 bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
-    // ※ F-16-6 Revision: さくらAI (`sakura`) は SakuraAIClient 自身が事前に Tavily 検索を行い、
-    // 検索データのノイズ除去・スリム化を行った上で User ロールとして挿入して直接応答するため、
-    // 他 AI への代理ルーティングは行わず、選択されたプロバイダ通信ルートを維持する。
+    QString targetProvider = m_provider;
 
-    // ユーザーが明示的にプロバイダを選択している場合は他AIへの無断フォールバックを行わない
-    if (!m_provider.isEmpty() && m_clientMap.contains(m_provider)) {
-        m_currentClient = m_clientMap[m_provider];
-        qDebug() << "AIClientManager: Routing request directly to user-selected client:" << m_provider;
-        m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
-        return true;
+#ifndef QT_DEBUG
+    if (targetProvider == "dummy") {
+        targetProvider = "auto";
+    }
+#endif
+
+    // 1. 全 API キーが未設定かどうかの検証
+    bool hasAnyApiKey = false;
+    QStringList unconfiguredProviders;
+    QStringList allKnownProviders = {"mistral", "cerebras", "groq", "huggingface", "openrouter", "sakura"};
+    for (const QString &p : allKnownProviders) {
+        if (m_clientMap.contains(p)) {
+            QString key = m_clientMap[p]->apiKey();
+            if (!key.trimmed().isEmpty()) {
+                hasAnyApiKey = true;
+            } else {
+                unconfiguredProviders.append(p);
+            }
+        }
     }
 
-    QString workerId = m_router.selectClient(AIRole::Worker, m_tracker, workerPriorityOrder());
-    if (workerId.isEmpty()) {
-        auto resetInfo = m_tracker.earliestResetTime();
-        QString waitMsg = m_tracker.formatWaitMessage(resetInfo);
-        qWarning() << "AIClientManager: All AI clients are rate-limited.";
-        
+    if (!hasAnyApiKey && targetProvider != "dummy") {
+        qWarning() << "AIClientManager: No API keys configured for any provider.";
+        QString noKeyMsg = "※【APIキー未設定の通知】AIプロバイダのAPIキーが設定されていません。設定画面からAPIキーを入力してください。";
         AppEvent ev;
         ev.type = EventType::AIResponseReceived;
         ev.source = "AIClientManager";
-        ev.text = waitMsg;
+        ev.text = noKeyMsg;
+        if (!m_currentDiscordChannelId.isEmpty()) ev.extraData["channel_id"] = m_currentDiscordChannelId;
+        else if (!m_currentTwitchChannel.isEmpty()) ev.extraData["twitch_channel"] = m_currentTwitchChannel;
+        emit notifyEvent(ev);
+        m_currentDiscordChannelId.clear();
+        m_currentTwitchChannel.clear();
+        return false;
+    }
 
-        if (!m_currentDiscordChannelId.isEmpty()) {
-            ev.extraData["channel_id"] = m_currentDiscordChannelId;
-        } else if (!m_currentTwitchChannel.isEmpty()) {
-            ev.extraData["twitch_channel"] = m_currentTwitchChannel;
+    // 2. ユーザー明示選択プロバイダの優先判定
+    if (!targetProvider.isEmpty() && targetProvider != "auto" && m_clientMap.contains(targetProvider)) {
+        if (targetProvider == "dummy" || m_tracker.isAvailable(targetProvider)) {
+            m_currentClient = m_clientMap[targetProvider];
+            qDebug() << "AIClientManager: Routing request directly to user-selected client:" << targetProvider;
+            m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
+            return true;
+        }
+    }
+
+    // 3. 自動選定 ("auto" または 選択プロバイダがリミット中のフォールバック)
+    QString bestClientId = m_tracker.selectBestAvailableClient();
+    if (bestClientId.isEmpty() && targetProvider == "dummy") {
+#ifdef QT_DEBUG
+        bestClientId = "dummy";
+#endif
+    }
+
+    if (bestClientId.isEmpty()) {
+        auto resetInfo = m_tracker.earliestResetTime();
+        int waitSecs = qMax(1, (int)QDateTime::currentDateTimeUtc().secsTo(resetInfo.resetAt));
+        int minutes = waitSecs / 60;
+        int seconds = waitSecs % 60;
+        QString waitTimeStr = (minutes > 0) ? QString("約%1分%2秒").arg(minutes).arg(seconds) : QString("約%1秒").arg(seconds);
+
+        QString exhaustionMsg;
+        if (!unconfiguredProviders.isEmpty()) {
+            // パターン A: 未設定キーが存在する場合
+            exhaustionMsg = QString("※【レートリミット到達のお知らせ】現在設定されているすべてのAIプロバイダが利用上限（レートリミット）に達しています。解除まであと【%1】お待ちいただくか、未設定のAIプロバイダ（%2）のAPIキーを設定画面で追加登録することで、すぐに利用を再開できます。")
+                                .arg(waitTimeStr, unconfiguredProviders.join(", "));
+        } else {
+            // パターン B: 全キー設定済みで全枯渇の場合
+            exhaustionMsg = QString("※【レートリミット到達のお知らせ】すべてのAIプロバイダが利用上限（レートリミット）に達しています。リミットが解除されるまで【%1】ほどお待ちください。")
+                                .arg(waitTimeStr);
         }
 
-        emit notifyEvent(ev);
+        qWarning() << "AIClientManager: All AI clients are rate-limited / unavailable:" << exhaustionMsg;
 
+        AppEvent ev;
+        ev.type = EventType::AIResponseReceived;
+        ev.source = "AIClientManager";
+        ev.text = exhaustionMsg;
+        if (!m_currentDiscordChannelId.isEmpty()) ev.extraData["channel_id"] = m_currentDiscordChannelId;
+        else if (!m_currentTwitchChannel.isEmpty()) ev.extraData["twitch_channel"] = m_currentTwitchChannel;
+        emit notifyEvent(ev);
         m_currentDiscordChannelId.clear();
         m_currentTwitchChannel.clear();
 
         return false;
     }
-    m_currentClient = m_clientMap[workerId];
-    qDebug() << "AIClientManager: Routing request to client:" << workerId;
+
+    m_currentClient = m_clientMap[bestClientId];
+    qDebug() << "AIClientManager: Auto-routed request to best available client:" << bestClientId;
     m_apiCallStartTimeMs = QDateTime::currentMSecsSinceEpoch();
     return true;
 }
@@ -2937,8 +2990,12 @@ void AIClientManager::on_requestProviderStatus(const QString &providerId) {
 }
 
 QString AIClientManager::fetchSchedules(const QString &category, const QDate &startDate, int days) {
+    if (m_taskFlowApiUrl.trimmed().isEmpty()) {
+        qWarning() << "AIClientManager: TaskFlow API URL is not configured. Skipping schedule fetch.";
+        return QString();
+    }
     QNetworkAccessManager manager;
-    QString baseUrl = m_taskFlowApiUrl.isEmpty() ? "https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php" : m_taskFlowApiUrl;
+    QString baseUrl = m_taskFlowApiUrl.trimmed();
     QUrl url(baseUrl);
     QUrlQuery query;
     query.addQueryItem("category", category);

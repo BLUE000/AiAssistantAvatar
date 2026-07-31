@@ -45,6 +45,9 @@ public:
     QList<ProviderStatus> allStatuses() const;
     QStringList registeredClientIds() const;
 
+    /// 最も利用残枠 (RPM/RPD) が多いクライアント名を取得する
+    QString selectBestAvailableClient() const;
+
     /// 日/週/月単位の使用量を永続化・読み込み
     void saveToFile(const QString &path) const;
     void loadFromFile(const QString &path);

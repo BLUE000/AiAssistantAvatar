@@ -27,6 +27,7 @@ public:
     ~CerebrasAIClient() override;
     void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) override;
     void setApiKey(const QString &apiKey) override;
+    QString apiKey() const override { return m_apiKey; }
     void setModel(const QString &model);
     void setTavilyApiKey(const QString &tavilyKey) override;
     QString clientId() const override { return QStringLiteral("cerebras"); }

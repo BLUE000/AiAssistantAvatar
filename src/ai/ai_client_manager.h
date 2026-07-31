@@ -86,7 +86,6 @@ private:
     QString m_taskFlowApiUrl;
 
     // TaskFlow外部スケジュールAPI連携RAG
-    QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
     QString getTaskFlowSchedulesContext();
     qint64 m_apiCallStartTimeMs = 0;
 
@@ -154,6 +153,7 @@ public:
     void executeTaskPipeline(QList<ExecutionTask> &tasks);
     void validateAndInjectGuards(const QList<ExecutionTask> &tasks, const QString &originalPrompt, QString &additionalSystemPrompt);
     QString formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt);
+    QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
 
 private:
 

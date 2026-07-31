@@ -1695,7 +1695,11 @@ void AvatarWindow::saveSettingsFromUI() {
     }
     obj["twitch_wakeword"] = m_twitchWakeWordEdit->text().trimmed();
     obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
+#ifdef QT_DEBUG
     QString provider = "dummy";
+#else
+    QString provider = "auto";
+#endif
     if (m_aiProviderMistralCheckbox->isChecked()) provider = "mistral";
     else if (m_aiProviderCerebrasCheckbox->isChecked()) provider = "cerebras";
     else if (m_aiProviderGroqCheckbox->isChecked()) provider = "groq";

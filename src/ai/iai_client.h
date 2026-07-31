@@ -12,6 +12,7 @@ public:
     virtual ~IAIClient();
     virtual void sendRequest(const QString &prompt, const QList<QPair<QString, QString>> &history = {}, const QString &sessionContext = QString(), const QString &systemInstruction = QString()) = 0;
     virtual void setApiKey(const QString &apiKey) = 0;
+    virtual QString apiKey() const { return QString(); }
     virtual void setTavilyApiKey(const QString &tavilyKey) { Q_UNUSED(tavilyKey); }
     virtual QString clientId() const = 0;
     virtual ProviderStatus defaultStatus() const = 0;

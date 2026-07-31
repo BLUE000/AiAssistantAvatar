@@ -2145,5 +2145,58 @@ sequenceDiagram
     Client-->>ACM: requestFinished(replyText)
     ACM->>UI: 5. notifyEvent(AIResponseReceived)
 ```
+
+### 13.5 全選択解除 ＆ Release ビルド時の最適 AI プロバイダ自動選定フロー
+- **概要**: UI で全プロバイダのチェックが外された場合、マネージャーが全クライアントのレートリミット利用可能量を評価し、最も使用枠に余裕のあるクライアントを選択する。なお、レートリミット到達判定・リセット解除時間算出・未設定キー抽出処理は、モジュール種別を問わず `RateLimitTracker` / `AIRouter` の共通メソッドに 1 箇所へ完全共通化して処理される。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as 設定画面 (AvatarWindow)
+    participant ACM as AIClientManager
+    participant Router as AIRouter
+    participant Tracker as RateLimitTracker
+
+    UI->>ACM: setAIProvider(provider)
+    alt 全チェックボックス OFF または provider == "auto"
+        alt #ifdef QT_DEBUG (Debugビルド)
+            ACM->>ACM: デフォルト dummy (Mock) を維持
+        else #ifndef QT_DEBUG (Releaseビルド)
+            ACM->>Router: selectBestAvailableClient(prompt)
+            Router->>Tracker: getRegisteredStatusList()
+            Tracker-->>Router: 各プロバイダの (available, rpmRemaining, rpdRemaining, resetTime)
+            alt 有効なAPIキーが1つも存在しない場合
+                Router-->>ACM: 選定失敗 (NoAvailableKey)
+                ACM->>UI: 「APIキーが設定されていません。設定画面で設定してください。」と通知
+            else 設定済みプロバイダが全てレートリミット到達している場合
+                alt 未設定のAPIキー項目が存在する場合 (パターン A)
+                    ACM->>UI: 「全設定プロバイダが上限到達中。解除まで【〇分〇秒】。未設定の[〇〇]キーを登録するとすぐ使えます」と通知
+                else すべてのAPIキーが設定済みの場合 (パターン B)
+                    ACM->>UI: 「すべてのAIプロバイダが上限到達中。解除まで【〇分〇秒】ほどお待ちください」と通知
+                end
+            else 利用可能なAIが存在する場合
+                Note over Router: 利用可能かつ RPM/RPD 残容量が最大のプロバイダを選定
+                Router-->>ACM: 選定された最適な AI クライアント名 (例: "sakura")
+            end
+        end
+    end
+```
+
+### 13.6 TaskFlow API URL 未設定時安全スキップフロー
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ACM as AIClientManager
+    participant TF as TaskFlow サーバー
+
+    ACM->>ACM: fetchSchedules(category, startDate, days)
+    alt m_taskFlowApiUrl が空文字 / 未設定の場合
+        ACM-->>ACM: 通信キャンセル（空文字列 "" を即時返却）
+        Note over ACM: 個人サーバーへの無断・デフォルト接続を完全に遮断
+    else m_taskFlowApiUrl が設定済みの場合
+        ACM->>TF: HTTP GET (m_taskFlowApiUrl)
+        TF-->>ACM: スケジュール JSON
+    end
+```
 ```
 

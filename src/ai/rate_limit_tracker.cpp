@@ -235,6 +235,26 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
     s.available = rpmOk && rpdOk;
 }
 
+QString RateLimitTracker::selectBestAvailableClient() const {
+    QString bestClient;
+    int maxRemaining = -1;
+
+    for (auto it = m_statuses.constBegin(); it != m_statuses.constEnd(); ++it) {
+        const QString &id = it.key();
+        const ProviderStatus &s = it.value();
+        if (id == "dummy") continue;
+
+        if (s.available) {
+            int currentQuota = (s.rpmRemaining > 0) ? s.rpmRemaining : ((s.rpdRemaining > 0) ? s.rpdRemaining : 9999);
+            if (currentQuota > maxRemaining) {
+                maxRemaining = currentQuota;
+                bestClient = id;
+            }
+        }
+    }
+    return bestClient;
+}
+
 QDateTime RateLimitTracker::parseResetHeader(const QByteArray &value) {
     // ISO 8601 形式: "2026-07-12T12:34:56Z"
     QDateTime dt = QDateTime::fromString(QString(value), Qt::ISODate);
