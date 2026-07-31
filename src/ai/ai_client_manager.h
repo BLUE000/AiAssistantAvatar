@@ -135,6 +135,23 @@ private:
     void saveKnowledgeMetadata();
     void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
 
+    // --- 段階的タスク実行パイプライン ---
+    enum class TaskType {
+        KnowledgeSearch,
+        WebSearchRAG
+    };
+
+    struct ExecutionTask {
+        TaskType type;
+        QString queryKeyword;
+        QString extractedData;
+        bool isCompleted = false;
+    };
+
+    QList<ExecutionTask> analyzeAndDecomposeTasks(const QString &prompt);
+    void executeTaskPipeline(QList<ExecutionTask> &tasks);
+    QString formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt);
+
 
 
     // --- F-22 レイド・クリエイター自動紹介メンバ ---

@@ -1371,13 +1371,13 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     }
 
-    // 常に現在日時(JST)および数式表記指示をシステム指示に動的注入し、時間ハルシネーションとLaTeX文字化けを根絶する
+    // 常に現在日時(JST)、数式表記指示、および複数質問漏れなし回答指示をシステム指示に動的注入し、時間ハルシネーションとLaTeX文字化けおよび回答省略を根絶する
     {
         QDateTime now = QDateTime::currentDateTime();
         static const QStringList days = {"", "月", "火", "水", "木", "金", "土", "日"};
         int dayOfWeek = now.date().dayOfWeek();
         QString dayStr = (dayOfWeek >= 1 && dayOfWeek <= 7) ? days.at(dayOfWeek) : "";
-        QString nowStr = QString("※現在の日時は %1(%2) %3 です（日本標準時/JST）。\n計算式や数式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。")
+        QString nowStr = QString("※現在の日時は %1(%2) %3 です（日本標準時/JST）。\n計算式や数式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。\n※ユーザーのメッセージに複数の質問や話題が含まれている場合は、省略せずにそれぞれの質問に対して順を追って漏れなく回答してください。")
                             .arg(now.toString("yyyy-MM-dd"))
                             .arg(dayStr)
                             .arg(now.toString("HH:mm:ss"));
@@ -1389,51 +1389,14 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     }
 
-    // 6. 全 AI プロバイダ共通 事前Web検索 RAG (天気・ニュース・株価・為替・Wikipedia・日付依存質問等)
-    QString lowerPrompt = filteredPrompt.toLower();
-    bool needsSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
-                        lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
-                        lowerPrompt.contains("今日") || lowerPrompt.contains("明日") ||
-                        lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
-                        lowerPrompt.contains("ドル") || lowerPrompt.contains("円") ||
-                        lowerPrompt.contains("日経") || lowerPrompt.contains("wiki") ||
-                        lowerPrompt.contains("とは") || lowerPrompt.contains("誰") ||
-                        lowerPrompt.contains("weather") || lowerPrompt.contains("news");
-
-    if (needsSearch && m_searchManager) {
-        qDebug() << "[AIClientManager] Executing generalized pre-search RAG for query:" << filteredPrompt;
-        QString rawResult = m_searchManager->executeSearchSync(filteredPrompt);
-        if (!rawResult.isEmpty()) {
-            QString cleanText = rawResult;
-            cleanText.remove(QRegularExpression("https?://\\S+"));
-            cleanText.remove(QRegularExpression("URL:\\s*"));
-            cleanText.remove(QRegularExpression("\\[\\d+\\]"));
-            cleanText.remove(QRegularExpression("\\(\\s*\\)"));
-
-            QStringList lines = cleanText.split('\n', Qt::SkipEmptyParts);
-            QStringList filteredLines;
-            for (const QString &rawLine : lines) {
-                QString line = rawLine.trimmed();
-                if (line.isEmpty()) continue;
-                if (line.contains("アメダス") || line.contains("ランキング") || line.contains("指数") ||
-                    line.contains("花火") || line.contains("紫外線") || line.contains("洗濯") ||
-                    line.contains("服装") || line.contains("星空") || line.contains("2週間") ||
-                    line.contains("10日間") || line.contains("コイン") || line.contains("サイトマップ") ||
-                    line.contains("ヘルプ") || line.contains("利用規約") || line.contains("プライバシー")) {
-                    continue;
-                }
-                filteredLines.append(line);
-                if (filteredLines.size() >= 12) break; // 最長12行（約200〜300文字）に短文スリム化
-            }
-
-            QString finalSnippet = filteredLines.join("\n").trimmed();
-            if (finalSnippet.isEmpty()) {
-                finalSnippet = cleanText.left(300);
-            }
-            QString searchContext = QString("【参考情報】\nあなたは以下の情報を既に知っています。回答ではこの情報を最優先で使用してください：\n%1").arg(finalSnippet);
-            
-            // ユーザーメッセージの直前に一元結合する (各AIクライアントへの個別変更ゼロで完璧に動作)
-            finalPrompt = searchContext + "\n\n" + finalPrompt;
+    // 6. 段階的タスク実行パイプライン (文章 → 複数Task化 → Task順次実行 → まとめ回答)
+    QList<ExecutionTask> tasks = analyzeAndDecomposeTasks(filteredPrompt);
+    if (!tasks.isEmpty()) {
+        qDebug() << "[AIClientManager] Step 1: Decomposed prompt into" << tasks.size() << "execution tasks.";
+        executeTaskPipeline(tasks);
+        QString pipelineContext = formatCombinedPrompt(tasks, filteredPrompt);
+        if (!pipelineContext.isEmpty()) {
+            finalPrompt = pipelineContext;
         }
     }
 
@@ -3253,6 +3216,136 @@ void AIClientManager::on_shoutoutSuccessReceived(const QString &username) {
         }
         emit notifyEvent(ev);
     }
+}
+
+// ============================================================================
+// 段階的タスク実行パイプライン実装 (Task Pipeline Implementation)
+// ============================================================================
+
+QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(const QString &prompt) {
+    QList<ExecutionTask> tasks;
+    QString cleanedPrompt = prompt.trimmed();
+    if (cleanedPrompt.isEmpty()) return tasks;
+
+    // 文脈セグメントに分解 ("と", "および", "あと", 句読点等)
+    QStringList rawSegments = cleanedPrompt.split(QRegularExpression("[。！!？?\n|]|(と)|(および)|(あと)"), Qt::SkipEmptyParts);
+    if (rawSegments.isEmpty()) {
+        rawSegments.append(cleanedPrompt);
+    }
+
+    for (const QString &rawSeg : rawSegments) {
+        QString seg = rawSeg.trimmed();
+        if (seg.isEmpty() || seg.length() < 2) continue;
+
+        QString lowerSeg = seg.toLower();
+        bool isWebSearch = lowerSeg.contains("天気") || lowerSeg.contains("てんき") ||
+                           lowerSeg.contains("ニュース") || lowerSeg.contains("最新") ||
+                           lowerSeg.contains("今日") || lowerSeg.contains("明日") ||
+                           lowerSeg.contains("為替") || lowerSeg.contains("株価") ||
+                           lowerSeg.contains("ドル") || lowerSeg.contains("円") ||
+                           lowerSeg.contains("日経") || lowerSeg.contains("wiki") ||
+                           lowerSeg.contains("とは") || lowerSeg.contains("誰") ||
+                           lowerSeg.contains("weather") || lowerSeg.contains("news");
+
+        ExecutionTask task;
+        if (isWebSearch) {
+            task.type = TaskType::WebSearchRAG;
+            task.queryKeyword = seg;
+            tasks.append(task);
+        } else {
+            KnowledgeIndexEntry entry = m_tableEngine.resolveBestEntryForTrigger(seg);
+            if (!entry.filePath.isEmpty()) {
+                task.type = TaskType::KnowledgeSearch;
+                task.queryKeyword = seg;
+                tasks.append(task);
+            }
+        }
+    }
+
+    if (tasks.isEmpty()) {
+        QString lowerPrompt = cleanedPrompt.toLower();
+        bool isWebSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
+                           lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
+                           lowerPrompt.contains("今日") || lowerPrompt.contains("明日") ||
+                           lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
+                           lowerPrompt.contains("ドル") || lowerPrompt.contains("円") ||
+                           lowerPrompt.contains("日経") || lowerPrompt.contains("wiki") ||
+                           lowerPrompt.contains("とは") || lowerPrompt.contains("誰") ||
+                           lowerPrompt.contains("weather") || lowerPrompt.contains("news");
+        if (isWebSearch) {
+            ExecutionTask task;
+            task.type = TaskType::WebSearchRAG;
+            task.queryKeyword = cleanedPrompt;
+            tasks.append(task);
+        }
+    }
+
+    return tasks;
+}
+
+void AIClientManager::executeTaskPipeline(QList<ExecutionTask> &tasks) {
+    for (auto &task : tasks) {
+        if (task.type == TaskType::WebSearchRAG && m_searchManager) {
+            qDebug() << "[AIClientManager] Pipeline executing WebSearchRAG task for:" << task.queryKeyword;
+            QString rawResult = m_searchManager->executeSearchSync(task.queryKeyword);
+            if (!rawResult.isEmpty()) {
+                QString cleanText = rawResult;
+                cleanText.remove(QRegularExpression("https?://\\S+"));
+                cleanText.remove(QRegularExpression("URL:\\s*"));
+                cleanText.remove(QRegularExpression("\\[\\d+\\]"));
+                cleanText.remove(QRegularExpression("\\(\\s*\\)"));
+
+                QStringList lines = cleanText.split('\n', Qt::SkipEmptyParts);
+                QStringList filteredLines;
+                for (const QString &rawLine : lines) {
+                    QString line = rawLine.trimmed();
+                    if (line.isEmpty()) continue;
+                    if (line.contains("アメダス") || line.contains("ランキング") || line.contains("指数") ||
+                        line.contains("花火") || line.contains("紫外線") || line.contains("洗濯") ||
+                        line.contains("服装") || line.contains("星空") || line.contains("2週間") ||
+                        line.contains("10日間") || line.contains("コイン") || line.contains("サイトマップ") ||
+                        line.contains("ヘルプ") || line.contains("利用規約") || line.contains("プライバシー")) {
+                        continue;
+                    }
+                    filteredLines.append(line);
+                    if (filteredLines.size() >= 10) break;
+                }
+                task.extractedData = filteredLines.join("\n").trimmed();
+                if (task.extractedData.isEmpty()) task.extractedData = cleanText.left(250);
+                task.isCompleted = true;
+            }
+        } else if (task.type == TaskType::KnowledgeSearch) {
+            qDebug() << "[AIClientManager] Pipeline executing KnowledgeSearch task for:" << task.queryKeyword;
+            KnowledgeIndexEntry entry = m_tableEngine.resolveBestEntryForTrigger(task.queryKeyword);
+            if (!entry.filePath.isEmpty()) {
+                task.extractedData = QString("【ナレッジデータ (%1/%2)】: ファイル %3 (トリガー: %4)").arg(entry.category, entry.tableName, entry.filePath, entry.triggers.join(","));
+                task.isCompleted = true;
+            }
+        }
+    }
+}
+
+QString AIClientManager::formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt) {
+    QStringList contextItems;
+    int taskIdx = 1;
+    for (const auto &task : tasks) {
+        if (task.isCompleted && !task.extractedData.isEmpty()) {
+            QString item = QString("■ タスク %1 (%2):\n%3")
+                               .arg(taskIdx++)
+                               .arg(task.type == TaskType::WebSearchRAG ? "最新Web情報" : "ナレッジ情報")
+                               .arg(task.extractedData);
+            contextItems.append(item);
+        }
+    }
+
+    if (contextItems.isEmpty()) {
+        return originalPrompt;
+    }
+
+    QString refText = QString("【参考情報 (事前収集データ)】\nあなたは以下の情報を既に知っています。回答ではこれらの情報を漏れなく最優先で使用してください：\n%1")
+                          .arg(contextItems.join("\n\n"));
+
+    return refText + "\n\n" + originalPrompt;
 }
 
 
