@@ -149,6 +149,7 @@ private:
     };
 
     QList<ExecutionTask> analyzeAndDecomposeTasks(const QString &prompt);
+    QString generateRefinedQuery(const QString &rawQuerySentence);
     void executeTaskPipeline(QList<ExecutionTask> &tasks);
     QString formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt);
 

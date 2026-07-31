@@ -3222,6 +3222,49 @@ void AIClientManager::on_shoutoutSuccessReceived(const QString &username) {
 // 段階的タスク実行パイプライン実装 (Task Pipeline Implementation)
 // ============================================================================
 
+QString AIClientManager::generateRefinedQuery(const QString &rawQuerySentence) {
+    QString text = rawQuerySentence;
+    static const QStringList noisePatterns = {
+        "を調べて", "調べて", "教えて", "教えてください", "知りたい", "知りたいんだけど",
+        "雨が降るようなら", "晴れるようなら", "〜なら", "散歩をしたいんだけど", "散歩したい",
+        "釣りに行きたい", "釣りに行こうかな", "〜したい", "〜しようかな", "について",
+        "はどうですか", "はどう", "どうなってますか", "確認して", "検索して"
+    };
+    for (const QString &noise : noisePatterns) {
+        text.replace(noise, " ");
+    }
+
+    QDateTime now = QDateTime::currentDateTime();
+    QString dateStr = now.toString("yyyy年M月d日");
+
+    QStringList keywords;
+    keywords.append(dateStr);
+
+    if (rawQuerySentence.contains("神奈川")) keywords.append("神奈川県");
+    else if (rawQuerySentence.contains("東京")) keywords.append("東京都");
+    else if (rawQuerySentence.contains("大阪")) keywords.append("大阪府");
+    else if (rawQuerySentence.contains("愛知") || rawQuerySentence.contains("名古屋")) keywords.append("愛知県");
+
+    if (rawQuerySentence.contains("天気") || rawQuerySentence.contains("てんき")) {
+        keywords.append("天気");
+        keywords.append("降水確率");
+    } else if (rawQuerySentence.contains("為替") || rawQuerySentence.contains("ドル") || rawQuerySentence.contains("円")) {
+        keywords.append("ドル円");
+        keywords.append("為替");
+        keywords.append("レート");
+    } else if (rawQuerySentence.contains("株価") || rawQuerySentence.contains("日経")) {
+        keywords.append("日経平均");
+        keywords.append("株価");
+    } else if (rawQuerySentence.contains("ニュース") || rawQuerySentence.contains("最新")) {
+        keywords.append("最新ニュース");
+    } else {
+        QString cleanRest = text.trimmed().replace(QRegularExpression("\\s+"), " ");
+        if (!cleanRest.isEmpty()) keywords.append(cleanRest);
+    }
+
+    return keywords.join(" ").trimmed();
+}
+
 QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(const QString &prompt) {
     QList<ExecutionTask> tasks;
     QString cleanedPrompt = prompt.trimmed();
@@ -3286,8 +3329,9 @@ QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(
 void AIClientManager::executeTaskPipeline(QList<ExecutionTask> &tasks) {
     for (auto &task : tasks) {
         if (task.type == TaskType::WebSearchRAG && m_searchManager) {
-            qDebug() << "[AIClientManager] Pipeline executing WebSearchRAG task for:" << task.queryKeyword;
-            QString rawResult = m_searchManager->executeSearchSync(task.queryKeyword);
+            QString refinedQuery = generateRefinedQuery(task.queryKeyword);
+            qDebug() << "[AIClientManager] Pipeline executing WebSearchRAG task with refined query:" << refinedQuery << "(Original:" << task.queryKeyword << ")";
+            QString rawResult = m_searchManager->executeSearchSync(refinedQuery);
             if (!rawResult.isEmpty()) {
                 QString cleanText = rawResult;
                 cleanText.remove(QRegularExpression("https?://\\S+"));
@@ -3342,7 +3386,9 @@ QString AIClientManager::formatCombinedPrompt(const QList<ExecutionTask> &tasks,
         return originalPrompt;
     }
 
-    QString refText = QString("【参考情報 (事前収集データ)】\nあなたは以下の情報を既に知っています。回答ではこれらの情報を漏れなく最優先で使用してください：\n%1")
+    QDateTime now = QDateTime::currentDateTime();
+    QString refText = QString("【参考情報 (事前収集データ - 現在日時: %1時点)】\n※以下は本日(%1)時点で収集された最新情報です。参考情報内に現在日時と異なる過去の日付が含まれている場合は、\"本日の情報\"としては絶対に使用せず、本日(%1)の情報のみを根拠に回答してください：\n%2")
+                          .arg(now.toString("yyyy-MM-dd"))
                           .arg(contextItems.join("\n\n"));
 
     return refText + "\n\n" + originalPrompt;

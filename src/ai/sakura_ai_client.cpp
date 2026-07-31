@@ -55,29 +55,8 @@ void SakuraAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
         return;
     }
 
-    // 検索が必要なクエリかどうかの判定 (天気・ニュース・株価・為替・Wikipedia・日付依存質問等)
-    QString lowerPrompt = prompt.toLower();
-    bool needsSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
-                        lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
-                        lowerPrompt.contains("今日") || lowerPrompt.contains("明日") ||
-                        lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
-                        lowerPrompt.contains("ドル") || lowerPrompt.contains("円") ||
-                        lowerPrompt.contains("日経") || lowerPrompt.contains("wiki") ||
-                        lowerPrompt.contains("とは") || lowerPrompt.contains("誰") ||
-                        lowerPrompt.contains("weather") || lowerPrompt.contains("news");
-
-    if (needsSearch && m_searchManager) {
-        m_isPreSearching = true;
-        m_pendingPrompt = prompt;
-        m_pendingHistory = history;
-        m_pendingSessionContext = sessionContext;
-        m_pendingSystemInstruction = systemInstruction;
-
-        qDebug() << "[SakuraAIClient] Triggering pre-search RAG for query:" << prompt;
-        m_searchManager->executeSearch(prompt);
-        return;
-    }
-
+    // AIClientManager 層で事前 RAG / タスクパイプライン検索が完全に一元制御されているため、
+    // クライアント内部での二重検索は発火させず、直ちにリクエストを送信する。
     sendRealSakuraRequest(prompt, history, sessionContext, systemInstruction, "");
 }
 
