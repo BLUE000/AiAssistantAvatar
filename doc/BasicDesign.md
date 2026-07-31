@@ -81,6 +81,7 @@ graph LR
 ※これら「全プロバイダのレートリミット判定」「最短リセット解除時間の算出」「未設定プロバイダの抽出」は、モジュールやAI種別を問わず `RateLimitTracker` および `AIRouter` の共通メソッドへ 1 箇所に完全集約・共通化して処理する。
 7. **TaskFlow URL Safety Guard (TaskFlow安全接続部)**: TaskFlow はマルチユーザー非対応システムのため、コード内での特定個人URLハードコードを撤廃する。`m_taskFlowApiUrl` 未設定時は外部通信を行わずに空データを即時返却し、他人の予定混同リスクを遮断する。
 8. **Raid Shoutout Hybrid Sender (レイドシャウトアウトハイブリッド送信部)**: レイド紹介コメント送信時、Twitch Helix API (`POST /helix/chat/announcements` / `POST /helix/channels/shoutouts`) による公式カラーバナー優先発火を試み、エラー時や通常投稿時はコマンド文字列を除去して標準チャット (IRC PRIVMSG) へ自動フォールバック送信する。二重制御により、カラー装飾効果と 100% 確実なチャット投稿成功を両立させる。
+9. **Intent Evaluator & Role Separated Formatter (意図判定 ＆ 役割分離プロンプト整形部)**: 単なる日時キーワード単体での Web 検索自動発火を排除し、情報目的名詞（「天気」「ニュース」等）でのみ検索を発火させ、スケジュール関連は TaskFlow へ優先ルーティングする。また、取得データは `User` メッセージと切り離し、`System` 指示枠に `[TaskFlow]`, `[WebSearch]` 等の参照ブロックとして分離配置する。
 
 ---
 

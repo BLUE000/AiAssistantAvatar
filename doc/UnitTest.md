@@ -422,6 +422,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-ROUTER-07** | `AIClientManager::selectAndPrepareClient` | 全プロバイダのキーが設定済みで、全プロバイダが枯渇している場合。 | 「すべてのAIプロバイダが上限到達中。解除まで【約〇分〇秒】ほどお待ちください」と案内が生成されること。 |
 | **UT-TASKFLOW-01** | `AIClientManager::fetchSchedules` | `m_taskFlowApiUrl` が未設定（空）の状態で `fetchSchedules` を実行する。 | 特定個人ドメインへの HTTP リクエストが発生せず、即時に空文字列が返却されること。 |
 | **UT-SHOUTOUT-03** | `AIClientManager::on_clientRequestFinished` | レイド紹介文の生成完了時 (`m_isShoutoutRequest == true`) に IRC 送信テキストを検証する。 | IRC へ送信されるイベントテキストの先頭に `/announce` や `/shoutout` コマンド文字列が含まれず、純粋なテキストコメントとして生成されること。 |
+| **UT-TASK-08** | `AIClientManager::analyzeAndDecomposeTasks` | 「今日の予定は？」という文章を入力してタスク分解を実行する。 | 「今日」単体で `WebSearchRAG` タスクが発生せず、TaskFlow スケジュール検索インテントとして正しく識別されること。 |
+| **UT-TASK-09** | `AIClientManager::formatRoleSeparatedPrompt` | 参考情報およびタスクデータが存在する状態でプロンプト生成を実行する。 | `User` ロールプロンプトへ `【参考情報】` が連結されず、`systemInstruction` 領域へ `[WebSearch]` / `[TaskFlow]` ブロックとして分離注入されること。 |
 
 
 

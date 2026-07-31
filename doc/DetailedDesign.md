@@ -2225,5 +2225,27 @@ sequenceDiagram
         IRC->>Twitch: 100% 確実にチャット欄へ投稿完了
     end
 ```
+
+### 13.8 Intent判定最適化 ＆ 役割分離プロンプト構築フロー
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as ユーザー入力
+    participant ACM as AIClientManager
+    participant TF as TaskFlow
+    participant Web as SearchManager
+    participant AI as Worker AI (LLM)
+
+    User->>ACM: "今日の予定は？"
+    ACM->>ACM: analyzeAndDecomposeTasks(prompt)
+    Note over ACM: 「今日」単体でのWeb検索誤発火を排除し、<br>「予定」によりTaskFlow優先インテントと判定
+    ACM->>TF: fetchSchedulesSync()
+    TF-->>ACM: スケジュールJSON
+    Note over ACM: Web検索(WebSearchRAG)は実行スキップ
+    ACM->>ACM: formatRoleSeparatedPrompt()
+    Note over ACM: Userメッセージと事前収集データを完全に分離<br>systemInstruction 領域へ [TaskFlow] ブロックとして注入
+    ACM->>AI: sendRequest(prompt: "今日の予定は？", systemInstruction: "[TaskFlow]\n予定...")
+    AI-->>User: 「本日の予定はありません」と正確に回答
+```
 ```
 
