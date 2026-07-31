@@ -50,29 +50,31 @@ graph TD
 graph LR
     Input[ユーザー/チャット入力] --> ACM[AIClientManager]
     
-    subgraph Step 1: タスク分解
+    subgraph Step 1: タスク分解 & クエリ精製
         ACM --> Decomposer[TaskDecomposer<br>複数Task抽出]
+        Decomposer --> SQG[SearchQueryGenerator<br>クエリキーワード精製]
     end
     
-    subgraph Step 2: データ高速収集 (順次/並列実行)
+    subgraph Step 2: データ高速収集 (AIClientManager一元実行)
         Decomposer --> Task1[Task 1: ナレッジ検索]
-        Decomposer --> Task2[Task 2: 事前Web検索]
+        SQG --> Task2[Task 2: 事前Web検索]
         Task1 --> MTE[MarkdownTableEngine]
         Task2 --> SM[SearchManager]
     end
     
-    subgraph Step 3: 一括まとめ回答生成
+    subgraph Step 3: 一括まとめ回答生成 (マネージャーによる二重検索一元ガード)
         MTE --> Formatter[PromptFormatter<br>【参考情報】統合]
         SM --> Formatter
-        Formatter --> Worker[Worker AI クライアント]
+        Formatter --> Worker[Worker AI クライアント<br>(全IAIClient共有 自前検索抑制)]
         Worker --> Output[アバター吹き出し/OBS応答]
     end
 ```
 
 #### パイプライン構成要素
 1. **TaskDecomposer (タスク分解部)**: 複合メッセージに含まれる文脈・要求を `Task` 構造体のアレイ (`QList<Task>`) にミリ秒で判定分解する。
-2. **TaskExecutor (タスク実行部)**: 抽出された各タスクを C++ の高速ローカル処理 (`MarkdownTableEngine`, `SearchManager`) により順次または並列で実行し、データ文脈を収集する。
-3. **PromptFormatter & Worker AI (一括まとめ回答部)**: 集められた全タスクの結果を構造化プロンプトとして統合し、Worker AI（アバター頭脳）へ渡して 1 回の API 送信で完璧なまとめ回答を生成させる。
+2. **SearchQueryGenerator (クエリ精製部)**: ユーザーの入力文章（「〜について調べて釣りに行きたい」等）から不要な条件・思考指示文を削ぎ落とし、現在日付（`2026年7月31日`）と検索用キーワード（例: `神奈川県 2026年7月31日 天気`）を精製・抽出する。
+3. **TaskExecutor (タスク実行部)**: 抽出・精製された各タスクを C++ の高速ローカル処理 (`MarkdownTableEngine`, `SearchManager`) により `AIClientManager` レイヤーで一元実行し、データ文脈を収集する。
+4. **PromptFormatter & Worker AI (一括まとめ回答部)**: 集められた全タスクの結果を構造化プロンプトとして統合し、Worker AI（アバター頭脳）へ渡して 1 回の API 送信で完璧なまとめ回答を生成させる。マネージャー層の責任において下流の全 AI クライアント（`IAIClient` を継承する全プロバイダ）での重複検索発生を完全にガード・一元制御する。
 
 ---
 

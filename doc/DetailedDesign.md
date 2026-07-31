@@ -2103,18 +2103,20 @@ enum class TaskType {
 
 struct ExecutionTask {
     TaskType type;
-    QString queryKeyword;
-    QString extractedData;
+    QString queryKeyword;       // 抽出された検索キーワード
+    QString rawQuerySentence;   // 元の自然言語文章
+    QString extractedData;      // 取得データ
     bool isCompleted = false;
 };
 ```
 
-- **詳細処理フロー (Mermaid)**:
+- **詳細処理フロー (Mermaid シーケンス図)**:
 ```mermaid
 sequenceDiagram
     autonumber
     participant UI as チャット/Twitch
     participant ACM as AIClientManager
+    participant SQG as SearchQueryGenerator
     participant MTE as MarkdownTableEngine
     participant SM as SearchManager
     participant Client as IAIClient (Worker)
@@ -2127,13 +2129,17 @@ sequenceDiagram
             ACM->>MTE: resolveBestEntryForTrigger(keyword)
             MTE-->>ACM: ナレッジ行テキスト返却
         else TaskType == WebSearchRAG
-            ACM->>SM: executeSearchSync(keyword)
-            SM-->>ACM: スリム化検索テキスト返却
+            ACM->>SQG: generateRefinedQuery(rawQuerySentence)
+            Note over SQG: 不要な条件文をカットし<br>「地名+現在日付+対象」のキーワードに精製
+            SQG-->>ACM: 精製キーワード (例: "神奈川県 2026年7月31日 天気 降水確率")
+            ACM->>SM: executeSearchSync(refinedKeyword)
+            SM-->>ACM: スリム化最新検索テキスト返却
         end
     end
 
     ACM->>ACM: 2. formatCombinedPrompt(tasks) -> finalPrompt
     ACM->>Client: 3. sendRequest(finalPrompt, history, context, system)
+    Note over Client: 下流の全AIクライアント(IAIClient実装)における<br>重複検索の発生をマネージャー側で完全にガード・抑制
     Client-->>ACM: requestFinished(replyText)
     ACM->>UI: 4. notifyEvent(AIResponseReceived)
 ```
