@@ -2090,5 +2090,52 @@ public:
   2. 検索テキストから `https?://\S+`, `URL:`, `[1]` などのメタデータノイズおよび無関係な未来日付・各種指数を `QRegularExpression` で除去・クレンジングする。
   3. 200〜300文字にスリム化された参考テキストを `【参考情報】...\n\n[質問]` としてユーザーメッセージに一元結合する。各 AI クライアントへの個別修正を行わず、自然な **`user` ロールメッセージ** として渡すことでモデル内蔵ガードの誤発動を 100% 回避する。
   4. `AIClientManager::on_clientRequestFinished` にて、返信テキストに対する LaTeX コマンド（`\times`, `\text{...}`）のプレーンテキスト自動変換クレンジングを一括適用する。
+
+#### 13.4 段階的タスク実行パイプラインの詳細クラス構造と処理フロー (Task Pipeline Detailed Specification)
+
+- **データ構造**:
+```cpp
+enum class TaskType {
+    KnowledgeSearch,
+    WebSearchRAG,
+    ScheduleQuery
+};
+
+struct ExecutionTask {
+    TaskType type;
+    QString queryKeyword;
+    QString extractedData;
+    bool isCompleted = false;
+};
+```
+
+- **詳細処理フロー (Mermaid)**:
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as チャット/Twitch
+    participant ACM as AIClientManager
+    participant MTE as MarkdownTableEngine
+    participant SM as SearchManager
+    participant Client as IAIClient (Worker)
+
+    UI->>ACM: on_requestAI(prompt)
+    ACM->>ACM: 1. analyzeAndDecomposeTasks(prompt) -> QList<ExecutionTask>
+    
+    loop 各Taskの順次/並列実行
+        alt TaskType == KnowledgeSearch
+            ACM->>MTE: resolveBestEntryForTrigger(keyword)
+            MTE-->>ACM: ナレッジ行テキスト返却
+        else TaskType == WebSearchRAG
+            ACM->>SM: executeSearchSync(keyword)
+            SM-->>ACM: スリム化検索テキスト返却
+        end
+    end
+
+    ACM->>ACM: 2. formatCombinedPrompt(tasks) -> finalPrompt
+    ACM->>Client: 3. sendRequest(finalPrompt, history, context, system)
+    Client-->>ACM: requestFinished(replyText)
+    ACM->>UI: 4. notifyEvent(AIResponseReceived)
+```
 ```
 

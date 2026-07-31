@@ -57,6 +57,16 @@ classDiagram
 
 ---
 
+### 3.1.1 段階的タスク実行パイプライン (`AIClientManager`) の単体試験 (GTest/QTest)
+
+| 試験ID | 対象メソッド/機能 | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-TASK-01** | `analyzeAndDecomposeTasks()` | 複合メッセージ `"鉄の剣の素材と大阪の天気を教えて"` を渡す。 | 返却された `QList<ExecutionTask>` のサイズが `2` であり、Task1が `KnowledgeSearch` (query: `"鉄の剣"`), Task2が `WebSearchRAG` (query: `"大阪 天気"`) であること。 |
+| **UT-TASK-02** | `executeTaskPipeline()` | 分解された `ExecutionTask` リストを渡す。 | C++ ローカル処理 (`MarkdownTableEngine`, `SearchManager`) がミリ秒単位で順次実行され、全ての Task の `isCompleted` が `true` かつ `extractedData` が格納されること。 |
+| **UT-TASK-03** | `formatCombinedPrompt()` | 実行完了した Task リストを渡す。 | 生成されたプロンプト文字列に全 Task の結果テキストが `【参考情報】` 内に漏れなく構造化されて包含されていること。 |
+
+---
+
 ### 3.2 `STTManager` の単体試験 (GTest/QTest)
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |

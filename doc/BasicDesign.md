@@ -38,7 +38,41 @@ graph TD
 | **Discordモジュール**| `DiscordReader` | Discordスレッド | ・Discordボット接続（WebSocketゲートウェイ）の維持および定期ハートビート送信<br>・対象チャンネルでのメッセージ受信（`MESSAGE_CREATE`）監視とイベント通知<br>・AI応答を指定されたDiscordチャンネルへ非同期でPOST送信（REST API） |
 | **コアモジュール** | `CoreModule` | コアスレッド | ・システム全体の制御および他モジュールの管理<br>・UIからの要求のハンドリング<br>・各モジュールからのイベント受信と処理フローの進行<br>・UIへの完了イベント通知 |
 | **STTモジュール** | `STTManager` | STTスレッド | ・マイクからの音声キャプチャ（QAudioSource等を使用）<br>・`whisper.cpp` または `Windows SAPI` による音声認識<br>・文字起こし結果のイベント通知 |
-| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御。さらに、UI直接入力（Direct Input）に限定した対話型Markdownナレッジ登録（10分タイマー監視、メタデータ管理、本登録）の制御。**【さくらAI限定代理ルーティング】さくらAI選択時のWeb検索必要クエリに対して、モデルの安全拒否を回避するため Manager AI (Groq等) への自動代理ルーティングを実行**<br>・**2段目（Client）**: 各AI API固有 of HTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御、およびナレッジ本登録ツール・フォルダオープンツール呼び出しの制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
+| **AIモジュール** | `AIClientManager`<br>`IAIClient`<br>`SearchManager` | AIスレッド | ・**【2段構成＆検索連携】**<br>・**1段目（Manager）**: コアからの要求受付、AIクライアントの動的切り替え、共通イベント化と通知。および翻訳コマンド (`trans`) の検出と履歴・コンテキストのバイパス制御。また、リセット時の長期記憶アーカイブ（サマリ＆詳細）生成と想起の制御。さらに、UI直接入力（Direct Input）に限定した対話型Markdownナレッジ登録（10分タイマー監視、メタデータ管理、本登録）の制御。<br>・**段階的タスク実行パイプライン**: 複合メッセージの受諾時に、自律思考ループを回避し「タスク分解 ➔ 高速並列データ収集 ➔ 一括まとめ回答生成」のパイプラインを処理する。<br>・**2段目（Client）**: 各AI API固有 of HTTPリクエスト構築とレスポンスパース、Function Calling (web_search) 時の再問い合わせ制御、およびナレッジ本登録ツール・フォルダオープンツール呼び出しの制御<br>・**検索マネージャ**: Tavily/DuckDuckGoを組み合わせたハイブリッドWeb検索および自動フォールバックの実行 |
+
+---
+
+### 1.2 段階的タスク実行パイプラインのアーキテクチャ (Task Pipeline Architecture)
+
+複合メッセージ（1文の中に複数の質問や話題が含まれるメッセージ）受信時において、リアルタイム配信アバターとしての応答速度（低レイテンシ）と回答精度（回答漏れ・スキップの根絶）を両立させるため、以下のコンポーネント連携パイプラインを構築する。
+
+```mermaid
+graph LR
+    Input[ユーザー/チャット入力] --> ACM[AIClientManager]
+    
+    subgraph Step 1: タスク分解
+        ACM --> Decomposer[TaskDecomposer<br>複数Task抽出]
+    end
+    
+    subgraph Step 2: データ高速収集 (順次/並列実行)
+        Decomposer --> Task1[Task 1: ナレッジ検索]
+        Decomposer --> Task2[Task 2: 事前Web検索]
+        Task1 --> MTE[MarkdownTableEngine]
+        Task2 --> SM[SearchManager]
+    end
+    
+    subgraph Step 3: 一括まとめ回答生成
+        MTE --> Formatter[PromptFormatter<br>【参考情報】統合]
+        SM --> Formatter
+        Formatter --> Worker[Worker AI クライアント]
+        Worker --> Output[アバター吹き出し/OBS応答]
+    end
+```
+
+#### パイプライン構成要素
+1. **TaskDecomposer (タスク分解部)**: 複合メッセージに含まれる文脈・要求を `Task` 構造体のアレイ (`QList<Task>`) にミリ秒で判定分解する。
+2. **TaskExecutor (タスク実行部)**: 抽出された各タスクを C++ の高速ローカル処理 (`MarkdownTableEngine`, `SearchManager`) により順次または並列で実行し、データ文脈を収集する。
+3. **PromptFormatter & Worker AI (一括まとめ回答部)**: 集められた全タスクの結果を構造化プロンプトとして統合し、Worker AI（アバター頭脳）へ渡して 1 回の API 送信で完璧なまとめ回答を生成させる。
 
 ---
 

@@ -14,6 +14,22 @@
   - トリガーとなる文言（ウェイクワード）はUIから設定・変更可能とする。
   - **接続時挨拶**: Twitchへの初回接続時およびチャンネル変更接続時に自動挨拶を行う機能を個別にON/OFF可能とする（`twitch_greeting_enabled`）。
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as アプリユーザー
+    participant App as AiAssistantAvatar
+    participant Browser as Webブラウザ
+    participant Twitch as Twitch OAuth / IRC
+
+    User->>App: 「Twitch認証開始」ボタン押下
+    App->>Browser: 認証URL (force_verify=true) を起動
+    Browser->>Twitch: ログイン＆認可画面リクエスト
+    Twitch-->>Browser: アクセストークン(ハッシュ)付きリダイレクト
+    Browser->>App: ローカルHTTPサーバーへトークン送信
+    App->>Twitch: IRC over WebSocket 接続開始 (!aiウェイクワード監視)
+```
+
 ### F-2: 音声入力（STT）機能
 - 音声入力デバイス（マイク等）から音声をキャプチャする。
 - キャプチャした音声をテキストデータ（Speech-to-Text）に変換する。
@@ -231,6 +247,33 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
 - 検索結果から URL リスト、`[1]`, `[2]` 等のマークアップ、各種ノイズ指数、無関係な未来日付等を一元的にクレンジング除去し、最長 12〜15 行（約 200〜300 文字）の短文テキストへスリム化する。
 - スリム化された参考情報をユーザープロンプトの直前に `【参考情報】...\n\n[質問]` として一元結合し、全 AI プロバイダ（Groq, OpenRouter, Mistral, Cerebras, HuggingFace, Sakura 等）へ渡すことで、AIモデルの安全拒否ガードを 100% 回避して指定アバターキャラクターの言葉で直接応答させる。
 - 回答テキスト内の計算式・数式において LaTeX コマンド（`\text`, `\times` 等）が使われて表示崩れを起こすのを防ぐため、一括プロンプト制約および一元応答テキストクレンジング（`\times` ➔ `×` 等）を共通適用する。
+
+#### F-16-7: 段階的タスク実行パイプライン機能 (文章 → 複数Task化 → 順次実行 → まとめ回答)
+- 単一のメッセージ内に複数の質問や話題（例：「鉄の剣の素材と今日の大阪の天気を教えて」等）が含まれている場合、AIの思考ループによるレスポンス遅延（自律思考型の欠点）を回避するため、以下の3段階パイプラインを実行する。
+  1. **タスク分解**: 入力テキストに含まれる独立した質問・トピックを複数の実行タスクリスト (`QList<Task>`) へ分離・分解する。
+  2. **データ収集 (Task順次実行)**: 各タスクに対応するデータ取得（`MarkdownTableEngine` によるナレッジ検索、`SearchManager` による事前Web検索等）を C++ 側でミリ秒単位の高速で順次/並列実行する。
+  3. **一括まとめ回答生成**: 収集された全てのタスク実行結果を構造化テキスト (`【参考情報】`) として一括マージし、Worker AI（アバター頭脳）へ渡すことで、1回の呼び出しで回答の省略・スキップなく完璧なまとめ回答を生成させる。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as ユーザー / チャット
+    participant ACM as AIClientManager (C++)
+    participant Task as Task実行エンジン (ナレッジ/Web検索)
+    participant Worker as Worker AI (アバター頭脳)
+
+    User->>ACM: 複合メッセージ入力 ("鉄の剣の素材と大阪の天気を教えて")
+    Note over ACM: 1. タスク分解 (複数Task化)
+    ACM->>ACM: Task 1: ナレッジ検索 "鉄の剣"<br/>Task 2: Web検索 "大阪 天気"
+    Note over ACM: 2. データ収集 (Task順次実行)
+    ACM->>Task: Task 1 実行
+    Task-->>ACM: ナレッジ取得 "鉄の剣 | 素材: 鉄鉱石"
+    ACM->>Task: Task 2 実行
+    Task-->>ACM: Web検索取得 "大阪 晴れ 33℃"
+    Note over ACM: 3. まとめ回答生成
+    ACM->>Worker: 統合プロンプト送信 (全Task結果)
+    Worker-->>User: 一括まとめ回答 ("鉄の剣は鉄鉱石！大阪は晴れ33℃だよ！")
+```
 
 ### F-20: 外部スケジュール API 連携機能 (全入力ソース対応)
 - Twitchコメント、Discord、またはチャット入力画面（直接入力・音声入力）の全入力ソースから予定や作業・配信の状況について質問（ウェイクワード等を含み、かつキーワードとして「予定」「スケジュール」「タスク」「状況」「進捗」「配信」「作業」などを検出した場合）を受けた際、自動的に外部スケジュール API から最新データを取得し、回答に統合する機能を提供する。
