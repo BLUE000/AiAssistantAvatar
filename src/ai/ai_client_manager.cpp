@@ -1389,11 +1389,12 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     }
 
-    // 6. 段階的タスク実行パイプライン (文章 → 複数Task化 → Task順次実行 → まとめ回答)
+    // 6. 段階的タスク実行パイプライン (文章 → 複数Task化 → Task順次実行 → Validator検証 → まとめ回答)
     QList<ExecutionTask> tasks = analyzeAndDecomposeTasks(filteredPrompt);
     if (!tasks.isEmpty()) {
         qDebug() << "[AIClientManager] Step 1: Decomposed prompt into" << tasks.size() << "execution tasks.";
         executeTaskPipeline(tasks);
+        validateAndInjectGuards(tasks, filteredPrompt, additionalSystemPrompt);
         QString pipelineContext = formatCombinedPrompt(tasks, filteredPrompt);
         if (!pipelineContext.isEmpty()) {
             finalPrompt = pipelineContext;
@@ -3222,44 +3223,43 @@ void AIClientManager::on_shoutoutSuccessReceived(const QString &username) {
 // 段階的タスク実行パイプライン実装 (Task Pipeline Implementation)
 // ============================================================================
 
-QString AIClientManager::generateRefinedQuery(const QString &rawQuerySentence) {
+QString AIClientManager::generateRefinedQuery(const QString &rawQuerySentence, const QString &targetType) {
     QString text = rawQuerySentence;
+    text.remove(" (weather)").remove(" (tide)");
+
     static const QStringList noisePatterns = {
         "を調べて", "調べて", "教えて", "教えてください", "知りたい", "知りたいんだけど",
         "雨が降るようなら", "晴れるようなら", "〜なら", "散歩をしたいんだけど", "散歩したい",
         "釣りに行きたい", "釣りに行こうかな", "〜したい", "〜しようかな", "について",
-        "はどうですか", "はどう", "どうなってますか", "確認して", "検索して"
+        "はどうですか", "はどう", "どうなってますか", "確認して", "検索して", "を調べたうえで"
     };
     for (const QString &noise : noisePatterns) {
         text.replace(noise, " ");
     }
 
     QDateTime now = QDateTime::currentDateTime();
+    if (rawQuerySentence.contains("明日") || rawQuerySentence.contains("あした")) {
+        now = now.addDays(1);
+    }
     QString dateStr = now.toString("yyyy年M月d日");
 
     QStringList keywords;
     keywords.append(dateStr);
 
     if (rawQuerySentence.contains("神奈川")) keywords.append("神奈川県");
+    else if (rawQuerySentence.contains("横浜")) keywords.append("横浜市");
     else if (rawQuerySentence.contains("東京")) keywords.append("東京都");
     else if (rawQuerySentence.contains("大阪")) keywords.append("大阪府");
     else if (rawQuerySentence.contains("愛知") || rawQuerySentence.contains("名古屋")) keywords.append("愛知県");
 
-    if (rawQuerySentence.contains("天気") || rawQuerySentence.contains("てんき")) {
+    if (targetType == "tide" || (rawQuerySentence.contains("潮") && !rawQuerySentence.contains("天気"))) {
+        keywords.append("潮汐");
+        keywords.append("満潮");
+        keywords.append("干潮");
+        keywords.append("潮見表");
+    } else {
         keywords.append("天気");
         keywords.append("降水確率");
-    } else if (rawQuerySentence.contains("為替") || rawQuerySentence.contains("ドル") || rawQuerySentence.contains("円")) {
-        keywords.append("ドル円");
-        keywords.append("為替");
-        keywords.append("レート");
-    } else if (rawQuerySentence.contains("株価") || rawQuerySentence.contains("日経")) {
-        keywords.append("日経平均");
-        keywords.append("株価");
-    } else if (rawQuerySentence.contains("ニュース") || rawQuerySentence.contains("最新")) {
-        keywords.append("最新ニュース");
-    } else {
-        QString cleanRest = text.trimmed().replace(QRegularExpression("\\s+"), " ");
-        if (!cleanRest.isEmpty()) keywords.append(cleanRest);
     }
 
     return keywords.join(" ").trimmed();
@@ -3270,7 +3270,22 @@ QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(
     QString cleanedPrompt = prompt.trimmed();
     if (cleanedPrompt.isEmpty()) return tasks;
 
-    // 文脈セグメントに分解 ("と", "および", "あと", 句読点等)
+    bool hasWeather = cleanedPrompt.contains("天気") || cleanedPrompt.contains("てんき");
+    bool hasTide = cleanedPrompt.contains("潮汐") || cleanedPrompt.contains("潮") || cleanedPrompt.contains("満潮") || cleanedPrompt.contains("干潮") || cleanedPrompt.contains("釣り");
+
+    if (hasWeather && hasTide) {
+        ExecutionTask task1;
+        task1.type = TaskType::WebSearchRAG;
+        task1.queryKeyword = cleanedPrompt + " (weather)";
+        tasks.append(task1);
+
+        ExecutionTask task2;
+        task2.type = TaskType::WebSearchRAG;
+        task2.queryKeyword = cleanedPrompt + " (tide)";
+        tasks.append(task2);
+        return tasks;
+    }
+
     QStringList rawSegments = cleanedPrompt.split(QRegularExpression("[。！!？?\n|]|(と)|(および)|(あと)"), Qt::SkipEmptyParts);
     if (rawSegments.isEmpty()) {
         rawSegments.append(cleanedPrompt);
@@ -3288,6 +3303,7 @@ QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(
                            lowerSeg.contains("ドル") || lowerSeg.contains("円") ||
                            lowerSeg.contains("日経") || lowerSeg.contains("wiki") ||
                            lowerSeg.contains("とは") || lowerSeg.contains("誰") ||
+                           lowerSeg.contains("潮") || lowerSeg.contains("釣り") ||
                            lowerSeg.contains("weather") || lowerSeg.contains("news");
 
         ExecutionTask task;
@@ -3305,31 +3321,14 @@ QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(
         }
     }
 
-    if (tasks.isEmpty()) {
-        QString lowerPrompt = cleanedPrompt.toLower();
-        bool isWebSearch = lowerPrompt.contains("天気") || lowerPrompt.contains("てんき") ||
-                           lowerPrompt.contains("ニュース") || lowerPrompt.contains("最新") ||
-                           lowerPrompt.contains("今日") || lowerPrompt.contains("明日") ||
-                           lowerPrompt.contains("為替") || lowerPrompt.contains("株価") ||
-                           lowerPrompt.contains("ドル") || lowerPrompt.contains("円") ||
-                           lowerPrompt.contains("日経") || lowerPrompt.contains("wiki") ||
-                           lowerPrompt.contains("とは") || lowerPrompt.contains("誰") ||
-                           lowerPrompt.contains("weather") || lowerPrompt.contains("news");
-        if (isWebSearch) {
-            ExecutionTask task;
-            task.type = TaskType::WebSearchRAG;
-            task.queryKeyword = cleanedPrompt;
-            tasks.append(task);
-        }
-    }
-
     return tasks;
 }
 
 void AIClientManager::executeTaskPipeline(QList<ExecutionTask> &tasks) {
     for (auto &task : tasks) {
         if (task.type == TaskType::WebSearchRAG && m_searchManager) {
-            QString refinedQuery = generateRefinedQuery(task.queryKeyword);
+            QString targetType = task.queryKeyword.contains("(tide)") ? "tide" : "weather";
+            QString refinedQuery = generateRefinedQuery(task.queryKeyword, targetType);
             qDebug() << "[AIClientManager] Pipeline executing WebSearchRAG task with refined query:" << refinedQuery << "(Original:" << task.queryKeyword << ")";
             QString rawResult = m_searchManager->executeSearchSync(refinedQuery);
             if (!rawResult.isEmpty()) {
@@ -3366,6 +3365,25 @@ void AIClientManager::executeTaskPipeline(QList<ExecutionTask> &tasks) {
                 task.isCompleted = true;
             }
         }
+    }
+}
+
+void AIClientManager::validateAndInjectGuards(const QList<ExecutionTask> &tasks, const QString &originalPrompt, QString &additionalSystemPrompt) {
+    bool requestedTide = originalPrompt.contains("潮") || originalPrompt.contains("潮汐") || originalPrompt.contains("満潮") || originalPrompt.contains("干潮");
+    if (!requestedTide) return;
+
+    bool foundTideData = false;
+    for (const auto &task : tasks) {
+        if (task.extractedData.contains("満潮") || task.extractedData.contains("干潮") || task.extractedData.contains("潮位") || task.extractedData.contains("小潮") || task.extractedData.contains("大潮") || task.extractedData.contains("中潮")) {
+            foundTideData = true;
+            break;
+        }
+    }
+
+    if (!foundTideData) {
+        qDebug() << "[AIClientManager] Validator: User requested tide data but search results lacked tide info. Injecting hallucination guard constraint.";
+        QString guardMsg = "※【重要・データ未取得の通知】今回の検索結果には指定された「潮汐（満潮・干潮の時刻）」の正確なデータが含まれていませんでした。時刻や数値を絶対に推測・捏造して回答せず、「潮汐データは取得できなかったため、正確な潮見表をご確認ください」と明記したうえで、取得できた天気情報のみに基づいて回答してください。";
+        additionalSystemPrompt = guardMsg + "\n\n" + additionalSystemPrompt;
     }
 }
 

@@ -135,6 +135,7 @@ private:
     void saveKnowledgeMetadata();
     void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
 
+public:
     // --- 段階的タスク実行パイプライン ---
     enum class TaskType {
         KnowledgeSearch,
@@ -149,9 +150,12 @@ private:
     };
 
     QList<ExecutionTask> analyzeAndDecomposeTasks(const QString &prompt);
-    QString generateRefinedQuery(const QString &rawQuerySentence);
+    QString generateRefinedQuery(const QString &rawQuerySentence, const QString &targetType = "weather");
     void executeTaskPipeline(QList<ExecutionTask> &tasks);
+    void validateAndInjectGuards(const QList<ExecutionTask> &tasks, const QString &originalPrompt, QString &additionalSystemPrompt);
     QString formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt);
+
+private:
 
 
 

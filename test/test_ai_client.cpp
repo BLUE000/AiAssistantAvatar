@@ -1107,6 +1107,43 @@ TEST_F(AIClientTest, RAGRecallTest) {
     QDir("log").removeRecursively();
 }
 
+TEST_F(AIClientTest, MultiTaskPlannerDecompositionTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // UT-TASK-06: 複数要求文（天気 + 潮汐/釣り）が 2 つの Task に分解されること
+    QString prompt = "明日の横浜の天気と潮汐を調べたうえで、釣りに行く絶好のタイミングを知りたい。";
+    auto tasks = manager.analyzeAndDecomposeTasks(prompt);
+    EXPECT_EQ(tasks.size(), 2);
+    if (tasks.size() >= 2) {
+        EXPECT_EQ(tasks[0].type, AIClientManager::TaskType::WebSearchRAG);
+        EXPECT_TRUE(tasks[0].queryKeyword.contains("(weather)"));
+        EXPECT_EQ(tasks[1].type, AIClientManager::TaskType::WebSearchRAG);
+        EXPECT_TRUE(tasks[1].queryKeyword.contains("(tide)"));
+    }
+}
+
+TEST_F(AIClientTest, ValidatorTideGuardInjectionTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    // UT-TASK-07: 潮汐要求があり、検索結果に干満時刻が含まれない場合、妄想防止ガード指示が注入されること
+    QList<AIClientManager::ExecutionTask> tasks;
+    AIClientManager::ExecutionTask t1;
+    t1.type = AIClientManager::TaskType::WebSearchRAG;
+    t1.queryKeyword = "横浜市 2026年7月31日 天気";
+    t1.extractedData = "最高気温 34℃ 最低気温 29℃ 降水確率 20%";
+    t1.isCompleted = true;
+    tasks.append(t1);
+
+    QString prompt = "明日の横浜の天気と潮汐を調べたうえで、釣りに行く絶好のタイミングを知りたい。";
+    QString additionalSystemPrompt = "";
+
+    manager.validateAndInjectGuards(tasks, prompt, additionalSystemPrompt);
+    EXPECT_TRUE(additionalSystemPrompt.contains("※【重要・データ未取得の通知】"));
+    EXPECT_TRUE(additionalSystemPrompt.contains("潮汐データは取得できなかったため"));
+}
+
 TEST_F(AIClientTest, RateLimitTrackerTest) {
     RateLimitTracker tracker;
     
