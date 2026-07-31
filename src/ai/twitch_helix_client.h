@@ -31,6 +31,9 @@ public:
     // 非同期で Helix API からクリエイター情報を取得
     void fetchCreatorInfo(const QString &username, std::function<void(const CreatorHelixInfo &info, bool success)> callback);
 
+    // 非同期で Twitch Helix API (POST /helix/chat/announcements) から公式カラーアナウンスバナーを発信
+    void sendChatAnnouncement(const QString &broadcasterId, const QString &moderatorId, const QString &message, const QString &color = "primary", std::function<void(bool success)> callback = nullptr);
+
 private:
     QString extractSnsInfo(const QString &bio) const;
 };

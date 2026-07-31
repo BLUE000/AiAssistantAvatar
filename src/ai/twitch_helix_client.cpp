@@ -99,3 +99,38 @@ void TwitchHelixClient::fetchCreatorInfo(const QString &username, std::function<
         });
     });
 }
+
+void TwitchHelixClient::sendChatAnnouncement(const QString &broadcasterId, const QString &moderatorId, const QString &message, const QString &color, std::function<void(bool success)> callback) {
+    if (broadcasterId.isEmpty() || moderatorId.isEmpty() || m_clientId.isEmpty() || m_oauthToken.isEmpty()) {
+        qWarning() << "TwitchHelixClient: Missing parameters or credentials for announcement.";
+        if (callback) callback(false);
+        return;
+    }
+
+    QUrl url("https://api.twitch.tv/helix/chat/announcements");
+    QUrlQuery query;
+    query.addQueryItem("broadcaster_id", broadcasterId);
+    query.addQueryItem("moderator_id", moderatorId);
+    url.setQuery(query);
+
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    req.setRawHeader("Client-ID", m_clientId.toUtf8());
+    req.setRawHeader("Authorization", ("Bearer " + m_oauthToken).toUtf8());
+
+    QJsonObject bodyObj;
+    bodyObj["message"] = message;
+    bodyObj["color"] = color;
+
+    QNetworkReply *reply = m_networkManager->post(req, QJsonDocument(bodyObj).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [reply, callback]() {
+        reply->deleteLater();
+        bool ok = (reply->error() == QNetworkReply::NoError);
+        if (!ok) {
+            qWarning() << "TwitchHelixClient: Chat announcement API error:" << reply->errorString();
+        } else {
+            qDebug() << "TwitchHelixClient: Chat announcement sent successfully via Helix API.";
+        }
+        if (callback) callback(ok);
+    });
+}

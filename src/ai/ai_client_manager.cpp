@@ -1699,14 +1699,20 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             if (!m_shoutoutPrefix.isEmpty() && !filteredResponse.startsWith(m_shoutoutPrefix)) {
                 filteredResponse = m_shoutoutPrefix + " " + filteredResponse;
             }
-            if (m_shoutoutUseAnnounce) {
+
+            // F-22-1: Twitch Helix API 経由での背景カラーアナウンスバナー優先発火 (ハイブリッド制御)
+            if (m_shoutoutUseAnnounce && m_helixClient) {
                 QString color = m_shoutoutAnnounceColor;
                 if (color == "random") {
                     static const QStringList colors = {"primary", "blue", "green", "orange", "purple"};
                     color = colors.at(QRandomGenerator::global()->bounded(colors.size()));
                 }
-                filteredResponse = QString("/announce %1 %2").arg(color, filteredResponse);
+                QString bId = m_twitchChannel.isEmpty() ? m_currentTwitchChannel : m_twitchChannel;
+                QString mId = m_twitchUsername.isEmpty() ? bId : m_twitchUsername;
+                m_helixClient->sendChatAnnouncement(bId, mId, filteredResponse, color);
             }
+            // ※ IRC (PRIVMSG) 送信用テキストからは /announce コマンド文字を完全に削除し、
+            // 純粋なチャットコメントとして Twitch チャット欄へ 100% 確実に投稿・表示させる
         }
 
         event.text = filteredResponse;

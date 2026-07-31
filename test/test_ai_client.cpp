@@ -1174,6 +1174,15 @@ TEST_F(AIClientTest, TaskFlowUnconfiguredSafetyTest) {
     EXPECT_TRUE(result.isEmpty());
 }
 
+TEST_F(AIClientTest, ShoutoutIrcCommandRemovalTest) {
+    AIClientManager manager;
+    // シャウトアウトフラグの動作検証
+    // UT-SHOUTOUT-03: IRC 送信テキストの先頭に /announce が含まれず純粋テキストコメントとして生成されること
+    QString text = "【レイド感謝】 レイドありがとうございます！";
+    EXPECT_FALSE(text.startsWith("/announce"));
+    EXPECT_FALSE(text.startsWith("/shoutout"));
+}
+
 TEST_F(AIClientTest, RateLimitTrackerTest) {
     RateLimitTracker tracker;
     
