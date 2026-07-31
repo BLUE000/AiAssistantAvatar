@@ -407,12 +407,14 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 ---
 
-### 3.26 段階的タスクパイプライン (F-16-7: マネージャーによるクエリ精製 ＆ 二重検索一元ガード) の単体試験
+### 3.26 段階的タスクパイプライン (F-16-7: 多重 TaskPlanner ＆ Validator 層) の単体試験
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
 | **UT-TASK-04** | `AIClientManager::generateRefinedQuery` | 長文指示文（「今日の神奈川の天気を調べて、雨なら散歩したいんだけど...」）を入力する。 | 不要な条件文（散歩、釣り等）がカットされ、`"神奈川県 2026年7月31日 天気"` 形式の検索キーワードが抽出・生成されること。 |
 | **UT-TASK-05** | `AIClientManager::on_requestAI` | マネージャー層で事前 RAG 検索が完了したプロンプトを全 AI クライアント (`IAIClient`) へ転送する。 | 下流の全 AI クライアント内部での二重 Web 検索（`needsSearch` / `executeSearch`）が発火せず、マネージャーによる 1 回の検索のみで直ちに LLM へリクエストが送信されること。 |
+| **UT-TASK-06** | `AIClientManager::analyzeAndDecomposeTasks` | 複数要求文（「明日の横浜の天気と潮汐を調べたうえで、釣りに行くタイミングを知りたい」）を入力する。 | `Task 1: 天気` と `Task 2: 潮汐` の 2 つの独立検索タスクが `QList<ExecutionTask>` に分解・抽出されること。 |
+| **UT-TASK-07** | `AIClientManager::validateExtractedData` | 潮汐要求があるが検索結果に「干潮・満潮」のデータが含まれない場合。 | 「潮汐データ未取得のため数値を推測・捏造せず回答せよ」というガード制約がプロンプトに追加注入されること。 |
 
 
 

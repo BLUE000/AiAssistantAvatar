@@ -2116,32 +2116,34 @@ sequenceDiagram
     autonumber
     participant UI as チャット/Twitch
     participant ACM as AIClientManager
+    participant TP as TaskPlanner
     participant SQG as SearchQueryGenerator
-    participant MTE as MarkdownTableEngine
     participant SM as SearchManager
+    participant Val as Validator層
     participant Client as IAIClient (Worker)
 
     UI->>ACM: on_requestAI(prompt)
-    ACM->>ACM: 1. analyzeAndDecomposeTasks(prompt) -> QList<ExecutionTask>
+    ACM->>TP: 1. analyzeAndDecomposeTasks(prompt)
+    Note over TP: 「天気」と「潮汐」等の複数要求を検出<br>QList<ExecutionTask> (Task1, Task2) へ分解
+    TP-->>ACM: QList<ExecutionTask> 返却
     
-    loop 各Taskの順次/並列実行
-        alt TaskType == KnowledgeSearch
-            ACM->>MTE: resolveBestEntryForTrigger(keyword)
-            MTE-->>ACM: ナレッジ行テキスト返却
-        else TaskType == WebSearchRAG
-            ACM->>SQG: generateRefinedQuery(rawQuerySentence)
-            Note over SQG: 不要な条件文をカットし<br>「地名+現在日付+対象」のキーワードに精製
-            SQG-->>ACM: 精製キーワード (例: "神奈川県 2026年7月31日 天気 降水確率")
-            ACM->>SM: executeSearchSync(refinedKeyword)
-            SM-->>ACM: スリム化最新検索テキスト返却
-        end
+    loop 各Task (Task1: 天気, Task2: 潮汐) の順次/並列実行
+        ACM->>SQG: generateRefinedQuery(task)
+        SQG-->>ACM: 精製キーワード (例: "横浜 2026年7月31日 潮汐 満潮 干潮")
+        ACM->>SM: executeSearchSync(refinedKeyword)
+        SM-->>ACM: 検索テキスト返却
     end
 
-    ACM->>ACM: 2. formatCombinedPrompt(tasks) -> finalPrompt
-    ACM->>Client: 3. sendRequest(finalPrompt, history, context, system)
-    Note over Client: 下流の全AIクライアント(IAIClient実装)における<br>重複検索の発生をマネージャー側で完全にガード・抑制
+    ACM->>Val: 2. validateExtractedData(tasks)
+    alt 目的データ(潮汐等)が欠損している場合
+        Val-->>ACM: 妄想捏造防止ガード制約をプロンプトへ追加注入
+    end
+
+    ACM->>ACM: 3. formatCombinedPrompt(tasks, guardInstruction) -> finalPrompt
+    ACM->>Client: 4. sendRequest(finalPrompt, history, context, system)
+    Note over Client: 下流の全AIクライアントにおける二重検索の発生をガード
     Client-->>ACM: requestFinished(replyText)
-    ACM->>UI: 4. notifyEvent(AIResponseReceived)
+    ACM->>UI: 5. notifyEvent(AIResponseReceived)
 ```
 ```
 

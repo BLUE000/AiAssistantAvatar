@@ -50,31 +50,33 @@ graph TD
 graph LR
     Input[ユーザー/チャット入力] --> ACM[AIClientManager]
     
-    subgraph Step 1: タスク分解 & クエリ精製
-        ACM --> Decomposer[TaskDecomposer<br>複数Task抽出]
-        Decomposer --> SQG[SearchQueryGenerator<br>クエリキーワード精製]
+    subgraph Step 1: 多重タスク分解 & クエリ精製
+        ACM --> TaskPlanner[TaskPlanner<br>多重Task抽出 (Task1, Task2...)]
+        TaskPlanner --> SQG[SearchQueryGenerator<br>クエリキーワード精製]
     end
     
-    subgraph Step 2: データ高速収集 (AIClientManager一元実行)
-        Decomposer --> Task1[Task 1: ナレッジ検索]
-        SQG --> Task2[Task 2: 事前Web検索]
-        Task1 --> MTE[MarkdownTableEngine]
+    subgraph Step 2: データ高速収集 (マネージャー一元実行)
+        TaskPlanner --> Task1[Task 1: 天気検索]
+        SQG --> Task2[Task 2: 潮汐検索]
+        Task1 --> MTE[MarkdownTableEngine / SearchManager]
         Task2 --> SM[SearchManager]
     end
     
-    subgraph Step 3: 一括まとめ回答生成 (マネージャーによる二重検索一元ガード)
-        MTE --> Formatter[PromptFormatter<br>【参考情報】統合]
-        SM --> Formatter
-        Formatter --> Worker[Worker AI クライアント<br>(全IAIClient共有 自前検索抑制)]
+    subgraph Step 3: 情報検証 & 一括まとめ回答生成 (AI妄想捏造ガード)
+        MTE --> Val[Validator層<br>データ欠損/潮汐検証]
+        SM --> Val
+        Val --> Formatter[PromptFormatter<br>情報未取得時の制約注入]
+        Formatter --> Worker[Worker AI クライアント<br>(二重検索抑制一元ガード)]
         Worker --> Output[アバター吹き出し/OBS応答]
     end
 ```
 
 #### パイプライン構成要素
-1. **TaskDecomposer (タスク分解部)**: 複合メッセージに含まれる文脈・要求を `Task` 構造体のアレイ (`QList<Task>`) にミリ秒で判定分解する。
-2. **SearchQueryGenerator (クエリ精製部)**: ユーザーの入力文章（「〜について調べて釣りに行きたい」等）から不要な条件・思考指示文を削ぎ落とし、現在日付（`2026年7月31日`）と検索用キーワード（例: `神奈川県 2026年7月31日 天気`）を精製・抽出する。
+1. **TaskPlanner (多重タスク分解部)**: 複合メッセージに含まれる複数の検索要求（「天気」と「潮汐」等）を解析し、独立した複数の `Task` 構造体のアレイ (`QList<Task>`) にミリ秒で判定分解する。
+2. **SearchQueryGenerator (クエリ精製部)**: ユーザーの入力文章（「〜について調べて釣りに行きたい」等）から不要な条件・思考指示文を削ぎ落とし、現在日付（`2026年7月31日`）と検索用キーワード（例: `横浜市 2026年7月31日 天気`, `横浜 2026年7月31日 潮汐 潮見表`）を精製・抽出する。
 3. **TaskExecutor (タスク実行部)**: 抽出・精製された各タスクを C++ の高速ローカル処理 (`MarkdownTableEngine`, `SearchManager`) により `AIClientManager` レイヤーで一元実行し、データ文脈を収集する。
-4. **PromptFormatter & Worker AI (一括まとめ回答部)**: 集められた全タスクの結果を構造化プロンプトとして統合し、Worker AI（アバター頭脳）へ渡して 1 回の API 送信で完璧なまとめ回答を生成させる。マネージャー層の責任において下流の全 AI クライアント（`IAIClient` を継承する全プロバイダ）での重複検索発生を完全にガード・一元制御する。
+4. **Validator (情報検証層)**: 収集データに必要な目的情報（潮汐データ等）が含まれているか検証し、欠損している場合は AI に「数値を推測・捏造せずデータ未取得の旨を明記して回答せよ」という強固なガード制約プロンプトを注入する。
+5. **PromptFormatter & Worker AI (一括まとめ回答部)**: 集められた全タスク結果と Validator 制約を構造化プロンプトとして統合し、Worker AI（アバター頭脳）へ渡して 1 回の API 送信で完璧なまとめ回答を生成させる。マネージャー層の責任において下流の全 AI クライアントでの重複検索発生を完全にガード・一元制御する。
 
 ---
 
