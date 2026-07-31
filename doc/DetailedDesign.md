@@ -2198,5 +2198,32 @@ sequenceDiagram
         TF-->>ACM: スケジュール JSON
     end
 ```
+
+### 13.7 レイドシャウトアウト／アナウンス ハイブリッド送信フロー
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ACM as AIClientManager
+    participant Helix as TwitchHelixClient (API)
+    participant Core as CoreModule
+    participant IRC as TwitchReader (IRC)
+
+    ACM->>ACM: on_clientRequestFinished (m_isShoutoutRequest == true)
+    alt アナウンス有効かつ Helix 認証トークン存在時
+        ACM->>Helix: POST /helix/chat/announcements (color, message)
+        alt API 送信成功
+            Helix-->>ACM: 204 No Content (カラーバナー表示成功)
+        else API 送信失敗 (トークン権限不足 / 403 / ネットワークエラー)
+            Helix-->>ACM: HTTP Error
+            Note over ACM: 通常チャット投稿へ自動フォールバック
+            ACM->>Core: notifyEvent (AIResponseReceived: コマンドタグ未付与テキスト)
+            Core->>IRC: PRIVMSG #channel :純粋メッセージ
+        end
+    else 通常チャット送信モード
+        ACM->>Core: notifyEvent (AIResponseReceived: コマンドタグ未付与テキスト)
+        Core->>IRC: PRIVMSG #channel :純粋メッセージ
+        IRC->>Twitch: 100% 確実にチャット欄へ投稿完了
+    end
+```
 ```
 

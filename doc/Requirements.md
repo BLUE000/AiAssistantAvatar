@@ -589,3 +589,14 @@ sequenceDiagram
      - コード内に特定の個人サーバー URL をデフォルト値として保持・使用してはならない。
   2. **URL 未設定時の安全スキップガード**:
      - `m_taskFlowApiUrl` が空文字または未設定の場合、TaskFlow スケジュール取得 API リクエストを発行せず、安全に処理を即時中断（空応答を返却）する。
+
+### F-22-1: レイドシャウトアウト／アナウンス コメント送信ハイブリッド化 ＆ IRC フォールバック安全制御要件
+- **概要**: Twitch IRC サーバー (PRIVMSG) 経由で `/announce` や `/shoutout` 文字列を直接送信した際、Twitch 側の仕様変更によってメッセージがサイレントドロップ（画面表示されず消滅）する問題を根本解消する。Twitch Helix API (`POST /helix/chat/announcements` / `POST /helix/channels/shoutouts`) による公式カラーバナー優先発火と、通常のチャット投稿 (PRIVMSG) への自動フォールバックを組み合わせた二重制御（ハイブリッド送信）を導入する。
+- **機能要件**:
+  1. **IRC 直接送信テキストからの `/announce` / `/shoutout` コマンド文字列除去**:
+     - IRC 経由で送信するチャットメッセージ (`PRIVMSG`) の先頭に `/announce` や `/shoutout` を直接文字列として埋め込む処理を全撤廃・禁止する。
+  2. **Twitch Helix REST API 優先発火 (公式カラーバナー ＆ 公式シャウトアウト)**:
+     - アナウンス表示が有効な場合、Twitch Helix API (`POST /helix/chat/announcements`) を優先実行し、公式の背景カラー付きアナウンスバナー表示を試みる。
+     - シャウトアウト機能が有効な場合、Twitch Helix API (`POST /helix/channels/shoutouts`) を優先実行する。
+  3. **通常チャット (PRIVMSG) への 100% 確実な自動フォールバック**:
+     - Helix API 認証エラー・未認可・通信エラー発生時、および通常紹介文投稿時は、コマンドタグを除去した純粋なテキストコメント（必要に応じて `/me` 装飾や絵文字枠を適用）として IRC 送信を行い、Twitch チャット欄への投稿成功率 100% を保証する。

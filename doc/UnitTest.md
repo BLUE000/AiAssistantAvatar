@@ -421,6 +421,7 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-ROUTER-06** | `AIClientManager::selectAndPrepareClient` | 設定済みプロバイダが全枯渇し、未設定プロバイダが存在する場合。 | 「全設定プロバイダが上限到達中。解除まで【約〇分〇秒】。未設定の[〇〇]キーを登録するとすぐ使えます」と案内が生成されること。 |
 | **UT-ROUTER-07** | `AIClientManager::selectAndPrepareClient` | 全プロバイダのキーが設定済みで、全プロバイダが枯渇している場合。 | 「すべてのAIプロバイダが上限到達中。解除まで【約〇分〇秒】ほどお待ちください」と案内が生成されること。 |
 | **UT-TASKFLOW-01** | `AIClientManager::fetchSchedules` | `m_taskFlowApiUrl` が未設定（空）の状態で `fetchSchedules` を実行する。 | 特定個人ドメインへの HTTP リクエストが発生せず、即時に空文字列が返却されること。 |
+| **UT-SHOUTOUT-03** | `AIClientManager::on_clientRequestFinished` | レイド紹介文の生成完了時 (`m_isShoutoutRequest == true`) に IRC 送信テキストを検証する。 | IRC へ送信されるイベントテキストの先頭に `/announce` や `/shoutout` コマンド文字列が含まれず、純粋なテキストコメントとして生成されること。 |
 
 
 
