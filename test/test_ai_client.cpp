@@ -1183,6 +1183,31 @@ TEST_F(AIClientTest, ShoutoutIrcCommandRemovalTest) {
     EXPECT_FALSE(text.startsWith("/shoutout"));
 }
 
+TEST_F(AIClientTest, IntentOptimizationAndRoleSeparationTest) {
+    AIClientManager manager;
+    // UT-TASK-08: 「今日の予定は？」の入力で「今日」単体による WebSearchRAG タスクが発生しないことの確認
+    QList<AIClientManager::ExecutionTask> tasks = manager.analyzeAndDecomposeTasks("今日の予定は？");
+    bool hasWebSearch = false;
+    for (const auto &t : tasks) {
+        if (t.type == AIClientManager::TaskType::WebSearchRAG) {
+            hasWebSearch = true;
+        }
+    }
+    EXPECT_FALSE(hasWebSearch);
+
+    // UT-TASK-09: 参考情報生成時、User プロンプト文字列へ【参考情報】が直接連結されないことの確認
+    QList<AIClientManager::ExecutionTask> testTasks;
+    AIClientManager::ExecutionTask dummyTask;
+    dummyTask.type = AIClientManager::TaskType::WebSearchRAG;
+    dummyTask.extractedData = "テスト検索データ";
+    dummyTask.isCompleted = true;
+    testTasks.append(dummyTask);
+
+    QString refContext = manager.formatCombinedPrompt(testTasks, "今日の予定は？");
+    EXPECT_FALSE(refContext.contains("今日の予定は？"));
+    EXPECT_TRUE(refContext.contains("【事前収集リファレンスデータ"));
+}
+
 TEST_F(AIClientTest, RateLimitTrackerTest) {
     RateLimitTracker tracker;
     

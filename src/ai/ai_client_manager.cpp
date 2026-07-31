@@ -1389,15 +1389,15 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     }
 
-    // 6. 段階的タスク実行パイプライン (文章 → 複数Task化 → Task順次実行 → Validator検証 → まとめ回答)
+    // 6. 段階的タスク実行パイプライン (文章 → 複数Task化 → Task順次実行 → Validator検証 → Role分離プロンプト構築)
     QList<ExecutionTask> tasks = analyzeAndDecomposeTasks(filteredPrompt);
     if (!tasks.isEmpty()) {
         qDebug() << "[AIClientManager] Step 1: Decomposed prompt into" << tasks.size() << "execution tasks.";
         executeTaskPipeline(tasks);
         validateAndInjectGuards(tasks, filteredPrompt, additionalSystemPrompt);
-        QString pipelineContext = formatCombinedPrompt(tasks, filteredPrompt);
-        if (!pipelineContext.isEmpty()) {
-            finalPrompt = pipelineContext;
+        QString refContext = formatCombinedPrompt(tasks, filteredPrompt);
+        if (!refContext.isEmpty()) {
+            additionalSystemPrompt = refContext + "\n\n" + additionalSystemPrompt;
         }
     }
 
@@ -3359,15 +3359,23 @@ QList<AIClientManager::ExecutionTask> AIClientManager::analyzeAndDecomposeTasks(
         if (seg.isEmpty() || seg.length() < 2) continue;
 
         QString lowerSeg = seg.toLower();
-        bool isWebSearch = lowerSeg.contains("天気") || lowerSeg.contains("てんき") ||
-                           lowerSeg.contains("ニュース") || lowerSeg.contains("最新") ||
-                           lowerSeg.contains("今日") || lowerSeg.contains("明日") ||
-                           lowerSeg.contains("為替") || lowerSeg.contains("株価") ||
-                           lowerSeg.contains("ドル") || lowerSeg.contains("円") ||
+
+        // スケジュール・タスク関連キーワードが含まれる場合は Web 検索を即座に除外 (TaskFlow優先)
+        bool isSchedule = lowerSeg.contains("予定") || lowerSeg.contains("スケジュール") ||
+                          lowerSeg.contains("タスク") || lowerSeg.contains("カレンダー") ||
+                          lowerSeg.contains("配信予定") || lowerSeg.contains("作業予定");
+
+        // Web 検索トリガーは明確な情報目的名詞が含まれる場合のみ発火 (「今日」「明日」単体での誤発火を全廃)
+        bool isWebSearch = !isSchedule && (
+                           lowerSeg.contains("天気") || lowerSeg.contains("てんき") ||
+                           lowerSeg.contains("気温") || lowerSeg.contains("降水") ||
+                           lowerSeg.contains("ニュース") || lowerSeg.contains("最新ニュース") ||
+                           lowerSeg.contains("速報") || lowerSeg.contains("為替") ||
+                           lowerSeg.contains("株価") || lowerSeg.contains("ドル円") ||
                            lowerSeg.contains("日経") || lowerSeg.contains("wiki") ||
                            lowerSeg.contains("とは") || lowerSeg.contains("誰") ||
-                           lowerSeg.contains("潮") || lowerSeg.contains("釣り") ||
-                           lowerSeg.contains("weather") || lowerSeg.contains("news");
+                           lowerSeg.contains("潮") || lowerSeg.contains("潮汐") || lowerSeg.contains("釣り") ||
+                           lowerSeg.contains("weather") || lowerSeg.contains("news"));
 
         ExecutionTask task;
         if (isWebSearch) {
@@ -3451,28 +3459,27 @@ void AIClientManager::validateAndInjectGuards(const QList<ExecutionTask> &tasks,
 }
 
 QString AIClientManager::formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt) {
+    Q_UNUSED(originalPrompt);
     QStringList contextItems;
     int taskIdx = 1;
     for (const auto &task : tasks) {
         if (task.isCompleted && !task.extractedData.isEmpty()) {
-            QString item = QString("■ タスク %1 (%2):\n%3")
+            QString item = QString("■ [%1情報 (タスク%2)]:\n%3")
+                               .arg(task.type == TaskType::WebSearchRAG ? "WebSearch" : "Knowledge")
                                .arg(taskIdx++)
-                               .arg(task.type == TaskType::WebSearchRAG ? "最新Web情報" : "ナレッジ情報")
                                .arg(task.extractedData);
             contextItems.append(item);
         }
     }
 
     if (contextItems.isEmpty()) {
-        return originalPrompt;
+        return QString();
     }
 
     QDateTime now = QDateTime::currentDateTime();
-    QString refText = QString("【参考情報 (事前収集データ - 現在日時: %1時点)】\n※以下は本日(%1)時点で収集された最新情報です。参考情報内に現在日時と異なる過去の日付が含まれている場合は、\"本日の情報\"としては絶対に使用せず、本日(%1)の情報のみを根拠に回答してください：\n%2")
-                          .arg(now.toString("yyyy-MM-dd"))
-                          .arg(contextItems.join("\n\n"));
-
-    return refText + "\n\n" + originalPrompt;
+    return QString("【事前収集リファレンスデータ (現在日時: %1時点)】\n※以下の最新収集データを参考にして、ユーザーの質問に正確に回答してください：\n%2")
+              .arg(now.toString("yyyy-MM-dd"))
+              .arg(contextItems.join("\n\n"));
 }
 
 
