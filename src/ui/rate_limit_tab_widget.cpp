@@ -8,7 +8,7 @@ RateLimitTabWidget::RateLimitTabWidget(RateLimitTracker *tracker, QWidget *paren
 
     m_updateTimer = new QTimer(this);
     connect(m_updateTimer, &QTimer::timeout, this, &RateLimitTabWidget::refreshUI);
-    m_updateTimer->start(1000); // 1秒間隔でリアルタイムカウントダウン・残枠を更新
+    m_updateTimer->start(1000); // 1秒間隔でリアルタイム更新
 }
 
 RateLimitTabWidget::~RateLimitTabWidget() {
@@ -47,7 +47,8 @@ void RateLimitTabWidget::refreshUI() {
 
 void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
     QString id = status.provider;
-    if (id.isEmpty()) return;
+    // DUMMY プロバイダは表示対象から除外
+    if (id.isEmpty() || id.toLower() == "dummy") return;
 
     bool exists = m_providerCards.contains(id);
     if (!exists) {
@@ -68,6 +69,41 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
 
         card.itemsLayout = new QVBoxLayout();
         card.itemsLayout->setSpacing(4);
+
+        // RPM 行の初回生成
+        {
+            card.rpmRow.container = new QWidget(card.groupBox);
+            QHBoxLayout *row = new QHBoxLayout(card.rpmRow.container);
+            row->setContentsMargins(0, 0, 0, 0);
+
+            card.rpmRow.label = new QLabel(card.rpmRow.container);
+            card.rpmRow.progressBar = new QProgressBar(card.rpmRow.container);
+            card.rpmRow.progressBar->setTextVisible(false);
+            card.rpmRow.progressBar->setFixedHeight(14);
+
+            row->addWidget(card.rpmRow.label);
+            row->addWidget(card.rpmRow.progressBar, 1);
+            card.itemsLayout->addWidget(card.rpmRow.container);
+            card.rpmRow.container->setVisible(false);
+        }
+
+        // RPD 行の初回生成
+        {
+            card.rpdRow.container = new QWidget(card.groupBox);
+            QHBoxLayout *row = new QHBoxLayout(card.rpdRow.container);
+            row->setContentsMargins(0, 0, 0, 0);
+
+            card.rpdRow.label = new QLabel(card.rpdRow.container);
+            card.rpdRow.progressBar = new QProgressBar(card.rpdRow.container);
+            card.rpdRow.progressBar->setTextVisible(false);
+            card.rpdRow.progressBar->setFixedHeight(14);
+
+            row->addWidget(card.rpdRow.label);
+            row->addWidget(card.rpdRow.progressBar, 1);
+            card.itemsLayout->addWidget(card.rpdRow.container);
+            card.rpdRow.container->setVisible(false);
+        }
+
         gbLayout->addLayout(card.itemsLayout);
 
         m_cardsLayout->addWidget(card.groupBox);
@@ -101,67 +137,40 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
         card.statusLabel->setStyleSheet("color: #2e7d32; font-weight: bold;");
     }
 
-    // 3. 動的管理項目 (RPM / RPD) のプログレスバー化 描画 (曖昧表示 N/A や - は全廃)
-    while (QLayoutItem *item = card.itemsLayout->takeAt(0)) {
-        if (QWidget *w = item->widget()) {
-            w->setParent(nullptr);
-            delete w;
-        }
-        delete item;
-    }
-    card.itemWidgets.clear();
-
-    // RPM 項目が存在する場合のみ描画 (仕様上存在しない項目は描画せず隠す)
+    // 3. 動的管理項目 (RPM / RPD) の安全更新（再利用方式でメモリ破棄・生成を行わない）
     if (status.rpmMax > 0) {
-        QWidget *w = new QWidget(card.groupBox);
-        QHBoxLayout *row = new QHBoxLayout(w);
-        row->setContentsMargins(0, 0, 0, 0);
-
         int rpmUsed = (status.rpmRemaining >= 0) ? (status.rpmMax - status.rpmRemaining) : 0;
         rpmUsed = qBound(0, rpmUsed, status.rpmMax);
 
-        QLabel *lbl = new QLabel(QString("1分使用枠 (RPM): %1 / %2 回").arg(rpmUsed).arg(status.rpmMax), w);
-        QProgressBar *pb = new QProgressBar(w);
-        pb->setRange(0, status.rpmMax);
-        pb->setValue(rpmUsed);
-        pb->setTextVisible(false);
-        pb->setFixedHeight(14);
+        card.rpmRow.label->setText(QString("1分使用枠 (RPM): %1 / %2 回").arg(rpmUsed).arg(status.rpmMax));
+        card.rpmRow.progressBar->setRange(0, status.rpmMax);
+        card.rpmRow.progressBar->setValue(rpmUsed);
 
         if (rpmUsed >= status.rpmMax) {
-            pb->setStyleSheet("QProgressBar::chunk { background-color: #e53935; }");
+            card.rpmRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #e53935; }");
         } else {
-            pb->setStyleSheet("QProgressBar::chunk { background-color: #43a047; }");
+            card.rpmRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #43a047; }");
         }
-
-        row->addWidget(lbl);
-        row->addWidget(pb, 1);
-        card.itemsLayout->addWidget(w);
+        card.rpmRow.container->setVisible(true);
+    } else {
+        card.rpmRow.container->setVisible(false);
     }
 
-    // RPD 項目が存在する場合のみ描画
     if (status.rpdMax > 0) {
-        QWidget *w = new QWidget(card.groupBox);
-        QHBoxLayout *row = new QHBoxLayout(w);
-        row->setContentsMargins(0, 0, 0, 0);
-
         int rpdUsed = (status.rpdRemaining >= 0) ? (status.rpdMax - status.rpdRemaining) : 0;
         rpdUsed = qBound(0, rpdUsed, status.rpdMax);
 
-        QLabel *lbl = new QLabel(QString("1日使用枠 (RPD): %1 / %2 回").arg(rpdUsed).arg(status.rpdMax), w);
-        QProgressBar *pb = new QProgressBar(w);
-        pb->setRange(0, status.rpdMax);
-        pb->setValue(rpdUsed);
-        pb->setTextVisible(false);
-        pb->setFixedHeight(14);
+        card.rpdRow.label->setText(QString("1日使用枠 (RPD): %1 / %2 回").arg(rpdUsed).arg(status.rpdMax));
+        card.rpdRow.progressBar->setRange(0, status.rpdMax);
+        card.rpdRow.progressBar->setValue(rpdUsed);
 
         if (rpdUsed >= status.rpdMax) {
-            pb->setStyleSheet("QProgressBar::chunk { background-color: #e53935; }");
+            card.rpdRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #e53935; }");
         } else {
-            pb->setStyleSheet("QProgressBar::chunk { background-color: #1e88e5; }");
+            card.rpdRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #1e88e5; }");
         }
-
-        row->addWidget(lbl);
-        row->addWidget(pb, 1);
-        card.itemsLayout->addWidget(w);
+        card.rpdRow.container->setVisible(true);
+    } else {
+        card.rpdRow.container->setVisible(false);
     }
 }

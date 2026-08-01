@@ -1209,15 +1209,19 @@ TEST_F(AIClientTest, IntentOptimizationAndRoleSeparationTest) {
     EXPECT_TRUE(refContext.contains("【事前収集リファレンスデータ"));
 }
 
-// UT-RATELIMIT-08: RateLimitTabWidget の生成および全プロバイダステータスの動的カード反映テスト
+// UT-RATELIMIT-08: RateLimitTabWidget の生成および全プロバイダステータスの動的カード反映・DUMMY除外テスト
 TEST_F(AIClientTest, RateLimitTabWidget_DynamicCards) {
     RateLimitTracker tracker;
+    ProviderStatus dummySt;
+    dummySt.provider = "dummy";
+    tracker.registerClient(dummySt);
+
     RateLimitTabWidget widget(&tracker);
     widget.refreshUI();
 
-    // 全プロバイダステータスが返却可能であることの確認
+    // DUMMY プロバイダは描画・カード生成から除外されていることの確認
     QList<ProviderStatus> statuses = tracker.allStatuses();
-    EXPECT_GE(statuses.size(), 0);
+    EXPECT_GE(statuses.size(), 1);
 }
 
 // UT-RATELIMIT-09: RateLimitTracker のカウントダウン・利用可能判定ロジック検証

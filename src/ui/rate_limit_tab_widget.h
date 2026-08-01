@@ -8,25 +8,26 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QProgressBar>
-#include <QSpinBox>
 #include <QTimer>
+#include <QMap>
 #include <QList>
 #include "../ai/rate_limit_tracker.h"
 
-// 1つの動的制限項目 (RPM, RPD, TPM, Credit 等) の表示用カード
-struct QuotaItemWidget {
-    QLabel *nameLabel = nullptr;
+// 1つの管理項目 (RPM / RPD) の再利用用UI構造体
+struct QuotaRowWidget {
+    QWidget *container = nullptr;
+    QLabel *label = nullptr;
     QProgressBar *progressBar = nullptr;
-    QSpinBox *maxSpinBox = nullptr;
 };
 
-// 1つのプロバイダ用カード
+// 1つのプロバイダ用カード構造体
 struct ProviderCardWidget {
     QGroupBox *groupBox = nullptr;
     QLabel *statusLabel = nullptr;
     QLabel *keyStatusLabel = nullptr;
     QVBoxLayout *itemsLayout = nullptr;
-    QList<QuotaItemWidget> itemWidgets;
+    QuotaRowWidget rpmRow;
+    QuotaRowWidget rpdRow;
 };
 
 class RateLimitTabWidget : public QWidget {
