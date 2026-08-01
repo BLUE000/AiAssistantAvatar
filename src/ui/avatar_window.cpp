@@ -1173,12 +1173,12 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(10);
 
-    m_aiProviderMistralCheckbox = new QCheckBox("Mistral AI を使用する", scrollContent);
-    m_aiProviderCerebrasCheckbox = new QCheckBox("Cerebras AI を使用する", scrollContent);
-    m_aiProviderGroqCheckbox = new QCheckBox("Groq AI を使用する", scrollContent);
-    m_aiProviderHuggingFaceCheckbox = new QCheckBox("HuggingFace を使用する", scrollContent);
-    m_aiProviderOpenRouterCheckbox = new QCheckBox("OpenRouter を使用する", scrollContent);
-    m_aiProviderSakuraCheckbox = new QCheckBox("さくらAI を使用する", scrollContent);
+    m_aiProviderMistralCheckbox = new QCheckBox("有効", scrollContent);
+    m_aiProviderCerebrasCheckbox = new QCheckBox("有効", scrollContent);
+    m_aiProviderGroqCheckbox = new QCheckBox("有効", scrollContent);
+    m_aiProviderHuggingFaceCheckbox = new QCheckBox("有効", scrollContent);
+    m_aiProviderOpenRouterCheckbox = new QCheckBox("有効", scrollContent);
+    m_aiProviderSakuraCheckbox = new QCheckBox("有効", scrollContent);
 
     // 排他制御 (Worker AI 用)
     auto handleExclusiveCheck = [this](QCheckBox* checkedBox) {
@@ -1269,23 +1269,27 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     QFormLayout *aiLayout = new QFormLayout(aiGroup);
     aiLayout->setContentsMargins(10, 10, 10, 10);
     aiLayout->setSpacing(6);
-    aiLayout->addRow("Mistral AI 使用:", m_aiProviderMistralCheckbox);
-    aiLayout->addRow("Mistral API キー:", m_aiApiKeyEdit);
-    aiLayout->addRow("Cerebras AI 使用:", m_aiProviderCerebrasCheckbox);
-    aiLayout->addRow("Cerebras API キー:", m_aiCerebrasApiKeyEdit);
-    aiLayout->addRow("Cerebras モデル:", m_aiCerebrasModelCombo);
-    aiLayout->addRow("Groq AI 使用:", m_aiProviderGroqCheckbox);
-    aiLayout->addRow("Groq API キー:", m_aiGroqApiKeyEdit);
-    aiLayout->addRow("Groq モデル:", m_aiGroqModelCombo);
-    aiLayout->addRow("HuggingFace 使用:", m_aiProviderHuggingFaceCheckbox);
-    aiLayout->addRow("HuggingFace API キー:", m_aiHuggingFaceApiKeyEdit);
-    aiLayout->addRow("HuggingFace モデル:", m_aiHuggingFaceModelCombo);
-    aiLayout->addRow("OpenRouter 使用:", m_aiProviderOpenRouterCheckbox);
-    aiLayout->addRow("OpenRouter API キー:", m_aiOpenRouterApiKeyEdit);
-    aiLayout->addRow("OpenRouter モデル:", m_aiOpenRouterModelCombo);
-    aiLayout->addRow("さくらAI 使用:", m_aiProviderSakuraCheckbox);
-    aiLayout->addRow("さくらAI API キー:", m_aiSakuraApiKeyEdit);
-    aiLayout->addRow("さくらAI モデル:", m_aiSakuraModelCombo);
+
+    auto makeKeyRow = [](QCheckBox *cb, QLineEdit *edit) {
+        QHBoxLayout *row = new QHBoxLayout();
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(6);
+        row->addWidget(cb);
+        row->addWidget(edit, 1);
+        return row;
+    };
+
+    aiLayout->addRow("Mistral AI:", makeKeyRow(m_aiProviderMistralCheckbox, m_aiApiKeyEdit));
+    aiLayout->addRow("Cerebras AI:", makeKeyRow(m_aiProviderCerebrasCheckbox, m_aiCerebrasApiKeyEdit));
+    aiLayout->addRow("モデル:", m_aiCerebrasModelCombo);
+    aiLayout->addRow("Groq AI:", makeKeyRow(m_aiProviderGroqCheckbox, m_aiGroqApiKeyEdit));
+    aiLayout->addRow("モデル:", m_aiGroqModelCombo);
+    aiLayout->addRow("HuggingFace:", makeKeyRow(m_aiProviderHuggingFaceCheckbox, m_aiHuggingFaceApiKeyEdit));
+    aiLayout->addRow("モデル:", m_aiHuggingFaceModelCombo);
+    aiLayout->addRow("OpenRouter:", makeKeyRow(m_aiProviderOpenRouterCheckbox, m_aiOpenRouterApiKeyEdit));
+    aiLayout->addRow("モデル:", m_aiOpenRouterModelCombo);
+    aiLayout->addRow("さくらAI:", makeKeyRow(m_aiProviderSakuraCheckbox, m_aiSakuraApiKeyEdit));
+    aiLayout->addRow("モデル:", m_aiSakuraModelCombo);
     aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
     mainLayout->addWidget(aiGroup);
 
