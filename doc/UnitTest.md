@@ -424,6 +424,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-SHOUTOUT-03** | `AIClientManager::on_clientRequestFinished` | レイド紹介文の生成完了時 (`m_isShoutoutRequest == true`) に IRC 送信テキストを検証する。 | IRC へ送信されるイベントテキストの先頭に `/announce` や `/shoutout` コマンド文字列が含まれず、純粋なテキストコメントとして生成されること。 |
 | **UT-TASK-08** | `AIClientManager::analyzeAndDecomposeTasks` | 「今日の予定は？」という文章を入力してタスク分解を実行する。 | 「今日」単体で `WebSearchRAG` タスクが発生せず、TaskFlow スケジュール検索インテントとして正しく識別されること。 |
 | **UT-TASK-09** | `AIClientManager::formatRoleSeparatedPrompt` | 参考情報およびタスクデータが存在する状態でプロンプト生成を実行する。 | `User` ロールプロンプトへ `【参考情報】` が連結されず、`systemInstruction` 領域へ `[WebSearch]` / `[TaskFlow]` ブロックとして分離注入されること。 |
+| **UT-RATELIMIT-08** | `RateLimitTabWidget::updateUI` | 動的な `ProviderRateLimitState` (動的項目リスト `quotaItems`) を読み込んで UI 描画を実行する。 | `N/A` や `-` などの曖昧表示が発生せず、各プロバイダに存在する制限項目のみが動的にプログレスバー化して描画されること。 |
+| **UT-RATELIMIT-09** | `RateLimitTabWidget::onLimitSpinBoxChanged` | タブ上の SpinBox で上限設定値（RPM/RPD等）を変更する。 | `RateLimitTracker` の限界値が即座に更新され、次回ルーティング時に新しい上限が即時適用されること。 |
 
 
 
