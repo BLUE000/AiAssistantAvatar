@@ -39,6 +39,8 @@ set(SOURCES
     src/ui/avatar_skin_builder_dialog.cpp
     src/ui/history_viewer_dialog.cpp
     src/ui/history_viewer_dialog.h
+    src/ui/rate_limit_tab_widget.cpp
+    src/ui/rate_limit_tab_widget.h
     src/twitch/twitch_reader.cpp
     src/stt/stt_manager.cpp
     src/stt/istt_engine.cpp

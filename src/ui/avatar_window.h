@@ -115,6 +115,7 @@ private:
     QWidget *m_chatTab = nullptr;
     QWidget *m_settingsTab = nullptr;
     QWidget *m_aiSettingsTab = nullptr;
+    QWidget *m_rateLimitTab = nullptr; // F-16-10: レートリミット管理専用タブ
     QWidget *m_nicknameTab = nullptr;
     QTableWidget *m_usersTable = nullptr;
     QTableWidget *m_requestsTable = nullptr;
@@ -340,7 +341,7 @@ protected:
 public:
     explicit AvatarWindow(QWidget *parent = nullptr);
     ~AvatarWindow();
-    void setAIClientManager(class AIClientManager *manager) { m_aiClientManager = manager; }
+    void setAIClientManager(class AIClientManager *manager);
 
 private:
     class AIClientManager *m_aiClientManager = nullptr;

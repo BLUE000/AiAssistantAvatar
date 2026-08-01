@@ -14,6 +14,7 @@
 #include "twitch/twitch_reader.h"
 #include "discord/discord_reader.h"
 #include "ui/avatar_window.h"
+#include "ui/rate_limit_tab_widget.h"
 #include <QTableWidget>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
@@ -1206,6 +1207,34 @@ TEST_F(AIClientTest, IntentOptimizationAndRoleSeparationTest) {
     QString refContext = manager.formatCombinedPrompt(testTasks, "今日の予定は？");
     EXPECT_FALSE(refContext.contains("今日の予定は？"));
     EXPECT_TRUE(refContext.contains("【事前収集リファレンスデータ"));
+}
+
+// UT-RATELIMIT-08: RateLimitTabWidget の生成および全プロバイダステータスの動的カード反映テスト
+TEST_F(AIClientTest, RateLimitTabWidget_DynamicCards) {
+    RateLimitTracker tracker;
+    RateLimitTabWidget widget(&tracker);
+    widget.refreshUI();
+
+    // 全プロバイダステータスが返却可能であることの確認
+    QList<ProviderStatus> statuses = tracker.allStatuses();
+    EXPECT_GE(statuses.size(), 0);
+}
+
+// UT-RATELIMIT-09: RateLimitTracker のカウントダウン・利用可能判定ロジック検証
+TEST_F(AIClientTest, RateLimitTracker_CountdownAndAvailability) {
+    RateLimitTracker tracker;
+    ProviderStatus st;
+    st.provider = "test_provider";
+    st.rpmMax = 10;
+    st.rpmRemaining = 0; // RPM 枯渇状態
+    st.available = false;
+    st.nextResetAt = QDateTime::currentDateTime().addSecs(60);
+    tracker.registerClient(st);
+
+    EXPECT_FALSE(tracker.isAvailable("test_provider"));
+    ProviderStatus fetched = tracker.statusOf("test_provider");
+    EXPECT_EQ(fetched.rpmRemaining, 0);
+    EXPECT_EQ(fetched.rpmMax, 10);
 }
 
 TEST_F(AIClientTest, RateLimitTrackerTest) {

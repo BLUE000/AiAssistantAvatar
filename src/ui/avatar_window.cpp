@@ -1,6 +1,7 @@
 #include "avatar_window.h"
 #include "avatar_skin_builder_dialog.h"
 #include "history_viewer_dialog.h"
+#include "rate_limit_tab_widget.h"
 #include "../search/markdown_table_engine.h"
 #include <QProcess>
 #include <QFile>
@@ -157,6 +158,9 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     initAiSettingsTab(m_aiSettingsTab);
     m_tabWidget->addTab(m_aiSettingsTab, "AI設定");
 
+    m_rateLimitTab = new RateLimitTabWidget(nullptr, m_tabWidget);
+    m_tabWidget->addTab(m_rateLimitTab, "レートリミット");
+
     m_nicknameTab = new QWidget(m_tabWidget);
     initNicknameTab(m_nicknameTab);
     m_tabWidget->addTab(m_nicknameTab, "ニックネーム");
@@ -221,6 +225,15 @@ AvatarWindow::AvatarWindow(QWidget *parent)
 
 AvatarWindow::~AvatarWindow() {
     stopWebSocketServer();
+}
+
+void AvatarWindow::setAIClientManager(AIClientManager *manager) {
+    m_aiClientManager = manager;
+    if (m_rateLimitTab && m_aiClientManager) {
+        if (RateLimitTabWidget *tabWidget = qobject_cast<RateLimitTabWidget*>(m_rateLimitTab)) {
+            tabWidget->setTracker(&m_aiClientManager->tracker());
+        }
+    }
 }
 
 void AvatarWindow::loadSettings() {
@@ -1312,39 +1325,8 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     managerLayout->addRow("マネージャAIモデル:", m_managerModelCombo);
     mainLayout->addWidget(managerGroup);
 
-    // 3. プロバイダ制限 (レートリミット上限) 設定グループ
-    QGroupBox *limitGroup = new QGroupBox("プロバイダ制限設定 (レートリミット)", scrollContent);
-    QFormLayout *limitLayout = new QFormLayout(limitGroup);
-    limitLayout->setContentsMargins(10, 10, 10, 10);
-    limitLayout->setSpacing(6);
-
-    m_limitProviderCombo = new QComboBox(scrollContent);
-    m_limitProviderCombo->addItems({"groq", "cerebras", "mistral"});
-    connect(m_limitProviderCombo, &QComboBox::currentIndexChanged, this, &AvatarWindow::onLimitProviderChanged);
-
-    m_limitRpmEdit = new QLineEdit(scrollContent);
-    m_limitRpdEdit = new QLineEdit(scrollContent);
-    m_limitTpmEdit = new QLineEdit(scrollContent);
-    m_limitTpdEdit = new QLineEdit(scrollContent);
-    m_limitContextEdit = new QLineEdit(scrollContent);
-    m_limitToolCallCheckbox = new QCheckBox("Function Calling 対応", scrollContent);
-    m_limitCostEdit = new QLineEdit(scrollContent);
-    m_limitRemainingLabel = new QLabel("残りリクエスト: --- / ---", scrollContent);
-
-    m_limitAutoFetchButton = new QPushButton("APIから自動取得", scrollContent);
-    connect(m_limitAutoFetchButton, &QPushButton::clicked, this, &AvatarWindow::onLimitAutoFetchClicked);
-
-    limitLayout->addRow("設定プロバイダ:", m_limitProviderCombo);
-    limitLayout->addRow("最大 RPM (1分制限):", m_limitRpmEdit);
-    limitLayout->addRow("最大 RPD (1日制限):", m_limitRpdEdit);
-    limitLayout->addRow("最大 TPM (1分トークン):", m_limitTpmEdit);
-    limitLayout->addRow("最大 TPD (1日トークン):", m_limitTpdEdit);
-    limitLayout->addRow("コンテキスト長 (tokens):", m_limitContextEdit);
-    limitLayout->addRow("機能:", m_limitToolCallCheckbox);
-    limitLayout->addRow("コスト (ドル/1M):", m_limitCostEdit);
-    limitLayout->addRow("現在状況:", m_limitRemainingLabel);
-    limitLayout->addRow("自動取得アクション:", m_limitAutoFetchButton);
-    mainLayout->addWidget(limitGroup);
+    // ※ 旧「プロバイダ制限設定 (レートリミット)」グループボックスは F-16-10 により全廃し、
+    // 新設された独立タブ「レートリミット」(RateLimitTabWidget) へ一元化・移行済み
 
     // 保存・適用ボタン
     QHBoxLayout *btnLayout = new QHBoxLayout();
@@ -1435,34 +1417,39 @@ void AvatarWindow::initShoutoutTab(QWidget *parent) {
     containerLayout->addWidget(scrollArea);
 }
 
-void AvatarWindow::loadSettingsToUI() {
-    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-    if (!QFile::exists(configPath)) {
-        configPath = "Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = "local_settings.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
-#endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-    }
+namespace {
+    // コンパイルスイッチ (PROJECT_SOURCE_DIR) の位置と優先順位を厳密に維持するファイル解決ヘルパー
+    QString resolveExistingFilePath(const QString &fileName) {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QStringList candidates = {
+            appDir + "/Config/" + fileName,
+            "Config/" + fileName,
+            appDir + "/" + fileName,
+            fileName
+        };
 
-    if (!QFile::exists(configPath)) {
-        qWarning() << "AvatarWindow: Settings file does not exist at paths. Tried:" << configPath;
+#ifdef PROJECT_SOURCE_DIR
+        candidates.append(QString(PROJECT_SOURCE_DIR) + "/Config/" + fileName);
+        candidates.append(QString(PROJECT_SOURCE_DIR) + "/" + fileName);
+#endif
+
+        candidates.append(appDir + "/../" + fileName);
+        candidates.append(appDir + "/../../" + fileName);
+
+        for (const QString &path : candidates) {
+            if (QFile::exists(path)) {
+                return QDir::cleanPath(path);
+            }
+        }
+        return QString();
+    }
+}
+
+void AvatarWindow::loadSettingsToUI() {
+    QString configPath = resolveExistingFilePath("local_settings.json");
+
+    if (configPath.isEmpty()) {
+        qWarning() << "AvatarWindow: Settings file (local_settings.json) does not exist at any candidate paths.";
         return;
     }
 
@@ -1557,8 +1544,10 @@ void AvatarWindow::loadSettingsToUI() {
                 if (idx >= 0) m_managerModelCombo->setCurrentIndex(idx);
             }
 
-            // 制限上限設定をUIの初期プロバイダ（Comboの現在値）に合わせて表示
-            onLimitProviderChanged(m_limitProviderCombo->currentIndex());
+            // 旧「プロバイダ制限設定」の初期表示処理は F-16-10 により全廃（RateLimitTabWidgetへ一元化）
+            if (m_limitProviderCombo) {
+                onLimitProviderChanged(m_limitProviderCombo->currentIndex());
+            }
 
             if (m_tavilyApiKeyEdit) m_tavilyApiKeyEdit->setText(obj.value("tavily_api_key").toString());
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();

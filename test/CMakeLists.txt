@@ -50,6 +50,7 @@ set(TEST_SOURCES
     ../src/ui/avatar_window.cpp
     ../src/ui/avatar_skin_builder_dialog.cpp
     ../src/ui/history_viewer_dialog.cpp
+    ../src/ui/rate_limit_tab_widget.cpp
     test_obs_http_server.cpp
     ../src/obs/obs_http_server.cpp
     test_score_moderation.cpp
