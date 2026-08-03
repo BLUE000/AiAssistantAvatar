@@ -145,12 +145,18 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
     m_taskFlowEnabled = obj.value("taskflow_enabled").toBool(true);
     m_taskFlowApiUrl = obj["taskflow_api_url"].toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php").trimmed();
 
-    m_groqModel = obj["groq_model"].toString("llama-3.3-70b-versatile");
-    m_cerebrasModel = obj["cerebras_model"].toString("llama3.1-8b");
-    m_mistralModel = obj["mistral_model"].toString("mistral-small-latest");
-    m_huggingfaceModel = obj["huggingface_model"].toString(ConfigDefaults::DEFAULT_HUGGINGFACE_MODEL).trimmed();
-    m_openrouterModel = obj["openrouter_model"].toString(ConfigDefaults::DEFAULT_OPENROUTER_MODEL).trimmed();
-    m_sakuraModel = obj["sakura_model"].toString(ConfigDefaults::DEFAULT_SAKURA_MODEL).trimmed();
+    // 「自動選択 (推奨)」はクライアント側の既定モデルに委ねるため空文字に正規化する
+    // (各クライアントの setModel は空文字を無視して初期モデルを維持する)
+    auto normalizeModel = [](const QString &raw) -> QString {
+        if (raw.isEmpty() || raw.startsWith("\u81ea\u52d5\u9078\u629e")) return QString();
+        return raw;
+    };
+    m_groqModel        = normalizeModel(obj["groq_model"].toString());
+    m_cerebrasModel    = normalizeModel(obj["cerebras_model"].toString());
+    m_mistralModel     = normalizeModel(obj["mistral_model"].toString());
+    m_huggingfaceModel = normalizeModel(obj["huggingface_model"].toString().trimmed());
+    m_openrouterModel  = normalizeModel(obj["openrouter_model"].toString().trimmed());
+    m_sakuraModel      = normalizeModel(obj["sakura_model"].toString().trimmed());
 
 
     // F-22 レイド・自動紹介設定
@@ -1405,6 +1411,31 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     m_lastAdditionalSystemPrompt = additionalSystemPrompt;
 
     if (selectAndPrepareClient(filteredPrompt)) {
+        // 稼働中 Worker AI / Manager AI のプロバイダ・モデル情報を additionalSystemPrompt へ自動注入
+        // (ユーザーから「今使ってるAIは？」と聞かれた際に正確に自己回答できるようにする)
+        {
+            QString workerProvider = m_currentClient ? m_currentClient->clientId() : m_provider;
+            QString workerModel    = m_currentClient ? m_currentClient->currentModelName() : QString();
+            if (workerModel.isEmpty()) workerModel = "(自動選択)";
+
+            QString managerProvider = m_managerEnabled ? m_managerProvider : "(無効)";
+            QString managerModel    = m_managerEnabled ? m_managerModel    : "(無効)";
+            if (m_managerEnabled && managerModel.isEmpty()) managerModel = "(自動選択)";
+
+            QString aiStatusContext = QString(
+                "\n\n【現在のAIシステム稼働ステータス】\n"
+                "- 会話用 Worker AI: %1 (適用モデル: %2)\n"
+                "- 評価・判断用 Manager AI: %3 (適用モデル: %4)\n"
+                "※ ユーザーから現在使用されているAIプロバイダやモデル名について尋ねられた場合は、上記の名称を正確に回答してください。"
+            ).arg(workerProvider, workerModel, managerProvider, managerModel);
+
+            if (!additionalSystemPrompt.isEmpty()) {
+                additionalSystemPrompt += aiStatusContext;
+            } else {
+                additionalSystemPrompt = aiStatusContext.trimmed();
+            }
+        }
+
         // コアへ送信開始イベントを通知
         AppEvent event;
         event.type = EventType::AIRequestSent;

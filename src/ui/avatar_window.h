@@ -101,9 +101,23 @@ class QCheckBox;
 class QNetworkAccessManager;
 class QNetworkReply;
 
+struct ProviderConfigSpec {
+    QString id;                 // "mistral", "cerebras", "groq", "huggingface", "openrouter", "sakura"
+    QString displayName;        // "Mistral AI", "Cerebras AI", "Groq AI" 等
+    QString keyPlaceholder;     // APIキー入力欄プレースホルダー
+    bool hasModelCombo = false;
+    QStringList defaultModels;
+    bool isModelEditable = false;
+
+    QCheckBox *checkbox = nullptr;
+    QLineEdit *keyEdit = nullptr;
+    QComboBox *modelCombo = nullptr;
+};
+
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
 private:
+    QList<ProviderConfigSpec> m_providerSpecs;
     QLabel *m_avatarLabel;
     QLineEdit *m_inputEdit = nullptr;
     QPushButton *m_sendButton = nullptr;

@@ -1173,123 +1173,84 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(10);
 
-    m_aiProviderMistralCheckbox = new QCheckBox("有効", scrollContent);
-    m_aiProviderCerebrasCheckbox = new QCheckBox("有効", scrollContent);
-    m_aiProviderGroqCheckbox = new QCheckBox("有効", scrollContent);
-    m_aiProviderHuggingFaceCheckbox = new QCheckBox("有効", scrollContent);
-    m_aiProviderOpenRouterCheckbox = new QCheckBox("有効", scrollContent);
-    m_aiProviderSakuraCheckbox = new QCheckBox("有効", scrollContent);
-
-    // 排他制御 (Worker AI 用)
-    auto handleExclusiveCheck = [this](QCheckBox* checkedBox) {
-        if (checkedBox->isChecked()) {
-            if (checkedBox != m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(false);
-            if (checkedBox != m_aiProviderCerebrasCheckbox) m_aiProviderCerebrasCheckbox->setChecked(false);
-            if (checkedBox != m_aiProviderGroqCheckbox) m_aiProviderGroqCheckbox->setChecked(false);
-            if (checkedBox != m_aiProviderHuggingFaceCheckbox) m_aiProviderHuggingFaceCheckbox->setChecked(false);
-            if (checkedBox != m_aiProviderOpenRouterCheckbox) m_aiProviderOpenRouterCheckbox->setChecked(false);
-            if (checkedBox != m_aiProviderSakuraCheckbox) m_aiProviderSakuraCheckbox->setChecked(false);
-        }
-    };
-    connect(m_aiProviderMistralCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderMistralCheckbox); });
-    connect(m_aiProviderCerebrasCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderCerebrasCheckbox); });
-    connect(m_aiProviderGroqCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderGroqCheckbox); });
-    connect(m_aiProviderHuggingFaceCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderHuggingFaceCheckbox); });
-    connect(m_aiProviderOpenRouterCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderOpenRouterCheckbox); });
-    connect(m_aiProviderSakuraCheckbox, &QCheckBox::toggled, this, [=](){ handleExclusiveCheck(m_aiProviderSakuraCheckbox); });
-
-    m_aiApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiApiKeyEdit->setPlaceholderText("Mistral API キーを入力...");
-
-    m_aiCerebrasApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiCerebrasApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiCerebrasApiKeyEdit->setPlaceholderText("Cerebras API キーを入力...");
-
-    m_aiCerebrasModelCombo = new QComboBox(scrollContent);
-    m_aiCerebrasModelCombo->addItems({"llama3.1-8b (推奨)", "llama3.3-70b", "gemma-4-31b"});
-
-    m_aiGroqApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiGroqApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiGroqApiKeyEdit->setPlaceholderText("Groq API キーを入力...");
-
-    m_aiGroqModelCombo = new QComboBox(scrollContent);
-    m_aiGroqModelCombo->addItems({"llama-3.3-70b-versatile (推奨)", "llama-3.1-8b-instant", "gemma2-9b-it"});
-
-    m_aiHuggingFaceApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiHuggingFaceApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiHuggingFaceApiKeyEdit->setPlaceholderText("HuggingFace API キー (hf_...) を入力...");
-
-    m_aiHuggingFaceModelCombo = new QComboBox(scrollContent);
-    m_aiHuggingFaceModelCombo->setEditable(true);
-    m_aiHuggingFaceModelCombo->addItems({
-        "meta-llama/Llama-3.1-8B-Instruct",
-        "Qwen/Qwen2.5-7B-Instruct",
-        "Qwen/Qwen2.5-72B-Instruct",
-        "mistralai/Mistral-7B-Instruct-v0.3"
-    });
-
-    m_aiOpenRouterApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiOpenRouterApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiOpenRouterApiKeyEdit->setPlaceholderText("OpenRouter API キー (sk-or-v1-...) を入力...");
-
-    m_aiOpenRouterModelCombo = new QComboBox(scrollContent);
-    m_aiOpenRouterModelCombo->setEditable(true);
-    m_aiOpenRouterModelCombo->addItems({
-        "google/gemma-4-31b-it:free",
-        "openai/gpt-oss-20b:free",
-        "inclusionai/ling-3.0-flash:free",
-        "qwen/qwen-2.5-72b-instruct"
-    });
-
-    m_aiSakuraApiKeyEdit = new QLineEdit(scrollContent);
-    m_aiSakuraApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiSakuraApiKeyEdit->setPlaceholderText("さくらAI API キーを入力...");
-
-    m_aiSakuraModelCombo = new QComboBox(scrollContent);
-    m_aiSakuraModelCombo->setEditable(true);
-    m_aiSakuraModelCombo->addItems({
-        "llm-jp-3.1-8x13b-instruct4",
-        "gpt-oss-120b",
-        "preview/gemma-4-31B-it",
-        "preview/Kimi-K2.6",
-        "preview/Phi-4-mini-instruct-cpu",
-        "preview/Phi-4-multimodal-instruct",
-        "preview/Qwen3-0.6B-cpu",
-        "preview/Qwen3-VL-30B-A3B-Instruct",
-        "preview/Qwen3.6-35B-A3B"
-    });
-
-    m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
-    m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_tavilyApiKeyEdit->setPlaceholderText("Tavily キーを入力...");
-
     // 1. Worker AI 設定グループ
     QGroupBox *aiGroup = new QGroupBox("Worker AI 設定", scrollContent);
     QFormLayout *aiLayout = new QFormLayout(aiGroup);
     aiLayout->setContentsMargins(10, 10, 10, 10);
     aiLayout->setSpacing(6);
 
-    auto makeKeyRow = [](QCheckBox *cb, QLineEdit *edit) {
-        QHBoxLayout *row = new QHBoxLayout();
-        row->setContentsMargins(0, 0, 0, 0);
-        row->setSpacing(6);
-        row->addWidget(cb);
-        row->addWidget(edit, 1);
-        return row;
+    // プロバイダ構成仕様リストの定義 (拡張がデータ定義1行で完結)
+    m_providerSpecs = {
+        { "mistral", "Mistral AI", "Mistral API キーを入力...", false, {}, false },
+        { "cerebras", "Cerebras AI", "Cerebras API キーを入力...", true, { "自動選択 (推奨)", "llama3.1-8b", "llama3.3-70b", "gemma-4-31b" }, false },
+        { "groq", "Groq AI", "Groq API キーを入力...", true, { "自動選択 (推奨)", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it" }, false },
+        { "huggingface", "HuggingFace", "HuggingFace API キー (hf_...) を入力...", true, { "自動選択 (推奨)", "meta-llama/Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3" }, true },
+        { "openrouter", "OpenRouter", "OpenRouter API キー (sk-or-v1-...) を入力...", true, { "自動選択 (推奨)", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "inclusionai/ling-3.0-flash:free", "qwen/qwen-2.5-72b-instruct" }, true },
+        { "sakura", "さくらAI", "さくらAI API キーを入力...", true, { "自動選択 (推奨)", "llm-jp-3.1-8x13b-instruct4", "gpt-oss-120b", "preview/gemma-4-31B-it", "preview/Kimi-K2.6", "preview/Phi-4-mini-instruct-cpu", "preview/Phi-4-multimodal-instruct", "preview/Qwen3-0.6B-cpu", "preview/Qwen3-VL-30B-A3B-Instruct", "preview/Qwen3.6-35B-A3B" }, true }
     };
 
-    aiLayout->addRow("Mistral AI:", makeKeyRow(m_aiProviderMistralCheckbox, m_aiApiKeyEdit));
-    aiLayout->addRow("Cerebras AI:", makeKeyRow(m_aiProviderCerebrasCheckbox, m_aiCerebrasApiKeyEdit));
-    aiLayout->addRow("モデル:", m_aiCerebrasModelCombo);
-    aiLayout->addRow("Groq AI:", makeKeyRow(m_aiProviderGroqCheckbox, m_aiGroqApiKeyEdit));
-    aiLayout->addRow("モデル:", m_aiGroqModelCombo);
-    aiLayout->addRow("HuggingFace:", makeKeyRow(m_aiProviderHuggingFaceCheckbox, m_aiHuggingFaceApiKeyEdit));
-    aiLayout->addRow("モデル:", m_aiHuggingFaceModelCombo);
-    aiLayout->addRow("OpenRouter:", makeKeyRow(m_aiProviderOpenRouterCheckbox, m_aiOpenRouterApiKeyEdit));
-    aiLayout->addRow("モデル:", m_aiOpenRouterModelCombo);
-    aiLayout->addRow("さくらAI:", makeKeyRow(m_aiProviderSakuraCheckbox, m_aiSakuraApiKeyEdit));
-    aiLayout->addRow("モデル:", m_aiSakuraModelCombo);
+    for (int i = 0; i < m_providerSpecs.size(); ++i) {
+        auto &spec = m_providerSpecs[i];
+        spec.checkbox = new QCheckBox("有効", scrollContent);
+        spec.keyEdit = new QLineEdit(scrollContent);
+        spec.keyEdit->setEchoMode(QLineEdit::Password);
+        spec.keyEdit->setPlaceholderText(spec.keyPlaceholder);
+
+        if (spec.hasModelCombo) {
+            spec.modelCombo = new QComboBox(scrollContent);
+            spec.modelCombo->setEditable(spec.isModelEditable);
+            spec.modelCombo->addItems(spec.defaultModels);
+        }
+
+        // 自動排他制御シグナル接続
+        QString targetId = spec.id;
+        connect(spec.checkbox, &QCheckBox::toggled, this, [this, targetId](bool checked){
+            if (checked) {
+                for (auto &other : m_providerSpecs) {
+                    if (other.id != targetId && other.checkbox) {
+                        other.checkbox->setChecked(false);
+                    }
+                }
+            }
+        });
+
+        // 1行目: [レ] 有効 + APIキー全幅インライン
+        QHBoxLayout *keyRow = new QHBoxLayout();
+        keyRow->setContentsMargins(0, 0, 0, 0);
+        keyRow->setSpacing(6);
+        keyRow->addWidget(spec.checkbox);
+        keyRow->addWidget(spec.keyEdit, 1);
+
+        aiLayout->addRow(spec.displayName + ":", keyRow);
+
+        // 2行目: モデルコンボ (左端位置を有効CBとピッタリ垂直アラインメント)
+        if (spec.hasModelCombo && spec.modelCombo) {
+            aiLayout->addRow("モデル:", spec.modelCombo);
+        }
+    }
+
+    // 後方互換メンバポインタ紐付け
+    m_aiProviderMistralCheckbox = m_providerSpecs[0].checkbox;
+    m_aiApiKeyEdit = m_providerSpecs[0].keyEdit;
+    m_aiProviderCerebrasCheckbox = m_providerSpecs[1].checkbox;
+    m_aiCerebrasApiKeyEdit = m_providerSpecs[1].keyEdit;
+    m_aiCerebrasModelCombo = m_providerSpecs[1].modelCombo;
+    m_aiProviderGroqCheckbox = m_providerSpecs[2].checkbox;
+    m_aiGroqApiKeyEdit = m_providerSpecs[2].keyEdit;
+    m_aiGroqModelCombo = m_providerSpecs[2].modelCombo;
+    m_aiProviderHuggingFaceCheckbox = m_providerSpecs[3].checkbox;
+    m_aiHuggingFaceApiKeyEdit = m_providerSpecs[3].keyEdit;
+    m_aiHuggingFaceModelCombo = m_providerSpecs[3].modelCombo;
+    m_aiProviderOpenRouterCheckbox = m_providerSpecs[4].checkbox;
+    m_aiOpenRouterApiKeyEdit = m_providerSpecs[4].keyEdit;
+    m_aiOpenRouterModelCombo = m_providerSpecs[4].modelCombo;
+    m_aiProviderSakuraCheckbox = m_providerSpecs[5].checkbox;
+    m_aiSakuraApiKeyEdit = m_providerSpecs[5].keyEdit;
+    m_aiSakuraModelCombo = m_providerSpecs[5].modelCombo;
+
+    m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
+    m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_tavilyApiKeyEdit->setPlaceholderText("Tavily キーを入力...");
     aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
     mainLayout->addWidget(aiGroup);
 

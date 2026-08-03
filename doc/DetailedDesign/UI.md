@@ -81,5 +81,35 @@ sequenceDiagram
 | **Groq** | `Groq AI:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ llama-3.3-70b-versatile (推奨) ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
 | **HuggingFace** | `HuggingFace:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ meta-llama/Llama-3.1-8B-Instruct ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
 | **OpenRouter** | `OpenRouter:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ google/gemma-4-31b-it:free ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
-| **さくらAI** | `さくらAI:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ llm-jp-3.1-8x13b-instruct4 ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
+| **さくらAI** | `さくらAI:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー全幅)]`<br>2行目: `[ llm-jp-3.1-8x13b-instruct4 ▼ ]` (左端を有効CB位置と整列) |
 | **Tavily (検索補助)** | `Tavily キー (任意):` | `[●●●●●●●● (APIキー入力欄)]` (変更なし・単独行配置) |
+
+### 6.2 データ駆動構造体 (`ProviderConfigSpec`) および全自動処理仕様
+
+#### 6.2.1 構造体定義 (`ProviderConfigSpec`)
+```cpp
+struct ProviderConfigSpec {
+    QString id;                 // プロバイダ識別ID ("mistral", "cerebras", "groq" 等)
+    QString displayName;        // 表示ラベル ("Mistral AI", "Cerebras AI" 等)
+    QString keyPlaceholder;     // APIキー入力欄プレースホルダー
+    bool hasModelCombo = false; // モデル選択コンボボックスの有無
+    QStringList defaultModels;  // デフォルト候補モデル一覧
+    bool isModelEditable = false; // モデル名の自由編集可能フラグ
+
+    // 動的生成UI参照インスタンスポインタ
+    QCheckBox *checkbox = nullptr;
+    QLineEdit *keyEdit = nullptr;
+    QComboBox *modelCombo = nullptr;
+};
+```
+
+#### 6.2.2 全自動ループ処理 ＆ モデル自動選択アルゴリズム
+1. **全自動 UI 生成・アラインメント整列ループ**:
+   - `QList<ProviderConfigSpec>` を `for` ループで走査し、`QHBoxLayout` による「`[レ] 有効` ＋ `APIキー入力欄`」の生成および 2行目の「`モデル:` コンボボックス」のアラインメント位置あわせ配置を全自動実行。
+   - モデル選択コンボボックスの先頭インデックス（index 0）に「`自動選択 (推奨)`」を全プロバイダ共通で追加。
+2. **全自動モデル選定 (Auto Model Selection) ロジック**:
+   - コンボボックスが「`自動選択 (推奨)`」に設定されている、または空文字の場合、各 AI クライアント（Groq, Cerebras, OpenRouter, HuggingFace, Sakura 等）はクライアント側で規定されている最新・推奨推論モデルを自動選択して推論を実行。
+3. **全自動排他制御シグナル接続ループ**:
+   - チェックボックス `toggled(bool)` シグナル接続時に、他プロバイダの `checkbox->setChecked(false)` を自動実行。
+4. **全自動 JSON 設定ロード ＆ セーブ**:
+   - `loadSettingsToUI()` / `saveSettings()` において、`id` に基づく API キー・モデル名・有効フラグの読込／保存を単一ループで全自動実行。
