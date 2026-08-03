@@ -2,19 +2,9 @@
 #include <QDateTime>
 #include <QDebug>
 
-RateLimitTabWidget::RateLimitTabWidget(RateLimitTracker *tracker, QWidget *parent)
-    : QWidget(parent), m_tracker(tracker) {
+RateLimitTabWidget::RateLimitTabWidget(QWidget *parent)
+    : QWidget(parent) {
     setupUI();
-
-    m_updateTimer = new QTimer(this);
-    connect(m_updateTimer, &QTimer::timeout, this, &RateLimitTabWidget::refreshUI);
-    m_updateTimer->start(1000); // 1秒間隔でリアルタイム更新
-}
-
-RateLimitTabWidget::~RateLimitTabWidget() {
-    if (m_updateTimer) {
-        m_updateTimer->stop();
-    }
 }
 
 void RateLimitTabWidget::setupUI() {
@@ -33,13 +23,23 @@ void RateLimitTabWidget::setupUI() {
     scrollArea->setWidget(scrollContent);
     containerLayout->addWidget(scrollArea);
 
-    refreshUI();
+    // 初期ラベル（シグナル受信前の空状態表示）
+    m_cardsLayout->addWidget(new QLabel("⏳ AI プロバイダのステータスを待機中...", scrollContent));
+    m_cardsLayout->addStretch();
 }
 
-void RateLimitTabWidget::refreshUI() {
-    if (!m_tracker) return;
+void RateLimitTabWidget::onStatusUpdated(const QList<ProviderStatus> &statuses) {
+    // 初回受信時に待機ラベルを消す
+    if (!m_providerCards.isEmpty() == false) {
+        // 待機ラベルとストレッチを除去
+        while (QLayoutItem *item = m_cardsLayout->takeAt(0)) {
+            if (QWidget *w = item->widget()) {
+                w->deleteLater();
+            }
+            delete item;
+        }
+    }
 
-    QList<ProviderStatus> statuses = m_tracker->allStatuses();
     for (const auto &st : statuses) {
         updateProviderCard(st);
     }

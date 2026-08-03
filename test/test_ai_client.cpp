@@ -1216,11 +1216,12 @@ TEST_F(AIClientTest, RateLimitTabWidget_DynamicCards) {
     dummySt.provider = "dummy";
     tracker.registerClient(dummySt);
 
-    RateLimitTabWidget widget(&tracker);
-    widget.refreshUI();
+    // 新しい API: コンストラクタは親ウィジェットのみ受け取り、onStatusUpdated スロットで受信
+    RateLimitTabWidget widget(nullptr);
+    QList<ProviderStatus> statuses = tracker.allStatuses();
+    widget.onStatusUpdated(statuses);
 
     // DUMMY プロバイダは描画・カード生成から除外されていることの確認
-    QList<ProviderStatus> statuses = tracker.allStatuses();
     EXPECT_GE(statuses.size(), 1);
 }
 

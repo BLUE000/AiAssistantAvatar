@@ -158,7 +158,7 @@ AvatarWindow::AvatarWindow(QWidget *parent)
     initAiSettingsTab(m_aiSettingsTab);
     m_tabWidget->addTab(m_aiSettingsTab, "AI設定");
 
-    m_rateLimitTab = new RateLimitTabWidget(nullptr, m_tabWidget);
+    m_rateLimitTab = new RateLimitTabWidget(m_tabWidget);
     m_tabWidget->addTab(m_rateLimitTab, "レートリミット");
 
     m_nicknameTab = new QWidget(m_tabWidget);
@@ -231,7 +231,13 @@ void AvatarWindow::setAIClientManager(AIClientManager *manager) {
     m_aiClientManager = manager;
     if (m_rateLimitTab && m_aiClientManager) {
         if (RateLimitTabWidget *tabWidget = qobject_cast<RateLimitTabWidget*>(m_rateLimitTab)) {
-            tabWidget->setTracker(&m_aiClientManager->tracker());
+            // aiThread 上の m_tracker に直接アクセスする代わりに、
+            // rateLimitStatusUpdated シグナル (QueuedConnection) 経由で UI スレッドへ安全に配信する
+            connect(m_aiClientManager, &AIClientManager::rateLimitStatusUpdated,
+                    tabWidget, &RateLimitTabWidget::onStatusUpdated,
+                    Qt::QueuedConnection);
+            // 接続直後に現在状態を要求（aiThread 上で実行されるので invokeMethod 経由）
+            QMetaObject::invokeMethod(m_aiClientManager, "emitCurrentStatus", Qt::QueuedConnection);
         }
     }
 }
@@ -1833,7 +1839,8 @@ void AvatarWindow::saveSettingsFromUI() {
 void AvatarWindow::onSaveSettingsClicked() {
     saveSettingsFromUI();
     if (m_aiClientManager) {
-        m_aiClientManager->loadCredentials();
+        // aiThread 上のオブジェクトを直接呼ぶのは NG のため QueuedConnection 経由で安全に呼び出す
+        QMetaObject::invokeMethod(m_aiClientManager, "loadCredentials", Qt::QueuedConnection);
     }
     // WebSocket サーバー再起動
     stopWebSocketServer();

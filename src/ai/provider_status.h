@@ -1,6 +1,8 @@
 #pragma once
 #include <QString>
 #include <QDateTime>
+#include <QList>
+#include <QMetaType>
 
 /// 各AIプロバイダの状態・制限・仕様を保持する構造体
 struct ProviderStatus {
@@ -28,3 +30,6 @@ struct ProviderStatus {
 
     QDateTime nextResetAt;        // 最短リセット時刻（全枯渇時のメッセージ生成に使用）
 };
+
+Q_DECLARE_METATYPE(ProviderStatus)
+Q_DECLARE_METATYPE(QList<ProviderStatus>)

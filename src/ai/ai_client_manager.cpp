@@ -88,6 +88,10 @@ AIClientManager::AIClientManager(QObject *parent)
     QDir().mkpath("log");
     m_tracker.loadFromFile("log/usage_stats.json");
 
+    // スレッド間シグナル伝達用のメタタイプ登録
+    qRegisterMetaType<ProviderStatus>("ProviderStatus");
+    qRegisterMetaType<QList<ProviderStatus>>("QList<ProviderStatus>");
+
     loadCredentials();
     loadBlacklist();
     loadWhitelist();
@@ -329,6 +333,9 @@ void AIClientManager::loadCredentials() {
             buildFallbackProviderList();
         }
     }
+
+    // RateLimitTabWidget に更新結果を通知（QueuedConnection で UI スレッドへ安全に配信）
+    emit rateLimitStatusUpdated(m_tracker.allStatuses());
 }
 
 void AIClientManager::loadBlacklist() {
@@ -1454,6 +1461,8 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         m_apiCallStartTimeMs = 0;
     }
     m_tracker.saveToFile("log/usage_stats.json");
+    // RateLimitTabWidget 向け通知（aiThread 上から QueuedConnection 経由で UI スレッドへ安全に配信）
+    emit rateLimitStatusUpdated(m_tracker.allStatuses());
 
     qDebug() << "AIClientManager: Client request finished. Success:" << success
              << "HttpCode:" << httpCode
@@ -1813,6 +1822,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         if (isTemporaryError && m_currentClient) {
             // 現プロバイダをレートリミット扱いにする
             m_tracker.forceRateLimit(currentClientId, 60);
+            emit rateLimitStatusUpdated(m_tracker.allStatuses()); // レートリミット発生を即時通知
 
             if (m_fallbackIndex < m_fallbackProviders.size()) {
                 // 次のフォールバック先を選択
@@ -3024,6 +3034,11 @@ void AIClientManager::on_requestProviderStatus(const QString &providerId) {
     if (m_clientMap.contains(providerId)) {
         emit providerStatusResponse(m_tracker.statusOf(providerId));
     }
+}
+
+void AIClientManager::emitCurrentStatus() {
+    // RateLimitTabWidget が接続された直後に初期状態を配信する（aiThread 上で実行される）
+    emit rateLimitStatusUpdated(m_tracker.allStatuses());
 }
 
 QString AIClientManager::fetchSchedules(const QString &category, const QDate &startDate, int days) {

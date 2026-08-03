@@ -8,10 +8,9 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QProgressBar>
-#include <QTimer>
 #include <QMap>
 #include <QList>
-#include "../ai/rate_limit_tracker.h"
+#include "../ai/provider_status.h"
 
 // 1つの管理項目 (RPM / RPD) の再利用用UI構造体
 struct QuotaRowWidget {
@@ -33,18 +32,15 @@ struct ProviderCardWidget {
 class RateLimitTabWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit RateLimitTabWidget(RateLimitTracker *tracker = nullptr, QWidget *parent = nullptr);
-    virtual ~RateLimitTabWidget();
-
-    void setTracker(RateLimitTracker *tracker) { m_tracker = tracker; refreshUI(); }
+    explicit RateLimitTabWidget(QWidget *parent = nullptr);
+    virtual ~RateLimitTabWidget() = default;
 
 public slots:
-    void refreshUI();
+    /// AIClientManager::rateLimitStatusUpdated シグナルを受信する（QueuedConnection 経由）
+    /// aiThread 上の m_tracker に直接アクセスせず、コピー済みリストを受け取る
+    void onStatusUpdated(const QList<ProviderStatus> &statuses);
 
 private:
-    RateLimitTracker *m_tracker = nullptr;
-    QTimer *m_updateTimer = nullptr;
-
     QVBoxLayout *m_cardsLayout = nullptr;
     QMap<QString, ProviderCardWidget> m_providerCards;
 

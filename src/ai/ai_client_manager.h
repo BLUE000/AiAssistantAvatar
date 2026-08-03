@@ -30,7 +30,7 @@ class SystemResponseManager;
 class AIClientManager : public QObject {
     Q_OBJECT
 public:
-    void loadCredentials();
+    // ※ loadCredentials() は public slots へ移動済み（スレッド安全のため invokeMethod 対応）
 private:
     IAIClient *m_currentClient = nullptr;
     SystemResponseManager *m_systemResponseManager = nullptr;
@@ -231,8 +231,12 @@ signals:
     void userNamesUpdated(const QJsonObject &data);
     void knowledgeMetadataUpdated(const QJsonObject &data);
     void providerStatusResponse(const ProviderStatus &status);
+    /// RateLimitTabWidget 向け: aiThread 上でトラッカーが更新された際に emit
+    void rateLimitStatusUpdated(const QList<ProviderStatus> &statuses);
 
 public slots:
+    void loadCredentials();         // スレッド安全な呼び出しのため public slot 化
+    void emitCurrentStatus();       // RateLimitTabWidget 初期化時に現在状態を通知する
     void on_requestAI(const QString &prompt, const QString &user = "");
     void on_twitchRaidReceived(const QString &username);
     void on_shoutoutSuccessReceived(const QString &username);
