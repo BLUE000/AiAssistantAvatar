@@ -138,6 +138,27 @@ struct ProviderConfigSpec {
    - モデル選択コンボボックスの先頭インデックス（index 0）に「`自動選択 (推奨)`」を全プロバイダ共通で追加。
 2. **全自動モデル選定 (Auto Model Selection) ロジック**:
    - コンボボックスが「`自動選択 (推奨)`」に設定されている、または空文字の場合、各 AI クライアント（Groq, Cerebras, OpenRouter, HuggingFace, Sakura 等）はクライアント側で規定されている最新・推奨推論モデルを自動選択して推論を実行。
+
+---
+
+## 8. 音声入力 (STT) PTT ＆ 共有マイクアクセス詳細設計 (F-2)
+
+### 8.1 「音声」ボタンの PTT 状態・イベント発火設計 (`AvatarWindow`)
+- **ボタンイベント割り当て**:
+  - `m_sttButton` の `pressed` シグナル ➔ `onSttPressed()`
+  - `m_sttButton` の `released` シグナル ➔ `onSttReleased()`
+- **UI 表示 ＆ スタイル制御**:
+  - 押下時 (`onSttPressed`): ボタンテキストを `🎤 録音中...` に変更し、背景色 `#e74c3c` (赤色) のスタイルシートを適用し、`startSTTRequested()` シグナルを発火。
+  - 解放時 (`onSttReleased`): ボタンテキストを `音声` に戻し、標準スタイルシートへ復元し、`stopSTTRequested()` シグナルを発火。
+
+### 8.2 共有マイクアクセス ＆ 音声認識ルーティング設計 (`CoreModule` / `STTManager`)
+- **`SAPIEngine` 共有キャプチャ制御**:
+  - `CLSID_SpSharedRecognizer` を使用して認識エンジンを初期化し、WASAPI 共有モードでマイク入力をキャプチャ。他の音声アプリ（OBS, Discord 等）のマイク占有・遮断を回避する。
+- **音声認識完了イベント (`VoiceInputCompleted`) の自動AI連動回路**:
+  - `CoreModule::on_notify_events` で `EventType::VoiceInputCompleted` イベントを受信した際、イベントのテキスト内容 (`event.text`) を確認し、空でない場合即座に `requestAIExecution(event.text, "Streamer (Voice)")` シグナルを発火して AI 応答フローに自動直結する。
+- **サブPC（別マシン）動作 ＆ HTTP/WebSocket STT 注入**:
+  - ローカル HTTP サーバー (`HttpServer`) に `POST /stt` エンドポイントを実装し、JSON パラメータ `{"text": "音声認識テキスト"}` を受け取った場合も、同一の `VoiceInputCompleted` イベントを生成して `CoreModule` 経由で AI にリクエストを配信する。
+
 3. **全自動排他制御シグナル接続ループ**:
    - チェックボックス `toggled(bool)` シグナル接続時に、他プロバイダの `checkbox->setChecked(false)` を自動実行。
 4. **全自動 JSON 設定ロード ＆ セーブ**:

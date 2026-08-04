@@ -7,14 +7,17 @@
 
 # 作業の状態
 
-## [フェーズ: 全作業完了] 設定UI非表示化（名前反応・OBSポート類） ＆ Discord複数チャンネル動的UI拡張の実装・Git Push・リリースビルド ＆ ZIP格納完了
+## [フェーズ: ドキュメント改訂完了・ユーザー確認待ち] 音声入力（STT）再構築 ＆ 共有マイクアクセス・2モード・サブPC連携仕様書・README改訂完了
 
 ### 現在の状態
-- 1. Git Push 完了 (コミット `93f5add` → `origin/master`) ※TrustChain 順序遵守
-- 2. リリースビルド完了 (`build/AiAssistantAvatar.exe`, `build/AvatarSkinBuilder.exe` @ 05:22 JST)
-- 3. 実行環境一式のデプロイ ＆ ZIP パッケージング完了 ([dist/AiAssistantAvatar_Release.zip](file:///d:/prog/C++/AiAssistantAvatar/dist/AiAssistantAvatar_Release.zip) 46.1 MB @ 05:23 JST)
-- 4. `DecisionLog/2026-08-05_05-23-00_DecisionLog.md` を作成し全工程を完了記録。
-- ローカル working tree clean
+- `.ai_rules.md` に従い、仕様書・設計書・README の先行改訂を完了：
+  - [README.md](file:///d:/prog/C++/AiAssistantAvatar/README.md) (マイク共有・2モード・サブPC連携の説明・使い方を追記)
+  - [Requirements.md](file:///d:/prog/C++/AiAssistantAvatar/doc/Requirements.md) (F-2 改訂: 共有マイク・ぶるたろう等のアバター名ウェイクワード/PTT・AI直結ルーティング・別マシン連携)
+  - [UI.md (BasicDesign)](file:///d:/prog/C++/AiAssistantAvatar/doc/BasicDesign/UI.md) (2.7 節追加)
+  - [UI.md (DetailedDesign)](file:///d:/prog/C++/AiAssistantAvatar/doc/DetailedDesign/UI.md) (8 節追加)
+  - [UnitTest.md](file:///d:/prog/C++/AiAssistantAvatar/doc/UnitTest.md) (UT-STT-04, 05, 06 追加)
+- `DecisionLog/2026-08-05_05-40-00_DecisionLog.md` を更新完了。
 
 ### これから行うこと
-- ユーザー様からの次回のご指示待ち。
+- ドキュメント改訂内容に対するユーザー様の確認・承認。
+- 承認後、C++ ソースコード実装・単体テスト実行着手。

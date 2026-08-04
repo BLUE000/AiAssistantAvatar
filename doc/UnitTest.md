@@ -74,6 +74,10 @@ classDiagram
 | **UT-STT-01** | `STTManager` (エンジン切り替え) | `setEngine("whisper")` を実行後、`on_startListening()` を呼ぶ。 | `WhisperEngine` の `startListening()` が呼ばれること。 |
 | **UT-STT-02** | `STTManager` (エンジン切り替え) | `setEngine("sapi")` を実行後、`on_startListening()` を呼ぶ。 | `SAPIEngine` の `startListening()` が呼ばれること。 |
 | **UT-STT-03** | `STTManager` & `MockSTTEngine` | `MockSTTEngine` に `"音声入力テキスト"` をセットし、`on_startListening()` を実行する。 | `STTManager::notifyEvent` シグナルが `EventType::VoiceInputCompleted` (text: `"音声入力テキスト"`) で発火すること。 |
+| **UT-STT-04** | `AvatarWindow` PTT (長押し/離す) | `m_sttButton` に対して `pressed` シグナルおよび `released` シグナルを直接・疑似発火する。 | 1. `pressed` 時に `startSTTRequested()` が発火し、ボタン表示が `🎤 録音中...` になること。<br>2. `released` 時に `stopSTTRequested()` が発火し、ボタン表示が `音声` に戻ること。 |
+| **UT-STT-05** | `CoreModule` 音声AI自動ルーティング | `EventType::VoiceInputCompleted` (text: `"こんにちは"`) イベントを `CoreModule::on_notify_events` に投入する。 | `CoreModule` から `requestAI` (text: `"こんにちは"`) が自動発火し、AI 問いかけ処理に直結すること。 |
+| **UT-STT-06** | ネットワーク STT 注入 API | ローカル HTTP エンドポイント `/stt` に `{"text": "外部認識テキスト"}` を POST 送信する。 | `CoreModule` を経由して `requestAI` (text: `"外部認識テキスト"`) が自動発火すること。 |
+
 
 ---
 

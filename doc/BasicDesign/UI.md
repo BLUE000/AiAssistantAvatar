@@ -34,13 +34,16 @@
 - **「OBS / 描画設定」ポート項目のUI非表示化**:
   - 「WebSocketポート(OBS用)」 (`ws_port`) および「HTTP配信ポート」 (`obs_http_port`) の入力フォームを画面 (UI) から削除し、設定ファイル (`local_settings.json`) 管理とする。
 
-### 2.6 Discord 複数チャンネル動的管理 UI 構造 (F-20)
-- 「Discord 連携設定」グループボックス内に動的チャンネルコンテナ (`m_discordChannelsContainer`) およびレイアウト (`m_discordChannelsLayout`) を設置する。
-- **`[+ チャンネル追加]` ボタン**:
-  - グループボックス下部に設置し、押下時に「接続チャンネル X」QLineEdit と「起動時挨拶 (接続時挨拶)」QCheckBox の組み合わせ行を動的に画面追加する。
-- **`[-]` 削除ボタン**:
-  - 各チャンネル行の右端に配置し、押下時に該当行を動的にUIから削除する。全削除を防ぐため最低1チャンネル表示を保証・維持する。
-- **JSON 設定配列化**:
-  - 画面で設定されたチャンネルリストを `local_settings.json` の `"discord_channels"` 配列として相互保存・永続化する。
+### 2.7 音声入力 (STT) プッシュ・トゥー・トーク (PTT) ＆ 共有マイクアクセス設計 (F-2)
+- **マイク共有非独占（Shared Mode）仕様**:
+  - Windows SAPI の `SpSharedRecognizer` および WASAPI Shared Mode を使用し、OBS や Discord とマイクデバイスを共用する。
+- **「音声」ボタンの PTT (長押し/トグル) 制御**:
+  - ボタン押下時 (`pressed`) ➔ UI表示を `🎤 録音中...` (赤色スタイル) に切り替え、`STTManager::on_startListening()` を呼び出す。
+  - ボタン解放時 (`released`) ➔ UI表示を `音声` (通常スタイル) に戻し、`STTManager::on_stopListening()` を呼び出す。
+- **認識結果の AI 自動ルーティング**:
+  - 音声認識完了イベント (`VoiceInputCompleted`) を受信した際、`CoreModule` は自動的に `requestAIExecution` シグナルを発火し、認識テキストを AI 返答・吹き出し表示・OBS通知処理へ直結させる。
+- **サブPC（別マシン）動作 ＆ ネットワーク STT 注入**:
+  - サブPC単体での動作を保証し、HTTP/WebSocket 経由の外部 STT テキスト注入処理に対応する。
+
 
 
