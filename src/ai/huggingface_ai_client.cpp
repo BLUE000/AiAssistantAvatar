@@ -158,7 +158,12 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
 }
 
 void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
+    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+    if (manager) {
+        manager->tracker().updateFromReply(QStringLiteral("huggingface"), reply);
+    }
     reply->deleteLater();
+
 
     if (m_isFetchingModels && reply->url().toString().contains("/models")) {
         m_isFetchingModels = false;

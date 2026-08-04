@@ -79,7 +79,25 @@ QString RateLimitTracker::selectBestAvailableClient() {
      - *未設定キーあり*: 「*全プロバイダが上限到達中。解除まで【約〇分〇秒】。未設定の[〇〇]キーを登録するとすぐ使えます*」
      - *全キー設定済み*: 「*すべてのAIプロバイダが上限到達中。解除まで【約〇分〇秒】ほどお待ちください*」
 
+### 4.3 3段階ハイブリッド レートリミット追跡 ＆ 自律学習アルゴリズム
+1. **暫定上限値の初期化 (Web / Config Fallback)**:
+   - レスポンスヘッダーに制限情報が含まれないプロバイダ（Sakura, HuggingFace, OpenRouter等）は、Web公開仕様に基づく設定値 (`provider_limits`) を $RPM_{max}, RPD_{max}, TPM_{max}, TPD_{max}$ の初期暫定値として適用する。
+2. **ローカル内部消費計算モデル (Local Consumption Estimator)**:
+   - APIヘッダーが取得できない環境下において、1リクエスト完了ごとにローカル内部で残量をカウントダウン減算する：
+     $$RPM_{rem} \leftarrow \max(0, RPM_{rem} - 1)$$
+     $$RPD_{rem} \leftarrow \max(0, RPD_{rem} - 1)$$
+   - 送信プロンプト長 $L_{in}$ および応答文字列長 $L_{out}$ から概算トークン消費量 $T_{est}$ を算出：
+     $$T_{est} = \lceil (L_{in} \cdot c_{in} + L_{out} \cdot c_{out}) \cdot \alpha \rceil$$
+     （初期安全マージン係数 $\alpha = 1.2$, 日本語文字換算比率 $c_{in} = c_{out} = 1.3$）
+     $$TPM_{rem} \leftarrow \max(0, TPM_{rem} - T_{est})$$
+     $$TPD_{rem} \leftarrow \max(0, TPD_{rem} - T_{est})$$
+3. **適応学習型自己校正 (Adaptive Calibration Engine)**:
+   - **429（制限超過）検知時の学習**: 429発生時の推定残量を実質境界ラベルとみなし、安全マージン係数を $\alpha \leftarrow \min(3.0, \alpha \times 1.25)$ へ自動引き上げ。次回のリセット時間予測を自律更新。
+   - **ヘッダー実測同期時の学習**: 正確なレスポンスヘッダーが得られたタイミングで残量を実測同期し、推定誤差率に基づき EMA（指数移動平均）で安全係数 $\alpha$ を適応補正する。
+   - **使えば使うほど精度向上**: 利用履歴およびエラーフィードバックの蓄積に伴い、プロバイダごとの固有消費率および復帰タイマー精度が自律的に向上する。
+
 ---
+
 
 ## 5. 段階的タスク分解パイプライン ＆ 役割分離プロンプト構築 (`F-16-9`)
 

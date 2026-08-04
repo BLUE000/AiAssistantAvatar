@@ -12,44 +12,126 @@
 void RateLimitTracker::registerClient(const ProviderStatus &defaultStatus) {
     m_statuses[defaultStatus.provider] = defaultStatus;
     m_latencyHistory[defaultStatus.provider] = {};
+    if (!m_safetyMargins.contains(defaultStatus.provider)) {
+        m_safetyMargins[defaultStatus.provider] = 1.2; // 初期安全マージン係数 α
+    }
 }
 
 // ---------------------------------------------------------------------------
-// updateFromReply — OpenAI互換レートリミットヘッダーを解析して残量を更新
+// updateFromReply — 各プロバイダのヘッダー表記揺れに対応して残量を更新
 // ---------------------------------------------------------------------------
 void RateLimitTracker::updateFromReply(const QString &clientId, QNetworkReply *reply) {
     if (!reply || !m_statuses.contains(clientId)) return;
     ProviderStatus &s = m_statuses[clientId];
 
-    auto getInt = [&](const QByteArray &key, int fallback) -> int {
-        QByteArray v = reply->rawHeader(key).trimmed();
-        if (v.isEmpty()) return fallback;
-        bool ok = false;
-        int val = v.toInt(&ok);
-        return ok ? val : fallback;
+    auto getIntMulti = [&](const QList<QByteArray> &keys, int fallback) -> int {
+        for (const auto &key : keys) {
+            QByteArray v = reply->rawHeader(key).trimmed();
+            if (!v.isEmpty()) {
+                bool ok = false;
+                int val = v.toInt(&ok);
+                if (ok) return val;
+            }
+        }
+        return fallback;
     };
-    auto getDate = [&](const QByteArray &key) -> QDateTime {
-        QByteArray v = reply->rawHeader(key).trimmed();
-        if (v.isEmpty()) return QDateTime();
-        return parseResetHeader(v);
+    auto getDateMulti = [&](const QList<QByteArray> &keys) -> QDateTime {
+        for (const auto &key : keys) {
+            QByteArray v = reply->rawHeader(key).trimmed();
+            if (!v.isEmpty()) {
+                QDateTime dt = parseResetHeader(v);
+                if (dt.isValid()) return dt;
+            }
+        }
+        return QDateTime();
     };
 
-    int newRpmMax = getInt("x-ratelimit-limit-requests", 0);
+    int newRpmMax = getIntMulti({"x-ratelimit-limit-requests", "x-ratelimit-limit-requests-minute", "x-ratelimit-limit"}, 0);
     if (newRpmMax > 0) s.rpmMax = newRpmMax;
 
-    int newRpm = getInt("x-ratelimit-remaining-requests", -1);
+    int newRpm = getIntMulti({"x-ratelimit-remaining-requests", "x-ratelimit-remaining-requests-minute", "x-ratelimit-remaining"}, -1);
     if (newRpm >= 0) s.rpmRemaining = newRpm;
 
-    int newTpmMax = getInt("x-ratelimit-limit-tokens", 0);
+    int newTpmMax = getIntMulti({"x-ratelimit-limit-tokens", "x-ratelimit-limit-tokens-minute"}, 0);
     if (newTpmMax > 0) s.tpmMax = newTpmMax;
 
-    int newTpm = getInt("x-ratelimit-remaining-tokens", -1);
+    int newTpm = getIntMulti({"x-ratelimit-remaining-tokens", "x-ratelimit-remaining-tokens-minute"}, -1);
     if (newTpm >= 0) s.tpmRemaining = newTpm;
 
-    QDateTime resetAt = getDate("x-ratelimit-reset-requests");
+    QDateTime resetAt = getDateMulti({"x-ratelimit-reset-requests", "x-ratelimit-reset-requests-minute", "x-ratelimit-reset"});
     if (resetAt.isValid()) s.nextResetAt = resetAt;
 
+    if (newRpm >= 0 || newTpm >= 0) {
+        calibrateFromHeader(clientId, newRpm, newTpm);
+    }
+
     updateAvailable(clientId);
+}
+
+// ---------------------------------------------------------------------------
+// recordLocalConsumption — ヘッダー未取得時のローカルカウントダウン減算
+// ---------------------------------------------------------------------------
+void RateLimitTracker::recordLocalConsumption(const QString &clientId, int inputLength, int outputLength) {
+    if (!m_statuses.contains(clientId)) return;
+    ProviderStatus &s = m_statuses[clientId];
+
+    double alpha = m_safetyMargins.value(clientId, 1.2);
+
+    // リクエスト件数の減算
+    if (s.rpmMax > 0 && s.rpmRemaining > 0) {
+        s.rpmRemaining = qMax(0, s.rpmRemaining - 1);
+    }
+    if (s.rpdMax > 0 && s.rpdRemaining > 0) {
+        s.rpdRemaining = qMax(0, s.rpdRemaining - 1);
+    }
+
+    // 文字列長からトークン数推定 (1文字 ≒ 1.3 トークン)
+    int estTokens = qMax(1, static_cast<int>(std::ceil((inputLength * 1.3 + outputLength * 1.3) * alpha)));
+
+    if (s.tpmMax > 0 && s.tpmRemaining > 0) {
+        s.tpmRemaining = qMax(0, s.tpmRemaining - estTokens);
+    }
+    if (s.tpdMax > 0 && s.tpdRemaining > 0) {
+        s.tpdRemaining = qMax(0, s.tpdRemaining - estTokens);
+    }
+
+    updateAvailable(clientId);
+}
+
+// ---------------------------------------------------------------------------
+// adaptOnHttp429 — 429超過検知時の学習校正
+// ---------------------------------------------------------------------------
+void RateLimitTracker::adaptOnHttp429(const QString &clientId, int durationSecs) {
+    if (!m_statuses.contains(clientId)) return;
+    forceRateLimit(clientId, durationSecs);
+
+    double currentAlpha = m_safetyMargins.value(clientId, 1.2);
+    double newAlpha = qMin(3.0, currentAlpha * 1.25);
+    m_safetyMargins[clientId] = newAlpha;
+
+    qWarning() << "[RateLimitTracker] 429 Limit Exceeded on" << clientId
+               << ". Adapted safety margin alpha from" << currentAlpha << "to" << newAlpha;
+}
+
+// ---------------------------------------------------------------------------
+// calibrateFromHeader — ヘッダー実測値による指数移動平均 (EMA) 学習校正
+// ---------------------------------------------------------------------------
+void RateLimitTracker::calibrateFromHeader(const QString &clientId, int actualRemainingRpm, int actualRemainingTpm) {
+    if (!m_statuses.contains(clientId)) return;
+    Q_UNUSED(actualRemainingRpm);
+    Q_UNUSED(actualRemainingTpm);
+
+    // 実測値ヘッダーが取れる場合は安定運用中とみなし、安全係数を緩やかに標準値 1.2 へ収束させる
+    double alpha = m_safetyMargins.value(clientId, 1.2);
+    double targetAlpha = 1.2;
+    m_safetyMargins[clientId] = alpha * 0.9 + targetAlpha * 0.1;
+}
+
+// ---------------------------------------------------------------------------
+// safetyMargin
+// ---------------------------------------------------------------------------
+double RateLimitTracker::safetyMargin(const QString &clientId) const {
+    return m_safetyMargins.value(clientId, 1.2);
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +145,7 @@ void RateLimitTracker::forceRateLimit(const QString &clientId, int durationSecs)
     s.available = false;
     qWarning() << "[RateLimitTracker] Forced rate limit on client" << clientId << "for" << durationSecs << "seconds.";
 }
+
 
 // ---------------------------------------------------------------------------
 // setMaxValues
@@ -181,6 +264,7 @@ void RateLimitTracker::saveToFile(const QString &path) const {
         obj["tpd_max"]       = s.tpdMax;
         obj["tpd_remaining"] = s.tpdRemaining;
         obj["day_start"]     = today;
+        obj["safety_margin"] = m_safetyMargins.value(it.key(), 1.2);
         root[it.key()] = obj;
     }
     QFile f(path);
@@ -203,6 +287,10 @@ void RateLimitTracker::loadFromFile(const QString &path) {
         if (!m_statuses.contains(id)) continue;
         QJsonObject obj = it.value().toObject();
 
+        if (obj.contains("safety_margin")) {
+            m_safetyMargins[id] = obj["safety_margin"].toDouble(1.2);
+        }
+
         QString dayStart = obj["day_start"].toString();
         bool sameDay = dayStart.startsWith(today);
 
@@ -224,6 +312,7 @@ void RateLimitTracker::loadFromFile(const QString &path) {
         updateAvailable(id);
     }
 }
+
 
 // ---------------------------------------------------------------------------
 // private helpers

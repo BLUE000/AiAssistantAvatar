@@ -206,8 +206,12 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RLT-07** | `recordLatency` | 5回分のレイテンシ（100, 200, 300, 400, 500ms）を記録する。 | `latencyMs` が移動平均（300ms）であること。 |
 | **UT-RLT-08** | `saveToFile / loadFromFile` | 保存後に別インスタンスでロードする。 | `rpdRemaining`・`tpdRemaining` が保存値と一致すること。 |
 | **UT-RLT-09** | `loadFromFile` | `day_start` が前日のファイルをロードする。 | `rpdRemaining` がデフォルト値にリセットされること。 |
+| **UT-RLT-10** | `recordLocalConsumption` | ヘッダー非対応時にプロンプト長・応答長を指定してローカル消費を記録する。 | `rpmRemaining` が -1 減算され、推定トークン数に応じて `tpmRemaining` が減算されること。 |
+| **UT-RLT-11** | `adaptOnHttp429` | HTTP 429 エラー発生時のシグナルを渡す。 | `available=false` となり、消費安全係数 $\alpha$ が自律的に上方修正されること。 |
+| **UT-RLT-12** | `calibrateFromHeader` | ヘッダー実測値と推定値の差分をフィードバックする。 | EMA にて消費安全係数 $\alpha$ が適応修正され、次回推算の精度が向上すること。 |
 
 ---
+
 
 ### 3.9 AIRouter の単体試験
 

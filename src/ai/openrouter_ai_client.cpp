@@ -159,7 +159,12 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
 }
 
 void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
+    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+    if (manager) {
+        manager->tracker().updateFromReply(QStringLiteral("openrouter"), reply);
+    }
     reply->deleteLater();
+
 
     if (reply->request().url().path().endsWith("/models")) {
         m_isFetchingModels = false;

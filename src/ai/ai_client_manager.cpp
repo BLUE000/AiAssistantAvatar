@@ -1461,9 +1461,13 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         m_tracker.recordLatency(m_currentClient->clientId(), elapsed);
         m_apiCallStartTimeMs = 0;
     }
+    if (success && m_currentClient) {
+        m_tracker.recordLocalConsumption(m_currentClient->clientId(), m_lastFinalPrompt.length(), responseText.length());
+    }
     m_tracker.saveToFile("log/usage_stats.json");
     // RateLimitTabWidget 向け通知（aiThread 上から QueuedConnection 経由で UI スレッドへ安全に配信）
     emit rateLimitStatusUpdated(m_tracker.allStatuses());
+
 
     qDebug() << "AIClientManager: Client request finished. Success:" << success
              << "HttpCode:" << httpCode
@@ -1821,9 +1825,14 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         // 3. 一時エラー（429/503）→ フォールバック試行（F-33-1/2）
         bool isTemporaryError = (httpCode == 429 || httpCode == 503);
         if (isTemporaryError && m_currentClient) {
-            // 現プロバイダをレートリミット扱いにする
-            m_tracker.forceRateLimit(currentClientId, 60);
+            // 現プロバイダをレートリミット扱いにする（429発生時は学習適応制御を適用）
+            if (httpCode == 429) {
+                m_tracker.adaptOnHttp429(currentClientId, 60);
+            } else {
+                m_tracker.forceRateLimit(currentClientId, 60);
+            }
             emit rateLimitStatusUpdated(m_tracker.allStatuses()); // レートリミット発生を即時通知
+
 
             if (m_fallbackIndex < m_fallbackProviders.size()) {
                 // 次のフォールバック先を選択

@@ -135,7 +135,12 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
 }
 
 void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
+    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
+    if (manager) {
+        manager->tracker().updateFromReply(QStringLiteral("sakura"), reply);
+    }
     reply->deleteLater();
+
 
     if (reply->error() != QNetworkReply::NoError) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();

@@ -1273,6 +1273,55 @@ TEST_F(AIClientTest, RateLimitTrackerTest) {
     EXPECT_EQ(tracker.statusOf("groq").latencyMs, 200); // (100+200+300)/3
 }
 
+// UT-RLT-10: recordLocalConsumption によるローカルカウント減算検証
+TEST_F(AIClientTest, RateLimitTracker_RecordLocalConsumption) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "huggingface";
+    s.rpmMax = 60;
+    s.rpmRemaining = 60;
+    s.tpmMax = 10000;
+    s.tpmRemaining = 10000;
+    s.available = true;
+    tracker.registerClient(s);
+
+    tracker.recordLocalConsumption("huggingface", 100, 100);
+    ProviderStatus updated = tracker.statusOf("huggingface");
+    EXPECT_EQ(updated.rpmRemaining, 59);
+    EXPECT_LT(updated.tpmRemaining, 10000);
+}
+
+// UT-RLT-11: adaptOnHttp429 による429適応学習と安全マージン α 上方修正検証
+TEST_F(AIClientTest, RateLimitTracker_AdaptOnHttp429) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "sakura";
+    s.available = true;
+    tracker.registerClient(s);
+
+    double initialAlpha = tracker.safetyMargin("sakura");
+    tracker.adaptOnHttp429("sakura", 60);
+
+    EXPECT_FALSE(tracker.isAvailable("sakura"));
+    EXPECT_GT(tracker.safetyMargin("sakura"), initialAlpha);
+}
+
+// UT-RLT-12: calibrateFromHeader による実測値補正検証
+TEST_F(AIClientTest, RateLimitTracker_CalibrateFromHeader) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "openrouter";
+    s.available = true;
+    tracker.registerClient(s);
+
+    tracker.adaptOnHttp429("openrouter", 60);
+    double elevatedAlpha = tracker.safetyMargin("openrouter");
+
+    tracker.calibrateFromHeader("openrouter", 50, 5000);
+    EXPECT_LT(tracker.safetyMargin("openrouter"), elevatedAlpha);
+}
+
+
 TEST_F(AIClientTest, AIRouterRoutingTest) {
     RateLimitTracker tracker;
     AIRouter router;
