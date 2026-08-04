@@ -155,8 +155,9 @@ private:
     class QLineEdit *m_shoutoutPrefixEdit = nullptr;
     class QLabel *m_shoutoutCooldownLabel = nullptr;
     class QListWidget *m_shoutoutQueueListWidget = nullptr;
-    QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
+
+
 
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
     QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
@@ -214,8 +215,7 @@ private:
     QLineEdit *m_bubbleLongEdit = nullptr;
     QLineEdit *m_obsPathEdit = nullptr;
     QLineEdit *m_avatarNameEdit = nullptr;
-    QCheckBox *m_nameReactionCheckbox = nullptr;
-    QLineEdit *m_obsHttpPortEdit = nullptr;
+
 
     int m_bubbleDisplayShortSec = 5;
     int m_bubbleDisplayLongSec = 10;

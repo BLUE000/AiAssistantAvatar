@@ -977,13 +977,11 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(8);
 
-    m_wsPortEdit = new QLineEdit(scrollContent);
-    m_obsHttpPortEdit = new QLineEdit(scrollContent);
     m_twitchChannelEdit = new QLineEdit(scrollContent);
     
     m_avatarNameEdit = new QLineEdit(scrollContent);
-    m_nameReactionCheckbox = new QCheckBox("名前（アバター名）呼ばれて反応する", scrollContent);
     m_twitchGreetingCheckbox = new QCheckBox("接続時にチャットで挨拶する", scrollContent);
+
     
     m_webhookUrlEdit = new QLineEdit(scrollContent);
     m_webhookEnabledCheckbox = new QCheckBox("有効にする", scrollContent);
@@ -1056,9 +1054,9 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     m_obsPathEdit = new QLineEdit(scrollContent);
     m_obsPathEdit->setReadOnly(true);
-    int httpPort = m_obsHttpPortEdit->text().toInt();
-    if (httpPort <= 0) httpPort = 4080;
+    int httpPort = 58082;
     m_obsPathEdit->setText(QString("http://localhost:%1/avatar_obs.html").arg(httpPort));
+
 
     QPushButton *btnCopyObsPath = new QPushButton("URLをコピー", scrollContent);
     btnCopyObsPath->setFixedWidth(100);
@@ -1558,10 +1556,10 @@ void AvatarWindow::loadSettingsToUI() {
                 m_taskFlowApiUrlEdit->setText(obj.value("taskflow_api_url").toString("https://streamers-tool.sakura.ne.jp/TaskFlow/public/schedules.php"));
             }
 
-            int httpPort = obj.value("obs_http_port").toInt(4080);
-            if (httpPort <= 0) httpPort = 4080;
-            if (m_obsHttpPortEdit) m_obsHttpPortEdit->setText(QString::number(httpPort));
+            int httpPort = obj.value("obs_http_port").toInt(58082);
+            if (httpPort <= 0) httpPort = 58082;
             if (m_obsPathEdit) m_obsPathEdit->setText(QString("http://localhost:%1/avatar_obs.html").arg(httpPort));
+
 
             if (m_raidAutoShoutoutCheckBox) m_raidAutoShoutoutCheckBox->setChecked(obj.value("raid_auto_shoutout_enabled").toBool(true));
             if (m_shoutoutConversationCheckBox) m_shoutoutConversationCheckBox->setChecked(obj.value("shoutout_conversation_enabled").toBool(true));
@@ -1767,12 +1765,13 @@ void AvatarWindow::saveSettingsFromUI() {
     obj.remove("greeting_enabled");
 
     obj["obs_http_enabled"] = true;
-    int httpPort = m_obsHttpPortEdit ? m_obsHttpPortEdit->text().trimmed().toInt() : 4080;
-    if (httpPort <= 0) httpPort = 4080;
+    int httpPort = obj.value("obs_http_port").toInt(58082);
+    if (httpPort <= 0) httpPort = 58082;
     obj["obs_http_port"] = httpPort;
     if (m_obsPathEdit) {
         m_obsPathEdit->setText(QString("http://localhost:%1/avatar_obs.html").arg(httpPort));
     }
+
 
     m_bubbleDisplayShortSec = m_bubbleShortEdit->text().trimmed().toInt();
     if (m_bubbleDisplayShortSec <= 0) m_bubbleDisplayShortSec = 5;
