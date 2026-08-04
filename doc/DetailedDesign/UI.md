@@ -61,12 +61,24 @@ sequenceDiagram
 
 ---
 
-## 5. 出自検証 ＆ コピーライト動的スキャン (`TrustChain`)
+## 6. アバター共通・基本設定および設定UIロード・保存仕様 (`AvatarWindow`)
 
-### 5.1 スキャンアルゴリズム (`extractCopyrightFromFile`)
-- 実行ファイルのバイナリ内から正規認証シグネチャおよび著作権表記 (`TRUSTCHAIN_CREATOR_NAME`) を動的にスキャン・抽出・検証。
+### 6.1 基本設定UIレイアウト (`initSettingsTab`)
+- **グループボックス構造**: 「アバター共通・基本設定」 (`QGroupBox`) 内に、アバター名 (`m_avatarNameEdit`)、アバタースキン選択/構築 (`m_comboAvatarSkin`, `m_btnSkinBuilder`)、および名前反応チェックボックス (`m_nameReactionCheckbox`) のみを集約配置する。
+- **ウェイクワードUIの完全削除**:
+  - 設定画面UI上の `m_twitchWakeWordEdit` (QLineEdit) および `m_twitchWakeWordModeCombo` (QComboBox) を完全廃止・除去する。
+
+### 6.2 ロード ＆ 保存仕様 (`loadSettingsToUI` / `saveSettingsFromUI`)
+- **`loadSettingsToUI`**:
+  - `local_settings.json` の `twitch_wakeword` は `TwitchReader` やバックエンド層で直接参照・ロードし、UIフォームへの描画は行わない。
+- **`saveSettingsFromUI`**:
+  - UI上のコントロールが存在しないため、保存処理において `local_settings.json` の `twitch_wakeword` を空文字で上書き破壊せず、既存の設定ファイル値をそのまま維持保持する。
+
+### 6.3 ウェイクワード判定ハードコーディング仕様
+- コメント受信時のウェイクワードマッチング（`TwitchReader::processChatMessage`）における判定モード選択を廃止し、プログラム内ハードコーディングルールに従って判定処理を実行する。
 
 ---
+
 
 ## 6. AI設定タブ UI 詳細構造 (`AvatarWindow::initAiSettingsTab`)
 

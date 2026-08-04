@@ -11,8 +11,9 @@
   - ローカルに一時的に構築するリダイレクト待ち受け用HTTPサーバー（ポート番号は設定可能）で、ブラウザからリダイレクトされるURLハッシュ（フラグメント）からアクセストークンをJavaScript経由で受信し、ローカル設定に保存する。
   - トークンの有効期限が切れた場合、または認証エラーが発生した場合は、自動更新は行わず、ユーザーが手動で設定画面の「Twitch認証開始」ボタンを押し、再認可を行うことでチャット監視を再開可能とする。
 - 特定の文言（アバターの名前や特定のコマンドなど）を検知したコメントのみをAIの入力対象（処理トリガー）とする。
-  - トリガーとなる文言（ウェイクワード）はUIから設定・変更可能とする。
+  - トリガーとなる文言（ウェイクワード）は設定ファイル（`local_settings.json`）にて設定・変更可能とし、判定動作はプログラム内ハードコーディング仕様とする（UIからの編集項目は削除）。
   - **接続時挨拶**: Twitchへの初回接続時およびチャンネル変更接続時に自動挨拶を行う機能を個別にON/OFF可能とする（`twitch_greeting_enabled`）。
+
 
 ```mermaid
 sequenceDiagram
@@ -65,7 +66,8 @@ sequenceDiagram
 - マイクが使用できない環境や、音声入力が難しい場合のため、UIからキーボードで直接テキストを入力してAIに命令を送信する機能を提供する。
 - **ウィンドウの左側ペインに `QTabWidget` を配置し、「チャット」タブ、「設定」タブ、「AI設定」タブなどを切り替えて利用可能とする。**
   - **チャットタブ**: 直接テキスト入力フォーム（QLineEdit）、送信・音声・⚙（メニュー）ボタンを配置する。
-  - **設定タブ**: `local_settings.json` の設定値（WebSocketポート、Twitchチャンネル、ウェイクワード、ウェイクワードモード）をGUIから編集・適用可能とする（※TwitchクライアントIDおよびOAuth用ポートは設定ファイルにのみ保持しGUIからは入力不可とする）。また、Twitch/Discordの接続時挨拶の有効/無効を個別のチェックボックスで編集・保存可能とする。
+  - **設定タブ**: `local_settings.json` の設定値（WebSocketポート、Twitchチャンネル等）をGUIから編集・適用可能とする（※TwitchクライアントID、OAuth用ポート、およびウェイクワード・判定モード設定はGUI上からは削除し、設定ファイル管理およびハードコーディング判定仕様とする）。また、Twitch/Discordの接続時挨拶の有効/無効を個別のチェックボックスで編集・保存可能とする。
+
   - **AI設定タブ**: AIに関する設定値（AIプロバイダ（Mistral AI / Cerebras AI を選択する排他チェックボックス）、各APIキー（Mistral / Cerebras）、Cerebras モデル選択（プルダウン）、Tavily APIキー）をGUIから編集・適用可能とする。
   - **セキュリティ保護**: 秘密情報である「Mistral APIキー」、「Cerebras APIキー」、および「Tavily APIキー」の入力欄は、パスワード入力モード（文字を隠すマスク表示）とする（※TwitchクライアントIDはUI上から削除され設定ファイルでのみ管理される）。
   - **設定ファイル群の保存場所 (`Config/` フォルダ)**: `local_settings.json` や `user_names.json`、モデレーション用単語ファイル（`blacklist.txt`, `whitelist.txt`）は、実行ファイルと同階層の `Config/` フォルダ配下（`Config/local_settings.json` 等）に一元保存・管理する（起動時・保存時にフォルダおよびファイルを動的参照/生成する）。
@@ -455,8 +457,8 @@ sequenceDiagram
     - **アバター名 (`m_avatarNameEdit`)**: キャラクター呼び名設定。
     - **アバタースキン (Skin & Builderボタン)**: `m_comboAvatarSkin` ＋ `m_btnSkinBuilder` ("新規作成 / 編集...")。※「OBS / 描画設定」から移動。
     - **名前反応 (`m_nameReactionCheckbox`)**: "名前（アバター名）呼ばれて反応する" チェックボックス。
-    - **ウェイクワード (`m_twitchWakeWordEdit`)**: 反応キーワード設定。
-    - **判定モード (`m_twitchWakeWordModeCombo`)**: "contains" または "prefix" 判定選択。
+    - **※ウェイクワード ＆ 判定**: UI上の設定フォーム (`m_twitchWakeWordEdit`, `m_twitchWakeWordModeCombo`) は完全削除し、ウェイクワード自体は設定ファイル (`local_settings.json`) 管理、判定動作はプログラム内ハードコーディング仕様とする。
+
 - **OBS用アバターURL表記 ＆ HTTPサーバー常時自動有効化**:
   - OBSブラウザソース取り込み用表記を従来のローカル絶対パスから **`http://localhost:<ポート>/avatar_obs.html`** のURL表示に変更する。
   - 「URLをコピー」ボタンを押下すると、直ちに上記URL文字列がクリップボードにコピーされる。

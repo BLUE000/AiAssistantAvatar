@@ -350,8 +350,9 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造およびOBS表示URLを検証する。 | 1. 「アバター共通・基本設定」グループボックスにアバター名・アバタースキン・名前反応・ウェイクワード・判定が集約されていること。<br>2. OBS表示欄が `http://localhost:<port>/avatar_obs.html` のURL表示になっていること。 |
-| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | 基本設定で入力したアバター名・スキン・ウェイクワード等の値を保存・復元する。 | `local_settings.json` との間でデータの保存・読み込みおよび各種マネージャーへの反映が正常に行われること。 |
+| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造およびOBS表示URLを検証する。 | 1. 「アバター共通・基本設定」グループボックスにアバター名・アバタースキン・名前反応が集約され、ウェイクワードおよび判定モードフォームが削除されていること。<br>2. OBS表示欄が `http://localhost:<port>/avatar_obs.html` のURL表示になっていること。 |
+| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | 基本設定でアバター名・スキン等の値を保存・復元し、ウェイクワード・判定を検証する。 | `local_settings.json` のウェイクワード設定値がUI非表示状態で正常に保護・維持され、判定がハードコーディング仕様として動作すること。 |
+
 
 ---
 
