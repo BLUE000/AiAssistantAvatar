@@ -350,8 +350,11 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造およびOBS表示URLを検証する。 | 1. 「アバター共通・基本設定」グループボックスにアバター名・アバタースキン・名前反応が集約され、ウェイクワードおよび判定モードフォームが削除されていること。<br>2. OBS表示欄が `http://localhost:<port>/avatar_obs.html` のURL表示になっていること。 |
-| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | 基本設定でアバター名・スキン等の値を保存・復元し、ウェイクワード・判定を検証する。 | `local_settings.json` のウェイクワード設定値がUI非表示状態で正常に保護・維持され、判定がハードコーディング仕様として動作すること。 |
+| **UT-UISETTING-01** | `AvatarWindow::initSettingsTab` | 設定画面を生成し、グループボックス構造およびポート非表示化を検証する。 | 1. 「アバター共通・基本設定」にアバター名・スキンのみが集約され、名前反応・ウェイクワードが削除されていること。<br>2. 「OBS / 描画設定」から WebSocket/HTTP ポート入力欄が削除されていること。 |
+| **UT-UISETTING-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | UI非表示化パラメータの保護および復元動作を検証する。 | `local_settings.json` の名前反応・OBSポート・ウェイクワード設定値がUI非表示状態で正常に保護・維持・保存されること。 |
+| **UT-DISCORD-01** | `AvatarWindow::rebuildDiscordLayout` | `[+ チャンネル追加]` および `[-]` 削除ボタンによるレイアウト変更を検証する。 | チャンネルセットが動的に画面追加・削除され、最低1チャンネル表示が維持保証されること。 |
+| **UT-DISCORD-02** | `AvatarWindow::saveSettingsFromUI` / `loadSettingsToUI` | Discord 複数チャンネルのJSON配列相互変換を検証する。 | `discord_channels` 配列との間で複数チャンネル設定（チャンネルID、挨拶フラグ）が正常に保存・復元されること。 |
+
 
 
 ---

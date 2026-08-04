@@ -61,23 +61,40 @@ sequenceDiagram
 
 ---
 
-## 6. アバター共通・基本設定および設定UIロード・保存仕様 (`AvatarWindow`)
+## 6. アバター共通 ＆ OBS設定のUI非表示化詳細仕様 (`AvatarWindow`)
 
-### 6.1 基本設定UIレイアウト (`initSettingsTab`)
-- **グループボックス構造**: 「アバター共通・基本設定」 (`QGroupBox`) 内に、アバター名 (`m_avatarNameEdit`)、アバタースキン選択/構築 (`m_comboAvatarSkin`, `m_btnSkinBuilder`)、および名前反応チェックボックス (`m_nameReactionCheckbox`) のみを集約配置する。
-- **ウェイクワードUIの完全削除**:
-  - 設定画面UI上の `m_twitchWakeWordEdit` (QLineEdit) および `m_twitchWakeWordModeCombo` (QComboBox) を完全廃止・除去する。
+### 6.1 基本設定 ＆ OBS UIレイアウト (`initSettingsTab`)
+- **アバター共通・基本設定**:
+  - グループボックス内にアバター名 (`m_avatarNameEdit`)、アバタースキン選択/構築 (`m_comboAvatarSkin`, `m_btnSkinBuilder`) のみを配置。
+  - 名前反応 (`m_nameReactionCheckbox`)、ウェイクワード (`m_twitchWakeWordEdit`)、判定モード (`m_twitchWakeWordModeCombo`) の画面UIコントロールを完全削除。
+- **OBS / 描画設定**:
+  - WebSocketポート (`m_wsPortEdit`) および HTTP配信ポート (`m_obsHttpPortEdit`) の画面UIコントロールを完全削除。
 
 ### 6.2 ロード ＆ 保存仕様 (`loadSettingsToUI` / `saveSettingsFromUI`)
 - **`loadSettingsToUI`**:
-  - `local_settings.json` の `twitch_wakeword` は `TwitchReader` やバックエンド層で直接参照・ロードし、UIフォームへの描画は行わない。
+  - UI非表示項目 (`name_reaction_enabled`, `ws_port`, `obs_http_port`, `twitch_wakeword`, `twitch_wakeword_mode`) のUIコントロールへの描画・ロードをスキップし、バックエンド層で設定ファイルを直接読み込み。
 - **`saveSettingsFromUI`**:
-  - UI上のコントロールが存在しないため、保存処理において `local_settings.json` の `twitch_wakeword` を空文字で上書き破壊せず、既存の設定ファイル値をそのまま維持保持する。
-
-### 6.3 ウェイクワード判定ハードコーディング仕様
-- コメント受信時のウェイクワードマッチング（`TwitchReader::processChatMessage`）における判定モード選択を廃止し、プログラム内ハードコーディングルールに従って判定処理を実行する。
+  - UIフォームからの値取得で既存設定ファイルを空文字・デフォルト値に上書き破壊せず、既存 JSON オブジェクトに保持されている値をそのまま保護維持して保存。
 
 ---
+
+## 7. Discord 複数チャンネル動的レイアウト構築詳細仕様 (`rebuildDiscordLayout`)
+
+### 7.1 動的追加・削除制御 (`rebuildDiscordLayout` / シグナル接続)
+- **`m_discordChannelsLayout` 清掃と再構築**:
+  - `channelCount` またはリスト要素数に応じて、`m_discordChannelSettings` 構造体リスト（`QLineEdit* channelIdEdit`, `QCheckBox* greetingCheckbox`, `QPushButton* removeBtn`）を動的にアロケート。
+  - 各行に「接続チャンネル X」ラベル、QLineEdit、起動時挨拶 QCheckBox、`[-]` ボタンを水平レイアウト (QHBoxLayout) で配置。
+- **`[+ チャンネル追加]` ボタン**:
+  - 押下時に `m_discordChannelSettings` に要素を追加し、`rebuildDiscordLayout` を再呼出。
+- **`[-]` ボタン**:
+  - 押下時に該当行の要素を削除し、再レイアウト（1件以下の場合は削除を無効化・非活性化）。
+
+### 7.2 JSON 配列相互変換 (`saveSettingsFromUI` / `loadSettingsToUI`)
+- `loadSettingsToUI`: `local_settings.json` の `"discord_channels"` 配列を読み込み、配列長に応じて `rebuildDiscordLayout` を起動して画面展開。
+- `saveSettingsFromUI`: 画面上の各行の入力値を取得し、`"discord_channels": [ {"channel_id": "...", "greeting_enabled": true}, ... ]` の JSON 配列として保存。
+
+---
+
 
 
 ## 6. AI設定タブ UI 詳細構造 (`AvatarWindow::initAiSettingsTab`)

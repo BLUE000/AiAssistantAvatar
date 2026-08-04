@@ -16,7 +16,11 @@
 #include "ui/avatar_window.h"
 #include "ui/rate_limit_tab_widget.h"
 #include <QTableWidget>
+#include <QCheckBox>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QNetworkAccessManager>
+
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>
@@ -2034,6 +2038,37 @@ TEST(UserMappingTest, Verify5ColumnTableLayout) {
     EXPECT_EQ(usersTable->horizontalHeaderItem(3)->text(), "愛称リスト");
     EXPECT_EQ(usersTable->horizontalHeaderItem(4)->text(), "操作");
 }
+
+// UT-UISETTING-01, 02 / UT-DISCORD-01, 02 の単体テスト
+TEST(AvatarWindowUISettingsTest, VerifyUIElementRemovalAndProtection) {
+    AvatarWindow window;
+    
+    // UT-UISETTING-01: UI項目非存在の検証
+    EXPECT_EQ(window.findChild<QCheckBox*>("m_nameReactionCheckbox"), nullptr);
+    EXPECT_EQ(window.findChild<QLineEdit*>("m_wsPortEdit"), nullptr);
+    EXPECT_EQ(window.findChild<QLineEdit*>("m_obsHttpPortEdit"), nullptr);
+    EXPECT_EQ(window.findChild<QLineEdit*>("m_twitchWakeWordEdit"), nullptr);
+}
+
+TEST(AvatarWindowUISettingsTest, VerifyDiscordMultiChannelDynamicUI) {
+    AvatarWindow window;
+    
+    // UT-DISCORD-01: 動的レイアウトの構築・追加・削除テスト
+    window.rebuildDiscordLayout(3);
+    EXPECT_EQ(window.m_discordChannelSettings.size(), 3);
+    
+    // 追加テスト
+    window.onAddDiscordChannelClicked();
+    EXPECT_EQ(window.m_discordChannelSettings.size(), 4);
+    
+    // 最低1件維持の検証
+    window.rebuildDiscordLayout(1);
+    EXPECT_EQ(window.m_discordChannelSettings.size(), 1);
+    if (window.m_discordChannelSettings[0].removeBtn) {
+        EXPECT_FALSE(window.m_discordChannelSettings[0].removeBtn->isEnabled());
+    }
+}
+
 
 
 

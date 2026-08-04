@@ -1010,9 +1010,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     skinLayout->addWidget(m_btnSkinBuilder);
     commonRespLayout->addRow("アバタースキン (Skin):", skinWidget);
 
-    commonRespLayout->addRow("名前反応:", m_nameReactionCheckbox);
-
-
     QPushButton *btnShowHistory = new QPushButton("📜 会話履歴を表示...", scrollContent);
     btnShowHistory->setStyleSheet("font-weight: bold; padding: 6px 12px; background-color: #2980b9; color: white; border-radius: 4px;");
     connect(btnShowHistory, &QPushButton::clicked, this, &AvatarWindow::onShowHistoryClicked);
@@ -1025,8 +1022,7 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     QFormLayout *obsLayout = new QFormLayout(obsGroup);
     obsLayout->setContentsMargins(10, 10, 10, 10);
     obsLayout->setSpacing(6);
-    obsLayout->addRow("WebSocket ポート (OBS用):", m_wsPortEdit);
-    obsLayout->addRow("HTTP配信ポート:", m_obsHttpPortEdit);
+
 
     // 表示秒数の横並びレイアウト
     QWidget *bubbleDurationWidget = new QWidget(scrollContent);
@@ -1131,7 +1127,16 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_discordChannelsLayout->setContentsMargins(0, 0, 0, 0);
     m_discordChannelsLayout->setSpacing(6);
     m_discordLayout->addRow(m_discordChannelsContainer);
+
+    m_btnAddDiscordChannel = new QPushButton("+ チャンネル追加", scrollContent);
+    m_btnAddDiscordChannel->setStyleSheet("font-weight: bold; padding: 4px 10px; background-color: #27ae60; color: white; border-radius: 4px;");
+    connect(m_btnAddDiscordChannel, &QPushButton::clicked, this, &AvatarWindow::onAddDiscordChannelClicked);
+    m_discordLayout->addRow("", m_btnAddDiscordChannel);
+
+    rebuildDiscordLayout(1);
+
     mainLayout->addWidget(discordGroup);
+
 
     // 保存・適用ボタン
     QHBoxLayout *btnLayout = new QHBoxLayout();
@@ -1424,8 +1429,8 @@ void AvatarWindow::loadSettingsToUI() {
         }
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
-            if (m_wsPortEdit) m_wsPortEdit->setText(QString::number(obj.value("websocket_port").toInt(ConfigDefaults::WEBSOCKET_PORT)));
             QString skin = obj.value("avatar_skin").toString("FishEatCatSkin");
+
             scanAvailableSkins();
             if (m_comboAvatarSkin) {
                 int skinIdx = m_comboAvatarSkin->findData(skin);
@@ -1515,9 +1520,9 @@ void AvatarWindow::loadSettingsToUI() {
             m_avatarName = obj.value("avatar_name").toString("AIアシスタント").trimmed();
             m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
             if (m_avatarNameEdit) m_avatarNameEdit->setText(m_avatarName);
-            if (m_nameReactionCheckbox) m_nameReactionCheckbox->setChecked(m_nameReactionEnabled);
 
             int channelCount = obj.value("discord_channel_count").toInt(1);
+
             if (channelCount < 1) channelCount = 1;
             
             rebuildDiscordLayout(channelCount);
@@ -1617,13 +1622,22 @@ void AvatarWindow::saveSettingsFromUI() {
     m_webhookUrl = m_webhookUrlEdit->text().trimmed();
     m_webhookEnabled = m_webhookEnabledCheckbox->isChecked();
 
-    obj["websocket_port"] = m_wsPortEdit->text().trimmed().toInt();
+    if (!obj.contains("websocket_port")) {
+        obj["websocket_port"] = ConfigDefaults::TWITCH_PORT;
+    }
+    if (!obj.contains("ws_port")) {
+        obj["ws_port"] = 58081;
+    }
+    if (!obj.contains("obs_http_port")) {
+        obj["obs_http_port"] = 58082;
+    }
     if (m_comboAvatarSkin) {
         QString selectedSkin = m_comboAvatarSkin->currentData().toString();
         obj["avatar_skin"] = selectedSkin;
         loadSkin(selectedSkin);
     }
     obj["twitch_channel"] = m_twitchChannelEdit->text().trimmed();
+
     if (!obj.contains("twitch_client_id")) {
         obj["twitch_client_id"] = "";
     }
@@ -1712,9 +1726,14 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
 
     m_avatarName = m_avatarNameEdit->text().trimmed();
-    m_nameReactionEnabled = m_nameReactionCheckbox->isChecked();
+    if (obj.contains("name_reaction_enabled")) {
+        m_nameReactionEnabled = obj.value("name_reaction_enabled").toBool(true);
+    } else {
+        m_nameReactionEnabled = true;
+        obj["name_reaction_enabled"] = true;
+    }
     obj["avatar_name"] = m_avatarName;
-    obj["name_reaction_enabled"] = m_nameReactionEnabled;
+
 
     obj["discord_enabled"] = m_discordEnabledCheckbox->isChecked();
     obj["discord_bot_token"] = m_discordBotTokenEdit->text().trimmed();
@@ -2613,60 +2632,8 @@ void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
     statusBar()->showMessage(QString("%1 の自動取得が完了しました。").arg(providerId), 3000);
 }
 
-void AvatarWindow::rebuildDiscordLayout(int channelCount) {
-    if (!m_discordChannelsLayout) return;
-
-    // 既存の動的コントロールを削除
-    for (auto &setting : m_discordChannelSettings) {
-        if (setting.channelIdEdit) {
-            delete setting.channelIdEdit;
-        }
-        if (setting.greetingCheckbox) {
-            delete setting.greetingCheckbox;
-        }
-        if (setting.rowWidget) {
-            delete setting.rowWidget;
-        }
-    }
-    m_discordChannelSettings.clear();
-
-    // コンテナレイアウトの中身を完全にクリア
-    QLayoutItem *child;
-    while ((child = m_discordChannelsLayout->takeAt(0)) != nullptr) {
-        delete child;
-    }
-
-    // チャンネル数分、動的コントロールを作成して追加
-    for (int i = 0; i < channelCount; ++i) {
-        QWidget *rowWidget = new QWidget(m_discordChannelsContainer);
-        QHBoxLayout *rowLayout = new QHBoxLayout(rowWidget);
-        rowLayout->setContentsMargins(0, 0, 0, 0);
-        rowLayout->setSpacing(10);
-
-        QLabel *label = new QLabel(QString("接続チャンネル %1:").arg(i + 1), rowWidget);
-        label->setFixedWidth(100); // フォームレイアウトのラベル幅と大体合わせる
-        label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        QLineEdit *idEdit = new QLineEdit(rowWidget);
-        idEdit->setPlaceholderText(QString("チャンネルID %1 を入力...").arg(i + 1));
-        
-        QCheckBox *greetCheck = new QCheckBox("起動時挨拶", rowWidget);
-
-        rowLayout->addWidget(label);
-        rowLayout->addWidget(idEdit, 1);
-        rowLayout->addWidget(greetCheck);
-
-        m_discordChannelsLayout->addWidget(rowWidget);
-
-        DiscordChannelSetting setting;
-        setting.channelIdEdit = idEdit;
-        setting.greetingCheckbox = greetCheck;
-        setting.rowWidget = rowWidget;
-        m_discordChannelSettings.append(setting);
-    }
-}
-
 void AvatarWindow::scanAvailableSkins() {
+
     if (!m_comboAvatarSkin) return;
     m_comboAvatarSkin->blockSignals(true);
     m_comboAvatarSkin->clear();
@@ -2915,3 +2882,91 @@ void AvatarWindow::onSkinBuilderClicked() {
         }
     }
 }
+
+void AvatarWindow::rebuildDiscordLayout(int channelCount) {
+    if (!m_discordChannelsLayout) return;
+    if (channelCount < 1) channelCount = 1;
+
+    // 1. 既存の入力データを一時退避
+    struct TempData {
+        QString channelId;
+        bool greeting = true;
+    };
+    QList<TempData> savedData;
+    for (const auto &item : m_discordChannelSettings) {
+        TempData td;
+        if (item.channelIdEdit) td.channelId = item.channelIdEdit->text().trimmed();
+        if (item.greetingCheckbox) td.greeting = item.greetingCheckbox->isChecked();
+        savedData.append(td);
+    }
+
+    // 2. 既存レイアウト要素の破棄
+    QLayoutItem *child;
+    while ((child = m_discordChannelsLayout->takeAt(0)) != nullptr) {
+        if (child->widget()) {
+            child->widget()->deleteLater();
+        }
+        delete child;
+    }
+    m_discordChannelSettings.clear();
+
+    // 3. 指定数のチャンネル行を動的生成
+    for (int i = 0; i < channelCount; ++i) {
+        QWidget *rowWidget = new QWidget(m_discordChannelsContainer);
+        QHBoxLayout *rowLayout = new QHBoxLayout(rowWidget);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(8);
+
+        QLabel *label = new QLabel(QString("接続チャンネル %1:").arg(i + 1), rowWidget);
+        QLineEdit *idEdit = new QLineEdit(rowWidget);
+        idEdit->setPlaceholderText("チャンネルIDを入力...");
+        if (i < savedData.size()) {
+            idEdit->setText(savedData[i].channelId);
+        }
+
+        QCheckBox *greetCheck = new QCheckBox("起動時挨拶", rowWidget);
+        if (i < savedData.size()) {
+            greetCheck->setChecked(savedData[i].greeting);
+        } else {
+            greetCheck->setChecked(true);
+        }
+
+        QPushButton *removeBtn = new QPushButton("-", rowWidget);
+        removeBtn->setFixedWidth(28);
+        removeBtn->setStyleSheet("font-weight: bold; background-color: #e74c3c; color: white; border-radius: 4px;");
+
+        rowLayout->addWidget(label);
+        rowLayout->addWidget(idEdit, 1);
+        rowLayout->addWidget(greetCheck);
+        rowLayout->addWidget(removeBtn);
+
+        m_discordChannelsLayout->addWidget(rowWidget);
+
+        DiscordChannelSetting setting;
+        setting.channelIdEdit = idEdit;
+        setting.greetingCheckbox = greetCheck;
+        setting.removeBtn = removeBtn;
+        setting.rowWidget = rowWidget;
+        m_discordChannelSettings.append(setting);
+
+        // 削除ボタンの接続
+        int rowIndex = i;
+        connect(removeBtn, &QPushButton::clicked, this, [this, rowIndex]() {
+            if (m_discordChannelSettings.size() <= 1) return;
+            m_discordChannelSettings.removeAt(rowIndex);
+            rebuildDiscordLayout(m_discordChannelSettings.size());
+        });
+    }
+
+    // 1件の場合は削除ボタンを非活性化して最低1件を担保
+    if (m_discordChannelSettings.size() == 1 && m_discordChannelSettings[0].removeBtn) {
+        m_discordChannelSettings[0].removeBtn->setEnabled(false);
+        m_discordChannelSettings[0].removeBtn->setStyleSheet("background-color: #bdc3c7; color: white; border-radius: 4px;");
+    }
+}
+
+void AvatarWindow::onAddDiscordChannelClicked() {
+    int currentCount = m_discordChannelSettings.size();
+    rebuildDiscordLayout(currentCount + 1);
+}
+

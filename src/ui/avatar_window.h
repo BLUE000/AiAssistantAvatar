@@ -207,13 +207,9 @@ private:
     QFormLayout *m_discordLayout = nullptr;
     QWidget *m_discordChannelsContainer = nullptr;
     QVBoxLayout *m_discordChannelsLayout = nullptr;
-    
-    struct DiscordChannelSetting {
-        QLineEdit *channelIdEdit = nullptr;
-        QCheckBox *greetingCheckbox = nullptr;
-        QWidget *rowWidget = nullptr;
-    };
-    QList<DiscordChannelSetting> m_discordChannelSettings;
+    QPushButton *m_btnAddDiscordChannel = nullptr;
+
+
     QLineEdit *m_bubbleShortEdit = nullptr;
     QLineEdit *m_bubbleLongEdit = nullptr;
     QLineEdit *m_obsPathEdit = nullptr;
@@ -320,8 +316,9 @@ private:
     void updateKnowledgeTable();
     void loadSettingsToUI();
     void saveSettingsFromUI();
-    void rebuildDiscordLayout(int channelCount);
+
     void startWebSocketServer();
+
     void stopWebSocketServer();
     void broadcastToOBS(const QJsonObject &json);
     void notifyAvatarChanged();
@@ -348,6 +345,8 @@ private slots:
     void onLimitAutoFetchClicked();
     void onModelsReplyFinished(QNetworkReply *reply);
 
+
+
 protected:
     void moveEvent(QMoveEvent *event) override;
 
@@ -355,6 +354,17 @@ public:
     explicit AvatarWindow(QWidget *parent = nullptr);
     ~AvatarWindow();
     void setAIClientManager(class AIClientManager *manager);
+
+    struct DiscordChannelSetting {
+        QLineEdit *channelIdEdit = nullptr;
+        QCheckBox *greetingCheckbox = nullptr;
+        QPushButton *removeBtn = nullptr;
+        QWidget *rowWidget = nullptr;
+    };
+    QList<DiscordChannelSetting> m_discordChannelSettings;
+    void rebuildDiscordLayout(int channelCount);
+    void onAddDiscordChannelClicked();
+
 
 private:
     class AIClientManager *m_aiClientManager = nullptr;
