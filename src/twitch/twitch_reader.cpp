@@ -140,7 +140,10 @@ void TwitchReader::startOAuthServer() {
                       .arg(m_authPort);
 
     qDebug() << "TwitchReader: Opening browser for OAuth authentication...";
-    QDesktopServices::openUrl(QUrl(authUrl));
+    QUrl url(authUrl);
+    QMetaObject::invokeMethod(qApp, [url]() {
+        QDesktopServices::openUrl(url);
+    }, Qt::QueuedConnection);
 }
 
 void TwitchReader::handleNewConnection() {

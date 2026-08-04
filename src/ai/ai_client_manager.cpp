@@ -32,6 +32,7 @@
 #include <QRegularExpression>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QCoreApplication>
 #include <algorithm>
 
 AIClientManager::AIClientManager(QObject *parent)
@@ -2835,7 +2836,10 @@ void AIClientManager::openKnowledgeInputFolder() {
     QDir().mkpath("log/knowledge_input");
     QString absPath = QDir("log/knowledge_input").absolutePath();
     qDebug() << "AIClientManager: Opening knowledge input folder:" << absPath;
-    QDesktopServices::openUrl(QUrl::fromLocalFile(absPath));
+    QUrl url = QUrl::fromLocalFile(absPath);
+    QMetaObject::invokeMethod(qApp, [url]() {
+        QDesktopServices::openUrl(url);
+    }, Qt::QueuedConnection);
 }
 
 void AIClientManager::processPendingRequests() {
