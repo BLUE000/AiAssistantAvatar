@@ -980,10 +980,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
     m_wsPortEdit = new QLineEdit(scrollContent);
     m_obsHttpPortEdit = new QLineEdit(scrollContent);
     m_twitchChannelEdit = new QLineEdit(scrollContent);
-    m_twitchWakeWordEdit = new QLineEdit(scrollContent);
-    
-    m_twitchWakeWordModeCombo = new QComboBox(scrollContent);
-    m_twitchWakeWordModeCombo->addItems({"contains", "prefix"});
     
     m_avatarNameEdit = new QLineEdit(scrollContent);
     m_nameReactionCheckbox = new QCheckBox("名前（アバター名）呼ばれて反応する", scrollContent);
@@ -1016,16 +1012,6 @@ void AvatarWindow::initSettingsTab(QWidget *parent) {
 
     commonRespLayout->addRow("名前反応:", m_nameReactionCheckbox);
 
-    QWidget *wakeWordWidget = new QWidget(scrollContent);
-    QHBoxLayout *wakeWordLayout = new QHBoxLayout(wakeWordWidget);
-    wakeWordLayout->setContentsMargins(0, 0, 0, 0);
-    wakeWordLayout->setSpacing(8);
-    m_twitchWakeWordEdit->setFixedWidth(100);
-    wakeWordLayout->addWidget(m_twitchWakeWordEdit);
-    wakeWordLayout->addWidget(new QLabel("判定:", scrollContent));
-    wakeWordLayout->addWidget(m_twitchWakeWordModeCombo);
-    wakeWordLayout->addStretch();
-    commonRespLayout->addRow("ウェイクワード:", wakeWordWidget);
 
     QPushButton *btnShowHistory = new QPushButton("📜 会話履歴を表示...", scrollContent);
     btnShowHistory->setStyleSheet("font-weight: bold; padding: 6px 12px; background-color: #2980b9; color: white; border-radius: 4px;");
@@ -1447,21 +1433,9 @@ void AvatarWindow::loadSettingsToUI() {
             }
             loadSkin(skin);
             if (m_twitchChannelEdit) m_twitchChannelEdit->setText(obj.value("twitch_channel").toString());
-            if (m_twitchWakeWordEdit) {
-                if (obj.contains("twitch_wakeword")) {
-                    m_twitchWakeWordEdit->setText(obj.value("twitch_wakeword").toString());
-                } else {
-                    m_twitchWakeWordEdit->setText(ConfigDefaults::WAKE_WORD);
-                }
-            }
-            
-            if (m_twitchWakeWordModeCombo) {
-                QString mode = obj.value("twitch_wakeword_mode").toString(ConfigDefaults::WAKE_WORD_MODE);
-                int modeIdx = m_twitchWakeWordModeCombo->findText(mode);
-                if (modeIdx >= 0) m_twitchWakeWordModeCombo->setCurrentIndex(modeIdx);
-            }
 
             QString provider = obj.value("ai_provider").toString(ConfigDefaults::AI_PROVIDER);
+
             if (m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
             if (m_aiProviderCerebrasCheckbox) m_aiProviderCerebrasCheckbox->setChecked(provider == "cerebras");
             if (m_aiProviderGroqCheckbox) m_aiProviderGroqCheckbox->setChecked(provider == "groq");
@@ -1656,8 +1630,13 @@ void AvatarWindow::saveSettingsFromUI() {
     if (!obj.contains("twitch_port")) {
         obj["twitch_port"] = ConfigDefaults::TWITCH_PORT;
     }
-    obj["twitch_wakeword"] = m_twitchWakeWordEdit->text().trimmed();
-    obj["twitch_wakeword_mode"] = m_twitchWakeWordModeCombo->currentText();
+    if (!obj.contains("twitch_wakeword")) {
+        obj["twitch_wakeword"] = ConfigDefaults::WAKE_WORD;
+    }
+    if (!obj.contains("twitch_wakeword_mode")) {
+        obj["twitch_wakeword_mode"] = ConfigDefaults::WAKE_WORD_MODE;
+    }
+
 #ifdef QT_DEBUG
     QString provider = "dummy";
 #else

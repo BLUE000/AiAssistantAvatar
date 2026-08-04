@@ -157,8 +157,7 @@ private:
     class QListWidget *m_shoutoutQueueListWidget = nullptr;
     QLineEdit *m_wsPortEdit = nullptr;
     QLineEdit *m_twitchChannelEdit = nullptr;
-    QLineEdit *m_twitchWakeWordEdit = nullptr;
-    QComboBox *m_twitchWakeWordModeCombo = nullptr;
+
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
     QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
     QCheckBox *m_aiProviderGroqCheckbox = nullptr; // Groq
