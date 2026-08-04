@@ -109,12 +109,15 @@ void TwitchReader::saveTokenToSettings(const QString &accessToken) {
 }
 
 void TwitchReader::startOAuthServer() {
+    qDebug() << "[TRACE-TWITCH] >>> TwitchReader::startOAuthServer START";
     if (m_authServer) {
+        qDebug() << "[TRACE-TWITCH] Closing existing m_authServer...";
         m_authServer->close();
         delete m_authServer;
         m_authServer = nullptr;
     }
 
+    qDebug() << "[TRACE-TWITCH] Creating new QTcpServer...";
     m_authServer = new QTcpServer(this);
     connect(m_authServer, &QTcpServer::newConnection, this, &TwitchReader::handleNewConnection);
 
@@ -125,6 +128,7 @@ void TwitchReader::startOAuthServer() {
         event.source = "TwitchReader";
         event.text = QString("OAuth ローカルサーバーの起動に失敗しました（ポート %1 が使用中）。").arg(m_authPort);
         emit notifyEvent(event);
+        qDebug() << "[TRACE-TWITCH] <<< TwitchReader::startOAuthServer END (Failed)";
         return;
     }
     qDebug() << "TwitchReader: OAuth local server listening on port" << m_authPort;
@@ -141,9 +145,12 @@ void TwitchReader::startOAuthServer() {
 
     qDebug() << "TwitchReader: Opening browser for OAuth authentication...";
     QUrl url(authUrl);
+    qDebug() << "[TRACE-TWITCH] Dispatching openUrl to main GUI thread...";
     QMetaObject::invokeMethod(qApp, [url]() {
+        qDebug() << "[TRACE-GUI] Executing QDesktopServices::openUrl now.";
         QDesktopServices::openUrl(url);
     }, Qt::QueuedConnection);
+    qDebug() << "[TRACE-TWITCH] <<< TwitchReader::startOAuthServer END";
 }
 
 void TwitchReader::handleNewConnection() {
@@ -623,6 +630,7 @@ void TwitchReader::fetchChannelName(const QString &token) {
 }
 
 void TwitchReader::on_settingsUpdated() {
+    qDebug() << "[TRACE-TWITCH] >>> TwitchReader::on_settingsUpdated START";
     qDebug() << "TwitchReader: Settings updated. Reloading config.";
     QString prevChannel = m_channel;
     loadSettings();
@@ -634,6 +642,7 @@ void TwitchReader::on_settingsUpdated() {
     if (m_isRunning) {
         connectToTwitch();
     }
+    qDebug() << "[TRACE-TWITCH] <<< TwitchReader::on_settingsUpdated END";
 }
 
 void TwitchReader::on_twitchConnectRequested() {
@@ -647,6 +656,7 @@ void TwitchReader::on_twitchConnectRequested() {
 }
 
 void TwitchReader::on_twitchReauthRequested() {
+    qDebug() << "[TRACE-TWITCH] >>> TwitchReader::on_twitchReauthRequested START";
     qDebug() << "TwitchReader: Re-authorization requested.";
     on_stopReading();
     
@@ -661,6 +671,7 @@ void TwitchReader::on_twitchReauthRequested() {
     QVariantMap meta;
     meta["twitch_oauth_token"] = "";
     event.extraData = meta;
+    qDebug() << "[TRACE-TWITCH] Emitting SettingsUpdated event...";
     emit notifyEvent(event);
     
     m_isRunning = true;
@@ -672,9 +683,12 @@ void TwitchReader::on_twitchReauthRequested() {
         errEvent.source = "TwitchReader";
         errEvent.text = "Twitch クライアントIDが設定されていないため、認証を開始できません。";
         emit notifyEvent(errEvent);
+        qDebug() << "[TRACE-TWITCH] <<< TwitchReader::on_twitchReauthRequested END (No Client ID)";
         return;
     }
+    qDebug() << "[TRACE-TWITCH] Calling startOAuthServer()...";
     startOAuthServer();
+    qDebug() << "[TRACE-TWITCH] <<< TwitchReader::on_twitchReauthRequested END";
 }
 
 void TwitchReader::on_requestTwitchSend(const QString &channel, const QString &text) {

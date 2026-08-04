@@ -121,13 +121,17 @@ void CoreModule::on_exportSessionRequested(const QString &encPath, const QString
 }
 
 void CoreModule::on_settingsUpdated() {
+    qDebug() << "[TRACE-CORE] >>> CoreModule::on_settingsUpdated START";
     qDebug() << "CoreModule: Settings updated, propagating to submodules.";
     emit settingsUpdated();
+    qDebug() << "[TRACE-CORE] <<< CoreModule::on_settingsUpdated END";
 }
 
 void CoreModule::on_twitchReauthRequested() {
+    qDebug() << "[TRACE-CORE] >>> CoreModule::on_twitchReauthRequested START";
     qDebug() << "CoreModule: Twitch reauth requested, propagating to TwitchReader.";
     emit requestTwitchReauth();
+    qDebug() << "[TRACE-CORE] <<< CoreModule::on_twitchReauthRequested END";
 }
 
 void CoreModule::on_deleteKnowledgeRequested(const QString &id) {

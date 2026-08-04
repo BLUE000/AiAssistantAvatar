@@ -1606,6 +1606,7 @@ void AvatarWindow::loadSettingsToUI() {
 }
 
 void AvatarWindow::saveSettingsFromUI() {
+    qDebug() << "[TRACE-UI] >>> AvatarWindow::saveSettingsFromUI START";
     QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
     if (!QFile::exists(configPath) && QFile::exists("Config/local_settings.json")) {
         configPath = "Config/local_settings.json";
@@ -1697,19 +1698,21 @@ void AvatarWindow::saveSettingsFromUI() {
     QString mgrModel = m_managerModelCombo->currentText();
     obj["manager_ai_model"] = mgrModel.replace(" (推奨)", "").trimmed();
 
-    // プロバイダ制限の保存（既存のオブジェクトをロードし、現在 UI で編集中の一社を上書き）
-    QJsonObject limitsObj = obj["provider_limits"].toObject();
-    QString curLimProvider = m_limitProviderCombo->currentText();
-    QJsonObject curLimObj = limitsObj[curLimProvider].toObject();
-    curLimObj["rpm_max"] = m_limitRpmEdit->text().trimmed().toInt();
-    curLimObj["rpd_max"] = m_limitRpdEdit->text().trimmed().toInt();
-    curLimObj["tpm_max"] = m_limitTpmEdit->text().trimmed().toInt();
-    curLimObj["tpd_max"] = m_limitTpdEdit->text().trimmed().toInt();
-    curLimObj["context"] = m_limitContextEdit->text().trimmed().toInt();
-    curLimObj["tool_call"] = m_limitToolCallCheckbox->isChecked();
-    curLimObj["cost"] = m_limitCostEdit->text().trimmed().toDouble();
-    limitsObj[curLimProvider] = curLimObj;
-    obj["provider_limits"] = limitsObj;
+    // プロバイダ制限の保存（旧 UI コントロールが存在する場合のみ上書き。RateLimitTabWidget化に伴い削除済みのため安全化）
+    if (m_limitProviderCombo && m_limitRpmEdit && m_limitRpdEdit && m_limitTpmEdit && m_limitTpdEdit && m_limitContextEdit && m_limitToolCallCheckbox && m_limitCostEdit) {
+        QJsonObject limitsObj = obj["provider_limits"].toObject();
+        QString curLimProvider = m_limitProviderCombo->currentText();
+        QJsonObject curLimObj = limitsObj[curLimProvider].toObject();
+        curLimObj["rpm_max"] = m_limitRpmEdit->text().trimmed().toInt();
+        curLimObj["rpd_max"] = m_limitRpdEdit->text().trimmed().toInt();
+        curLimObj["tpm_max"] = m_limitTpmEdit->text().trimmed().toInt();
+        curLimObj["tpd_max"] = m_limitTpdEdit->text().trimmed().toInt();
+        curLimObj["context"] = m_limitContextEdit->text().trimmed().toInt();
+        curLimObj["tool_call"] = m_limitToolCallCheckbox->isChecked();
+        curLimObj["cost"] = m_limitCostEdit->text().trimmed().toDouble();
+        limitsObj[curLimProvider] = curLimObj;
+        obj["provider_limits"] = limitsObj;
+    }
     if (!m_twitchOAuthToken.isEmpty()) {
         obj["twitch_oauth_token"] = m_twitchOAuthToken;
     } else if (obj.contains("twitch_oauth_token") && !obj.value("twitch_oauth_token").toString().isEmpty()) {
@@ -1834,27 +1837,38 @@ void AvatarWindow::saveSettingsFromUI() {
             }
         }
     }
+    qDebug() << "[TRACE-UI] <<< AvatarWindow::saveSettingsFromUI END";
 }
 
 void AvatarWindow::onSaveSettingsClicked() {
+    qDebug() << "[TRACE-UI] >>> AvatarWindow::onSaveSettingsClicked START";
+    qDebug() << "[TRACE-UI] Calling saveSettingsFromUI()...";
     saveSettingsFromUI();
+    qDebug() << "[TRACE-UI] saveSettingsFromUI() finished.";
     if (m_aiClientManager) {
-        // aiThread 上のオブジェクトを直接呼ぶのは NG のため QueuedConnection 経由で安全に呼び出す
+        qDebug() << "[TRACE-UI] Invoking AIClientManager::loadCredentials...";
         QMetaObject::invokeMethod(m_aiClientManager, "loadCredentials", Qt::QueuedConnection);
     }
-    // WebSocket サーバー再起動
+    qDebug() << "[TRACE-UI] Restarting WebSocket server...";
     stopWebSocketServer();
     startWebSocketServer();
-    // コアへ設定更新を通知
+    qDebug() << "[TRACE-UI] Emitting settingsUpdated signal...";
     emit settingsUpdated();
     statusBar()->showMessage("設定を保存して適用しました。");
+    qDebug() << "[TRACE-UI] <<< AvatarWindow::onSaveSettingsClicked END";
 }
 
 void AvatarWindow::onTwitchReauthClicked() {
+    qDebug() << "[TRACE-UI] >>> AvatarWindow::onTwitchReauthClicked START";
+    qDebug() << "[TRACE-UI] Calling saveSettingsFromUI()...";
     saveSettingsFromUI();
+    qDebug() << "[TRACE-UI] saveSettingsFromUI() finished.";
+    qDebug() << "[TRACE-UI] Emitting settingsUpdated signal...";
     emit settingsUpdated();
+    qDebug() << "[TRACE-UI] Emitting twitchReauthRequested signal...";
     emit twitchReauthRequested();
     statusBar()->showMessage("Twitch 認証を開始します...");
+    qDebug() << "[TRACE-UI] <<< AvatarWindow::onTwitchReauthClicked END";
 }
 
 // OBS WebSocket サーバーの制御
