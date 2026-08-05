@@ -356,12 +356,17 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
         s.rpmRemaining = s.rpmMax;
     }
 
-    bool rpmOk = (s.rpmMax <= 0 && s.rpmRemaining != 0) || (s.rpmRemaining > 0);
+    bool rpmOk = (s.rpmMax <= 0) || (s.rpmRemaining == -1) || (s.rpmRemaining > 0);
+    bool rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining == -1) || (s.rpdRemaining > 0);
+    bool tpmOk = (s.tpmMax <= 0) || (s.tpmRemaining == -1) || (s.tpmRemaining > 0);
 
-    bool rpdOk = (s.rpdMax <= 0 && s.rpdRemaining != 0) || (s.rpdRemaining > 0);
-    bool tpmOk = (s.tpmMax <= 0 && s.tpmRemaining != 0) || (s.tpmRemaining > 0);
+    // リセット待ち中かつ rpmRemaining == 0 の場合のみ rpmOk = false
+    if (s.nextResetAt.isValid() && s.rpmRemaining == 0) {
+        rpmOk = false;
+    }
 
     s.available = rpmOk && rpdOk && tpmOk;
+
 
 
 

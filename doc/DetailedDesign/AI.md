@@ -268,6 +268,15 @@ struct SpeakerContext {
 ### 13.2 ローカル減算時のタイマー起動 (`recordLocalConsumption`)
 - `rpmRemaining` または `tpmRemaining` が全枠（`rpmMax` / `tpmMax`）から初回減算された際、`s.nextResetAt` が未設定であれば自動的に `QDateTime::currentDateTimeUtc().addSecs(60)` を設定し、60秒後の全量自動再補充タイマーを開始する。
 
+### 13.3 未初期化残量 (`-1`) 評価論理式
+`RateLimitTracker::updateAvailable` 内における各 `Ok` 判定論理式を以下のように評価補正する：
+- `rpmOk = (s.rpmMax <= 0) || (s.rpmRemaining == -1) || (s.rpmRemaining > 0);`
+- `rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining == -1) || (s.rpdRemaining > 0);`
+- `tpmOk = (s.tpmMax <= 0) || (s.tpmRemaining == -1) || (s.tpmRemaining > 0);`
+- `tpdOk = (s.tpdMax <= 0) || (s.tpdRemaining == -1) || (s.tpdRemaining > 0);`
+- ただし `s.nextResetAt.isValid() && s.rpmRemaining <= 0` の場合は該当項目の `Ok` を `false` とする。
+
+
 
 
 

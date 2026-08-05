@@ -458,6 +458,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RLT-15** | `RateLimitTracker::updateAvailable` | `rpmMax = -1` (HuggingFace等) のプロバイダを `forceRateLimit` で 1 秒後にリセット設定し、2 秒経過後に `updateAvailable` を呼ぶ。 | `s.nextResetAt` がクリアされ、`s.rpmRemaining` が `-1` となり `s.available == true`（🟢 利用可能）に復帰すること。 |
 | **UT-RLT-16** | `RateLimitTracker::recordLocalConsumption` | `rpmMax = 30` (Mistral) のプロバイダに対し 1 回 `recordLocalConsumption` を呼び出す。 | `rpmRemaining` が 29 に減算され、`nextResetAt` が 60 秒後に設定され、`available == true`（🟢 利用可能）が維持されること。 |
 | **UT-RLT-17** | `RateLimitTabWidget::updateProviderCard` | 残り枠 30% 未満（例: `rpmRemaining = 3 / 30`）および 0 回（`0 / 30`）のステータスを渡してカード描画を行う。 | 前者では `🟡 もうすぐ上限 (残り 3 回)` (オレンジ色), 後者では `🔴 レートリミット到達中` (赤色) に描画されること。 |
+| **UT-RLT-18** | `RateLimitTracker::updateAvailable` | `tpmMax = 100000`, `tpmRemaining = -1` (HuggingFace/Sakura等初期状態) のプロバイダの `isAvailable` を呼び出す。 | `tpmOk == true` に評価され、`available == true`（🟢 利用可能）が得られること。 |
+
 
 
 

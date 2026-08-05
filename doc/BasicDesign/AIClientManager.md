@@ -74,6 +74,11 @@
   - `recordLocalConsumption` で初回消費減算が発生した際、`nextResetAt` が未設定であれば 60 秒後のリセット時刻を自動設定する。
   - `updateAvailable` における `available` 判定条件を `rpmOk && rpdOk && tpmOk` の真偽値に正確に一致させ、残枠が存在する（`rpmRemaining > 0`）間は `available = true` を堅持する。
 
+### 2.12 未初期化残量 (`-1`) 保持時の利用可能 (`Ok`) 判定設計
+- **`RateLimitTracker::updateAvailable` の `rpmOk / rpdOk / tpmOk` 判定補正**:
+  - 各残量変数が `-1` (未初期化/無制限) の場合、該当上限値 (`tpmMax` 等) が `> 0` であっても利用可能 (`Ok = true`) と判定する条件 `(remaining == -1)` を判定式に組み込む。
+
+
 
 
 

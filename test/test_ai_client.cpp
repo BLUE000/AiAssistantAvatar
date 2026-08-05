@@ -2310,6 +2310,23 @@ TEST(RateLimitTrackerTest, ThreeTierStatusRatioTest) {
     EXPECT_LT(static_cast<double>(sStatus.rpmRemaining) / sStatus.rpmMax, 0.3);
 }
 
+// UT-RLT-18: tpmMax が設定されていて tpmRemaining = -1 (初期未消費状態) の場合の available 判定テスト
+TEST(RateLimitTrackerTest, TpmMaxWithMinusOneRemainingAvailableTest) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "huggingface";
+    s.rpmMax = 60;
+    s.rpmRemaining = 60;
+    s.tpmMax = 100000;
+    s.tpmRemaining = -1; // 初期未消費状態
+    s.available = true;
+    tracker.registerClient(s);
+
+    bool avail = tracker.isAvailable("huggingface");
+    EXPECT_TRUE(avail); // tpmRemaining == -1 なので available は true であること
+}
+
+
 
 
 
