@@ -202,6 +202,47 @@ QString RateLimitTracker::selectBestAvailableClient() {
 - `AIClientManager::on_requestAI` および `AIClientManager::evaluateWithManagerAI` の呼び出し時、リクエスト処理を即時実行せず `600ms` の SingleShot 遅延タイマー（`QTimer::singleShot(600, ...)`）を挿入する。
 - 1 秒未満のわずかな時差（遅延）を保持することで、Groq 等の外部 API サービス側で「短時間の自動スパム/Botアクセス」と判断されるのを確実に防ぐ。
 
+---
+
+## 10. マネージャー AI 使用プロバイダの優先度自動調整 ＆ Mistral RPM 詳細設計
+
+### 10.1 `AIClientManager::buildFallbackProviderList` の改善
+- リスト構築時、標準優先度順序（`groq`, `cerebras`, `mistral`, `huggingface`, `openrouter`, `sakura`）から `m_provider`（選択中 Worker）に加えて、**`m_managerEnabled` が true の場合の `m_managerProvider`** も上位候補から除外/移動する。
+- `m_managerProvider` はフォールバックリストの最末尾（最下位優先度）へ配置され、メイン会話プロバイダが利用可能である限り、マネージャー用プロバイダへ会話リクエストが重複して消費されるのを防ぐ。
+
+### 10.2 Mistral AI デフォルト RPM の修正
+- `MistralAIClient::getStatus` および `AvatarWindow::onFetchModelSpecsClicked` 内での `s.rpmMax` デフォルト設定値を `1` から `30` に変更する。
+
+---
+
+## 11. 話者・対話コンテキスト管理システム詳細設計 (Speaker & Context Management)
+
+### 11.1 メタデータ構造体 `SpeakerContext`
+```cpp
+struct SpeakerContext {
+    QString speaker;       // 発言者名 ("blue002", "視聴者A", "ぶるたろう", "システム")
+    QString target;        // 宛先名 ("ぶるたろう", "blue002", "全体")
+    enum Category {
+        Self,              // AI自身の過去応答
+        Streamer,          // 配信者の発言 (マイク/STT)
+        LiveChat,          // 視聴者からの配信チャットコメント (Twitch/Discord)
+        SystemNotice       // システム自動通知
+    } category;
+};
+```
+
+### 11.2 プロンプトタグ整形 `formatSpeakerTaggedPrompt`
+`on_requestAI` および `m_chatHistory` 追加時、メッセージテキストの冒頭に以下の形式で構造化タグを動的挿入する：
+`[発言者: {speaker} ({category}) | 宛先: {target}] {prompt}`
+
+### 11.3 システムプロンプトへの分析ガイドライン注入
+`system` プロンプトへ以下を常時追加注入する：
+> `[Speaker Context Guideline]`
+> `メッセージ冒頭の [発言者: X | 宛先: Y | 種別: Z] タグを分析し、誰が誰に話しかけているか正確に把握してください。`
+> `視聴者が配信者に対して指摘した内容を、配信者自身の誤りや問題として誤認しないでください。`
+
+
+
 
 
 

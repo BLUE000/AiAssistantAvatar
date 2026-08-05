@@ -451,6 +451,11 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-HTTP-STT-01** | `ObsHttpServer::handleRequest` | `/stt` エンドポイントに対し HTTP GET `?text=テスト` または JSON POST を送信する。 | 404 エラーとならず `sttTextReceived` シグナルが発火し、`200 OK` JSON レスポンスが返却されること。 |
 | **UT-WEBSTT-01** | `ObsHttpServer::handleRequest` | パラメータなしで `GET /stt` リクエストを送信する。 | `text/html` の Content-Type で WebSTT 音声入力 ＆ ウェイクワード常時監視 Web ページ (HTML) が返却されること。 |
 | **UT-DELAY-01** | `AIClientManager::on_requestAI` | 連続で 2 つのリクエストを `on_requestAI` へ投入する。 | 1 秒未満（約 600ms）の送出遅延（時差）が保持され、API サーバーへの急激な高頻度リクエストが防がれること。 |
+| **UT-MGR-PRIO-01** | `AIClientManager::buildFallbackProviderList` | マネージャー AI に `groq` を設定し、`buildFallbackProviderList` を実行する。 | `groq` がフォールバック優先順位の最下位（末尾）に組み替えられること。 |
+| **UT-MISTRAL-RPM-01** | `MistralAIClient::getStatus` | `MistralAIClient::getStatus()` を呼び出す。 | 初期 `rpmMax` が 1 ではなく `30` に設定されていること。 |
+| **UT-SPEAKER-CTX-01** | `AIClientManager::formatSpeakerTaggedPrompt` | 発言者 "userA" (配信コメント), 宛先 "blue002", プロンプト "テスト" を指定してタグ整形を呼び出す。 | `[発言者: userA (配信コメント) | 宛先: blue002] テスト` の識別タグ付きプロンプトが生成されること。 |
+
+
 
 
 
