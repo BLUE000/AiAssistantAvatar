@@ -254,6 +254,18 @@ struct SpeakerContext {
   - ダブルクォーテーション `"` の通過時は `escaped` フラグに従って `inString` を反転し、文字列リテラル内部の `#`（例: `"api_key": "abc#123"`）は消去せず文字として保持する。
 - **適用対象**: `local_settings.json` のロードを行っているすべての呼び出し箇所（`AvatarWindow`, `AIClientManager`, `TwitchReader`, `DiscordReader`, `main.cpp`）。
 
+---
+
+## 13. レートリミット自動復帰補正詳細設計 (`RateLimitTracker::updateAvailable`)
+
+### 13.1 補正ロジック
+`RateLimitTracker::updateAvailable` 内において、`s.nextResetAt.isValid() && s.nextResetAt <= nowUtc` の条件を満たした際：
+1. `rpmMax > 0` の場合は `rpmRemaining = rpmMax` に復帰、`rpmMax <= 0` (-1) の場合は `rpmRemaining = -1` に維持/設定する。
+2. `rpdMax > 0` の場合は `rpdRemaining = rpdMax` に復帰、`rpdMax <= 0` (-1) の場合は `rpdRemaining = -1` に維持/設定する。
+3. `s.nextResetAt = QDateTime()` にてリセット時刻をクリアする。
+4. `!s.nextResetAt.isValid()` かつ `rpmOk` かつ `rpdOk` の場合は `s.available = true` に確定復帰させる。
+
+
 
 
 

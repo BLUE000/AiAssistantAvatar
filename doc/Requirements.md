@@ -75,6 +75,9 @@ sequenceDiagram
 - **`local_settings.json` の `#` による 1 行コメントサポート**:
   - JSON 設定ファイル `local_settings.json` 内で `#` から始まる 1 行コメントを記述可能にする。
   - JSON パース前に `#` コメント行および行末コメントを自動除去（ただし、文字列クォーテーション内の `"key": "val#1"` 等の `#` 文字は保護・維持）して正常に読み込めるフィルター処理を提供する。
+- **レートリミット解除時刻超過（残り0秒）時の確実な自動復帰制御**:
+  - `rpmMax` や `tpmMax` が `-1`（無制限/ヘッダー未提供）に設定されたプロバイダ（HuggingFace, OpenRouter, Mistral等）が一時的なエラーや手動制限でレートリミット状態（`available = false`）になった場合、リセット時刻（`nextResetAt`）が現在時刻を超過した（残り0秒到達）時点で確実に `rpmRemaining = -1`, `nextResetAt = QDateTime()` にリセットし、`available = true`（🟢 利用可能）へ即時自動復帰させる。
+
 
 
 
