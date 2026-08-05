@@ -178,6 +178,23 @@ QString RateLimitTracker::selectBestAvailableClient() {
   - UI 側にはタイマーを一切置かず、マネージャーからの `notifyStatusUpdated(statuses)` シグナルを受信したタイミングのみで描画を同期更新する。
   - 描画時、`status.nextResetAt` （UTC）と `QDateTime::currentDateTimeUtc()` の差分を計算し、`waitSec <= 0` かつ `status.available == true` の場合は `🟢 利用可能` （緑色 `#2e7d32`）をピタッと即時表示する。
 
+---
+
+## 8. レートリミット更新・表示コマンド応答およびシステムプロンプトナレッジ詳細設計
+
+### 8.1 `SystemResponseManager::processPrompt` でのインターセプト処理
+- **判定キー**: プロンプトに `レートリミット`, `リミット`, `制限` のキーワードが含まれ、かつ `更新`, `表示`, `教えて`, `見せて`, `/ratelimit`, `/status` 等の指示ワードが含まれる場合。
+- **動作**:
+  1. システムメッセージ `レートリミット情報を更新しました。「レートリミット」タブから各AIの利用枠や残量、解除カウントダウンをご確認いただけます。` を返却する。
+  2. マネージャーに対し、`emitCurrentStatus()` （ステータス即時更新）を呼び出させて画面の表示を最新化する。
+
+### 8.2 システムプロンプトへのナレッジ注入 (`AIClientManager::formatRoleSeparatedPrompt`)
+- **注入内容**:
+  `system` ロールプロンプトへ以下を常時追加注入する：
+  > `[System Capability]`
+  > `本アプリには、各AIプロバイダ（Groq, Mistral, Cerebras, Sakura AI, HuggingFace, OpenRouter等）のレートリミット使用枠（RPM/RPD）や残量、リセット時間をリアルタイム監視・更新・表示する『レートリミット』タブ機能が実装されています。ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。`
+
+
 
 
 

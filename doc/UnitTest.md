@@ -447,6 +447,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-SLOWMODE-QUEUE-04** | `CommentQueueManager` | 3 つに分割されたコメント文言を連続で送信キューへ投入する。 | 設定された送出インターバル（例: 1500ms）ごとに 1 メッセージずつ順次 `requestTwitchSend` / `requestDiscordSend` シグナルが発火し、スローモードに抵触せず順次送信されること。 |
 | **UT-RLT-13** | `RateLimitTracker::updateAvailable` | `forceRateLimit` で 5 秒後にリセット設定した状態で 6 秒経過後に `isAvailable` を呼ぶ。 | `rpmRemaining` が `rpmMax` に再補充され `available == true` に自動復帰すること。 |
 | **UT-RLT-14** | `RateLimitTabWidget::updateProviderCard` | `nextResetAt` が UTC で設定されたステータスを渡し、UTC 現在時間で差分（`secsTo`）を計算する。 | ローカルタイムゾーンに関わらず正確な残り時間（秒数）が算出され、0秒到達時に `🟢 利用可能` へ動的更新されること。 |
+| **UT-SYS-03** | `SystemResponseManager::processPrompt` | 「レートリミット表示して」「レートリミットの更新して」と入力する。 | レートリミット表示機能が実装されている旨を正しく案内し、「レートリミット」タブから確認できるメッセージが返却されること。 |
+
 
 
 
