@@ -141,6 +141,9 @@ int main(int argc, char *argv[]) {
     // UI -> Core
     QObject::connect(&window, &AvatarWindow::startSTTRequested,
                      core, &CoreModule::on_startSTTRequested, Qt::QueuedConnection);
+    QObject::connect(&window, &AvatarWindow::stopSTTRequested,
+                     core, &CoreModule::on_stopSTTRequested, Qt::QueuedConnection);
+
     QObject::connect(&window, &AvatarWindow::directInputSubmitted,
                      core, &CoreModule::on_directInputSubmitted, Qt::QueuedConnection);
     QObject::connect(&window, &AvatarWindow::resetSessionRequested,

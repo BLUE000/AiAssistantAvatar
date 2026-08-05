@@ -324,10 +324,11 @@ private:
     void notifyAvatarChanged();
     void sendWebHookNotification(const QJsonObject &json);
 
-private slots:
     void onSendClicked();
     void onSttClicked();
     void onMenuClicked();
+
+
     void onSaveSettingsClicked();
     void onTwitchReauthClicked();
     void onNewWSConnection();
@@ -364,6 +365,9 @@ public:
     QList<DiscordChannelSetting> m_discordChannelSettings;
     void rebuildDiscordLayout(int channelCount);
     void onAddDiscordChannelClicked();
+    void onSttPressed();
+    void onSttReleased();
+
 
 
 private:
@@ -372,7 +376,9 @@ private:
 signals:
     // コアスレッドへの要求シグナル
     void startSTTRequested();
+    void stopSTTRequested();
     void directInputSubmitted(const QString &text);
+
     void requestAIExecution(const QString &text, const QString &user);
     void resetSessionRequested(); // 会話履歴リセット要求シグナル
     void importSessionRequested(const QString &filePath);

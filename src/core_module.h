@@ -37,7 +37,9 @@ public slots:
 
     // UIからの直接命令を受け取るスロット
     void on_startSTTRequested();
+    void on_stopSTTRequested();
     void on_directInputSubmitted(const QString &text);
+
     void on_resetSessionRequested(); // UIからのセッションリセット要求を受け取るスロット
     void on_importSessionRequested(const QString &filePath);
     void on_exportSessionRequested(const QString &encPath, const QString &txtPath);

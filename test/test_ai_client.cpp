@@ -14,7 +14,9 @@
 #include "twitch/twitch_reader.h"
 #include "discord/discord_reader.h"
 #include "ui/avatar_window.h"
+#include "core_module.h"
 #include "ui/rate_limit_tab_widget.h"
+
 #include <QTableWidget>
 #include <QCheckBox>
 #include <QLineEdit>
@@ -2068,6 +2070,38 @@ TEST(AvatarWindowUISettingsTest, VerifyDiscordMultiChannelDynamicUI) {
         EXPECT_FALSE(window.m_discordChannelSettings[0].removeBtn->isEnabled());
     }
 }
+
+// UT-STT-04: AvatarWindow PTT (長押し/離す) テスト
+TEST(STTFeatureTest, VerifyPTTButtonStateAndSignals) {
+    AvatarWindow window;
+    QSignalSpy spyStart(&window, &AvatarWindow::startSTTRequested);
+    QSignalSpy spyStop(&window, &AvatarWindow::stopSTTRequested);
+
+    window.onSttPressed();
+    EXPECT_EQ(spyStart.count(), 1);
+
+    window.onSttReleased();
+    EXPECT_EQ(spyStop.count(), 1);
+}
+
+// UT-STT-05: CoreModule 音声AI自動ルーティングテスト
+TEST(STTFeatureTest, VerifyVoiceInputAIRouting) {
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    AppEvent voiceEvent;
+    voiceEvent.type = EventType::VoiceInputCompleted;
+    voiceEvent.source = "STTManager";
+    voiceEvent.text = "こんにちは、テストです";
+
+    core.on_notify_events(voiceEvent);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    QList<QVariant> arguments = spyAI.takeFirst();
+    EXPECT_EQ(arguments.at(0).toString(), "こんにちは、テストです");
+    EXPECT_EQ(arguments.at(1).toString(), "Streamer (Voice)");
+}
+
 
 
 

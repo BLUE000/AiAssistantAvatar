@@ -73,6 +73,14 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             emit notifyEventToUI(event);
             break;
         }
+        case EventType::VoiceInputCompleted: {
+            qDebug() << "CoreModule: Voice input completed. Routing text to AI. Text:" << event.text;
+            if (!event.text.trimmed().isEmpty()) {
+                emit requestAI(event.text.trimmed(), "Streamer (Voice)");
+            }
+            emit notifyEventToUI(event);
+            break;
+        }
         default:
             // その他はUIに通知中継
             emit notifyEventToUI(event);
@@ -84,6 +92,12 @@ void CoreModule::on_startSTTRequested() {
     qDebug() << "CoreModule: STT start requested from UI.";
     emit requestSTTStart();
 }
+
+void CoreModule::on_stopSTTRequested() {
+    qDebug() << "CoreModule: STT stop requested from UI.";
+    emit requestSTTStop();
+}
+
 
 void CoreModule::on_directInputSubmitted(const QString &text) {
     qDebug() << "CoreModule: Direct text input submitted:" << text;

@@ -104,6 +104,9 @@ AvatarWindow::AvatarWindow(QWidget *parent)
 
     m_sttButton = new QPushButton("音声", chatLeftPanel);
     connect(m_sttButton, &QPushButton::clicked, this, &AvatarWindow::onSttClicked);
+    connect(m_sttButton, &QPushButton::pressed, this, &AvatarWindow::onSttPressed);
+    connect(m_sttButton, &QPushButton::released, this, &AvatarWindow::onSttReleased);
+
 
     m_menuButton = new QPushButton("⚙", chatLeftPanel);
     m_menuButton->setFixedWidth(30);
@@ -800,6 +803,23 @@ void AvatarWindow::onSendClicked() {
 void AvatarWindow::onSttClicked() {
     emit startSTTRequested();
 }
+
+void AvatarWindow::onSttPressed() {
+    if (m_sttButton) {
+        m_sttButton->setText("🎤 録音中...");
+        m_sttButton->setStyleSheet("font-weight: bold; background-color: #e74c3c; color: white; border-radius: 4px;");
+    }
+    emit startSTTRequested();
+}
+
+void AvatarWindow::onSttReleased() {
+    if (m_sttButton) {
+        m_sttButton->setText("音声");
+        m_sttButton->setStyleSheet("");
+    }
+    emit stopSTTRequested();
+}
+
 
 void AvatarWindow::onMenuClicked() {
     if (m_tabWidget && m_settingsTab) {

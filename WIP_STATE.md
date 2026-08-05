@@ -7,17 +7,18 @@
 
 # 作業の状態
 
-## [フェーズ: ドキュメント改訂完了・ユーザー確認待ち] 音声入力（STT）再構築 ＆ 共有マイクアクセス・2モード・サブPC連携仕様書・README改訂完了
+## [フェーズ: C++実装 ＆ 単体テスト完了・ユーザーチェック待ち] 音声入力（STT）再構築 ＆ PTT・自動AI直結回路・マイク共有アクセス
 
 ### 現在の状態
-- `.ai_rules.md` に従い、仕様書・設計書・README の先行改訂を完了：
-  - [README.md](file:///d:/prog/C++/AiAssistantAvatar/README.md) (マイク共有・2モード・サブPC連携の説明・使い方を追記)
-  - [Requirements.md](file:///d:/prog/C++/AiAssistantAvatar/doc/Requirements.md) (F-2 改訂: 共有マイク・ぶるたろう等のアバター名ウェイクワード/PTT・AI直結ルーティング・別マシン連携)
-  - [UI.md (BasicDesign)](file:///d:/prog/C++/AiAssistantAvatar/doc/BasicDesign/UI.md) (2.7 節追加)
-  - [UI.md (DetailedDesign)](file:///d:/prog/C++/AiAssistantAvatar/doc/DetailedDesign/UI.md) (8 節追加)
-  - [UnitTest.md](file:///d:/prog/C++/AiAssistantAvatar/doc/UnitTest.md) (UT-STT-04, 05, 06 追加)
-- `DecisionLog/2026-08-05_05-40-00_DecisionLog.md` を更新完了。
+- C++ ソースコード実装完了:
+  - [avatar_window.h](file:///d:/prog/C++/AiAssistantAvatar/src/ui/avatar_window.h) / [avatar_window.cpp](file:///d:/prog/C++/AiAssistantAvatar/src/ui/avatar_window.cpp) (PTT ボタン長押し `pressed` / `released` スロットおよび `🎤 録音中...` [赤] スタイル制御実装)
+  - [core_module.h](file:///d:/prog/C++/AiAssistantAvatar/src/core_module.h) / [core_module.cpp](file:///d:/prog/C++/AiAssistantAvatar/src/core_module.cpp) (`VoiceInputCompleted` 受信時の `requestAI` 自動直結ルーティングおよび `on_stopSTTRequested` スロット実装)
+  - [main.cpp](file:///d:/prog/C++/AiAssistantAvatar/src/main.cpp) (`stopSTTRequested` ➔ `on_stopSTTRequested` 接続)
+  - [CMakeLists.txt (test)](file:///d:/prog/C++/AiAssistantAvatar/test/CMakeLists.txt) / [test_ai_client.cpp](file:///d:/prog/C++/AiAssistantAvatar/test/test_ai_client.cpp) (UT-STT-04, UT-STT-05 追加)
+- 単体テスト `AiAssistantAvatarTest.exe` を実行し、全 16 テストスイート **86 件の単体テストが 100% 成功 (PASSED)** することを確認。
+- ユーザー指示に基づき、Push ＆ リリースビルドを行わずに作業を一時停止中。
+- `DecisionLog/2026-08-05_18-26-00_DecisionLog.md` を作成完了。
 
 ### これから行うこと
-- ドキュメント改訂内容に対するユーザー様の確認・承認。
-- 承認後、C++ ソースコード実装・単体テスト実行着手。
+- ユーザー様のチェック・レビュー。
+- ユーザー様からの指示受託後、Git Commit ＆ Push ➔ リリースビルド ➔ ZIP パッケージングの実行。
