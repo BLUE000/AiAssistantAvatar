@@ -263,7 +263,11 @@ struct SpeakerContext {
 1. `rpmMax > 0` の場合は `rpmRemaining = rpmMax` に復帰、`rpmMax <= 0` (-1) の場合は `rpmRemaining = -1` に維持/設定する。
 2. `rpdMax > 0` の場合は `rpdRemaining = rpdMax` に復帰、`rpdMax <= 0` (-1) の場合は `rpdRemaining = -1` に維持/設定する。
 3. `s.nextResetAt = QDateTime()` にてリセット時刻をクリアする。
-4. `!s.nextResetAt.isValid()` かつ `rpmOk` かつ `rpdOk` の場合は `s.available = true` に確定復帰させる。
+4. `available` 判定条件を `rpmOk && rpdOk && tpmOk` の真偽値へ補正し、残枠保持中は `available = true` を維持する。
+
+### 13.2 ローカル減算時のタイマー起動 (`recordLocalConsumption`)
+- `rpmRemaining` または `tpmRemaining` が全枠（`rpmMax` / `tpmMax`）から初回減算された際、`s.nextResetAt` が未設定であれば自動的に `QDateTime::currentDateTimeUtc().addSecs(60)` を設定し、60秒後の全量自動再補充タイマーを開始する。
+
 
 
 

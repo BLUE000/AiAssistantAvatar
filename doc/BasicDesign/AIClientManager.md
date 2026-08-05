@@ -69,6 +69,12 @@
   - `nextResetAt` が現在時刻を超過した際、`rpmMax <= 0` や `rpdMax <= 0`（-1: チェックバイパス）のプロバイダに対しても `rpmRemaining = -1`, `rpdRemaining = -1` に全量復帰させる。
   - リセット完了時に `nextResetAt` をクリアすると同時に、`available` フラグを `true` へ確定復帰させ、「残り0秒で到達中表示のまま固まる」現象を防止する。
 
+### 2.11 残枠保持時の `available` 評価 ＆ タイマー自動起動設計
+- **`RateLimitTracker::recordLocalConsumption` / `updateAvailable` の整合化**:
+  - `recordLocalConsumption` で初回消費減算が発生した際、`nextResetAt` が未設定であれば 60 秒後のリセット時刻を自動設定する。
+  - `updateAvailable` における `available` 判定条件を `rpmOk && rpdOk && tpmOk` の真偽値に正確に一致させ、残枠が存在する（`rpmRemaining > 0`）間は `available = true` を堅持する。
+
+
 
 
 
