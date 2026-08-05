@@ -154,3 +154,31 @@ QString RateLimitTracker::selectBestAvailableClient() {
   3. タイマータイムアウト（1500ms）毎に `m_sendQueue.dequeue()` を取り出し、`requestTwitchSend` / `requestDiscordSend` を発火して送出する。
   4. キューが空になった時点でタイマーを停止する。
 
+---
+
+## 7. レートリミット自動枠復帰 ＆ ルーター側イベント駆動ステータス更新詳細設計
+
+### 7.1 `RateLimitTracker::updateAvailable` のルーター自動判定・復帰ロジック
+- **タイマーフリー・イベント駆動設計**:
+  - UI 側のタイマーは完全削除（タイマー詰まり・異常終了リスクを 0% 化）。
+  - `AIClientManager`（ルーター/マネージャー）が `isAvailable` / `selectBestAvailableClient` / `statusOf` / `allStatuses` 等で状態を参照・更新するたびに `updateAvailable` が呼び出される。
+- **評価手順**:
+  1. `QDateTime nowUtc = QDateTime::currentDateTimeUtc();`
+  2. 各プロバイダの `nextResetAt.isValid() && nextResetAt <= nowUtc` を判定。
+  3. リセット時間を超過している場合:
+     - `rpmRemaining = rpmMax;` （使用枠の自動再補充）
+     - `nextResetAt = QDateTime();` （リセット状態完了）
+  4. `rpmRemaining > 0` かつ `rpdRemaining > 0` を確認し、`available = true` （利用可能）へと自動回復させる。
+
+### 7.2 UI（`RateLimitTabWidget`）の表示トリガー要求 ＆ 完全シグナル同期描画
+- **UI 表示時トリガー**:
+  - `RateLimitTabWidget` の `showEvent` （タブ表示時）または `QTabWidget` のタブ選択時に、`emit requestRefreshStatus();` シグナルを発火する。
+  - `AIClientManager` は本要求を受信すると、最新の UTC 時間 `currentDateTimeUtc()` で全プロバイダの期限評価・復帰処理（`updateAvailable`）を即座に実行し、`notifyStatusUpdated(statuses)` シグナルを送返す。
+- **完全タイマーフリー描画**:
+  - UI 側にはタイマーを一切置かず、マネージャーからの `notifyStatusUpdated(statuses)` シグナルを受信したタイミングのみで描画を同期更新する。
+  - 描画時、`status.nextResetAt` （UTC）と `QDateTime::currentDateTimeUtc()` の差分を計算し、`waitSec <= 0` かつ `status.available == true` の場合は `🟢 利用可能` （緑色 `#2e7d32`）をピタッと即時表示する。
+
+
+
+
+
