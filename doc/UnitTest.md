@@ -454,6 +454,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-MGR-PRIO-01** | `AIClientManager::buildFallbackProviderList` | マネージャー AI に `groq` を設定し、`buildFallbackProviderList` を実行する。 | `groq` がフォールバック優先順位の最下位（末尾）に組み替えられること。 |
 | **UT-MISTRAL-RPM-01** | `MistralAIClient::getStatus` | `MistralAIClient::getStatus()` を呼び出す。 | 初期 `rpmMax` が 1 ではなく `30` に設定されていること。 |
 | **UT-SPEAKER-CTX-01** | `AIClientManager::formatSpeakerTaggedPrompt` | 発言者 "userA" (配信コメント), 宛先 "blue002", プロンプト "テスト" を指定してタグ整形を呼び出す。 | `[発言者: userA (配信コメント) | 宛先: blue002] テスト` の識別タグ付きプロンプトが生成されること。 |
+| **UT-JSON-COMMENT-01** | `JsonCommentRemover::stripHashComments` | `#` コメント行や行末コメント、および `"key": "val#1"` などの文字列を含む JSON 文字列を渡す。 | コメント行および行末コメントが正常除去され、クォーテーション内の `#` が保持されて正しく JSON パース（`QJsonDocument::fromJson`）できること。 |
+
 
 
 

@@ -241,6 +241,20 @@ struct SpeakerContext {
 > `メッセージ冒頭の [発言者: X | 宛先: Y | 種別: Z] タグを分析し、誰が誰に話しかけているか正確に把握してください。`
 > `視聴者が配信者に対して指摘した内容を、配信者自身の誤りや問題として誤認しないでください。`
 
+---
+
+## 12. JSON コメント除去ユーティリティ (`JsonCommentRemover`) 詳細設計
+
+### 12.1 アルゴリズム概要 (`stripHashComments`)
+- **関数の入力**: `QByteArray` または `QString` の RAW JSON 文字列。
+- **スキャン状態フラグ**: `inString` (文字列内部か), `escaped` (エスケープ `\` の直後か)。
+- **処理ロジック**:
+  - 行（`\n`）単位で処理し、文字を 1 文字ずつ走査する。
+  - `inString == false` の状態で `#` を検出した場合、その位置から行末までの文字を破棄（コメント除去）する。
+  - ダブルクォーテーション `"` の通過時は `escaped` フラグに従って `inString` を反転し、文字列リテラル内部の `#`（例: `"api_key": "abc#123"`）は消去せず文字として保持する。
+- **適用対象**: `local_settings.json` のロードを行っているすべての呼び出し箇所（`AvatarWindow`, `AIClientManager`, `TwitchReader`, `DiscordReader`, `main.cpp`）。
+
+
 
 
 
