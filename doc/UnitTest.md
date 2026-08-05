@@ -437,7 +437,15 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-TASK-08** | `AIClientManager::analyzeAndDecomposeTasks` | 「今日の予定は？」という文章を入力してタスク分解を実行する。 | 「今日」単体で `WebSearchRAG` タスクが発生せず、TaskFlow スケジュール検索インテントとして正しく識別されること。 |
 | **UT-TASK-09** | `AIClientManager::formatRoleSeparatedPrompt` | 参考情報およびタスクデータが存在する状態でプロンプト生成を実行する。 | `User` ロールプロンプトへ `【参考情報】` が連結されず、`systemInstruction` 領域へ `[WebSearch]` / `[TaskFlow]` ブロックとして分離注入されること。 |
 | **UT-RATELIMIT-08** | `RateLimitTabWidget::updateUI` | 動的な `ProviderRateLimitState` (動的項目リスト `quotaItems`) を読み込んで UI 描画を実行する。 | `N/A` や `-` などの曖昧表示が発生せず、各プロバイダに存在する制限項目のみが動的にプログレスバー化して描画されること。 |
-| **UT-RATELIMIT-09** | `RateLimitTabWidget::onLimitSpinBoxChanged` | タブ上の SpinBox で上限設定値（RPM/RPD等）を変更する。 | `RateLimitTracker` の限界値が即座に更新され、次回ルーティング時に新しい上限が即時適用されること。 |
+### 3.27 チャットコメント 500 文字自動分割 ＆ スローモード遅延キュー制御 (F-1 / F-5 / F-3) の単体試験
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-COMMENT-SPLIT-01** | `splitTextForComment` | 500 文字以内のテキスト（例: 200文字のAI回答）を渡す。 | 1 要素の `QStringList` が返り、分割が発生しないこと。 |
+| **UT-COMMENT-SPLIT-02** | `splitTextForComment` | 750 文字（句読点 `。` を含む）の長文AI回答を渡す。 | 500 文字以内の自然な文の区切り（`。` または改行）で 2 つの要素（`QStringList`）に綺麗に分割されること。 |
+| **UT-COMMENT-SPLIT-03** | `splitTextForComment` | 1200 文字（句読点なしの長文）を渡す。 | 各要素が 500 文字を超えないサイズに正確に強制分割（3要素）されること。 |
+| **UT-SLOWMODE-QUEUE-04** | `CommentQueueManager` | 3 つに分割されたコメント文言を連続で送信キューへ投入する。 | 設定された送出インターバル（例: 1500ms）ごとに 1 メッセージずつ順次 `requestTwitchSend` / `requestDiscordSend` シグナルが発火し、スローモードに抵触せず順次送信されること。 |
+
 
 
 

@@ -129,3 +129,28 @@ QString RateLimitTracker::selectBestAvailableClient() {
 
 3. **応答効果**:
    - 「今使ってるAIモデルは何？」「マネージャーAIは何か動いてる？」等のチャットでの質問に対し、AI アバターが自身の最新稼働モデル名を 100% 正確に認識して即答可能となる。
+
+---
+
+## 6. チャット応答テキストの 500 文字自動分割 ＆ スローモード遅延キュー詳細設計
+
+### 6.1 `splitTextForComment` 文字列分割アルゴリズム
+- **メソッドシグネチャ**: `static QStringList splitTextForComment(const QString &text, int maxLen = 500)`
+- **処理ロジック**:
+  1. `text.length() <= maxLen` の場合、元のテキスト 1 件を含む `QStringList` をそのまま返す。
+  2. `text.length() > maxLen` の場合、先頭から `maxLen` 文字（500文字）までの範囲内で、後ろから逆方向に最優先区切り文字（`。`, `！`, `？`, `\n`）を探索する。
+  3. 優先区切り文字が見つかった場合はその位置で分割し、見つからない場合はカンマ（`、`, `,`）やスペースを探索し、それでも見つからない場合は `maxLen` 文字目で強制切断する。
+  4. 残りの文字列に対して再帰的またはループで同様の分割を行い、500文字以内の chunk リスト（`QStringList`）を生成する。
+
+### 6.2 スローモード対応遅延送信キュー (`CommentQueueManager`)
+- **役割**: Twitch/Discord への送信要求を `QQueue<QString>` で保持し、スローモード対応の送出インターバル（タイマー制御、例: 1500ms）ごとに 1 メッセージずつ取り出して送出する。
+- **データ構造・メンバー**:
+  - `QQueue<QString> m_sendQueue;`
+  - `QTimer *m_dispatchTimer;`
+  - `int m_slowModeIntervalMs = 1500; // 初期値 1.5秒`
+- **動作フロー**:
+  1. AI 応答受信時、`splitTextForComment(response)` により生成されたリストを `m_sendQueue` に順次エンキューする。
+  2. `m_dispatchTimer` が未稼働の場合、即座にタイマーを開始する。
+  3. タイマータイムアウト（1500ms）毎に `m_sendQueue.dequeue()` を取り出し、`requestTwitchSend` / `requestDiscordSend` を発火して送出する。
+  4. キューが空になった時点でタイマーを停止する。
+
