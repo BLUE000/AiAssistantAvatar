@@ -320,9 +320,20 @@ void AIClientManager::loadCredentials() {
                     if (pLim.contains("tool_call")) s.toolCall = pLim["tool_call"].toBool();
                     if (pLim.contains("cost")) s.cost = pLim["cost"].toDouble();
 
+                    // 最低安全ガード: 過去の破壊データ（"1/1回"等）の自動クレンジング
+                    int defaultRpm = 30;
+                    if (providerId == "huggingface" || providerId == "openrouter" || providerId == "sakura") {
+                        defaultRpm = 60;
+                    }
+                    if (s.rpmMax < defaultRpm && s.rpmMax > 0) {
+                        qWarning() << "[AIClientManager] Corrected invalid rpmMax" << s.rpmMax << "for" << providerId << "to default" << defaultRpm;
+                        s.rpmMax = defaultRpm;
+                    }
+
                     m_tracker.setMaxValues(providerId, s);
                 }
             }
+
 
             qDebug() << "AIClientManager: Loaded settings from" << configPath
                      << "Blacklist enabled:" << m_blacklistEnabled

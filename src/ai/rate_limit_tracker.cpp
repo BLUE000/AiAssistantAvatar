@@ -351,7 +351,13 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
         s.nextResetAt = QDateTime();
     }
 
+    // リセットタイマーが作動していない（!nextResetAt.isValid()）状態で、rpmRemaining <= 0 の場合は即座に rpmMax へ全量自動自己修復
+    if (!s.nextResetAt.isValid() && s.rpmMax > 0 && s.rpmRemaining <= 0) {
+        s.rpmRemaining = s.rpmMax;
+    }
+
     bool rpmOk = (s.rpmMax <= 0 && s.rpmRemaining != 0) || (s.rpmRemaining > 0);
+
     bool rpdOk = (s.rpdMax <= 0 && s.rpdRemaining != 0) || (s.rpdRemaining > 0);
     bool tpmOk = (s.tpmMax <= 0 && s.tpmRemaining != 0) || (s.tpmRemaining > 0);
 

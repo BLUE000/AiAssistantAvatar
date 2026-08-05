@@ -125,13 +125,18 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
 
     // 2. レートリミットステータス ＆ カウントダウン描画
     QDateTime nowUtc = QDateTime::currentDateTimeUtc();
-    bool isLimited = !status.available;
+    bool isLimited = !status.available || (status.rpmMax > 0 && status.rpmRemaining <= 0);
     qint64 waitSec = 0;
 
     if (status.nextResetAt.isValid() && status.nextResetAt > nowUtc) {
         waitSec = nowUtc.secsTo(status.nextResetAt);
     }
 
+    // 残り比率判定（残り30%未満で 🟡 もうすぐ上限）
+    double remainingRatio = 1.0;
+    if (status.rpmMax > 0 && status.rpmRemaining >= 0) {
+        remainingRatio = static_cast<double>(status.rpmRemaining) / status.rpmMax;
+    }
 
     if (isLimited) {
         qint64 min = waitSec / 60;
@@ -140,6 +145,9 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
                                       .arg(min, 2, 10, QChar('0'))
                                       .arg(sec, 2, 10, QChar('0')));
         card.statusLabel->setStyleSheet("color: #d32f2f; font-weight: bold;");
+    } else if (remainingRatio < 0.3 && status.rpmRemaining > 0) {
+        card.statusLabel->setText(QString("🟡 もうすぐ上限 (残り %1 回)").arg(status.rpmRemaining));
+        card.statusLabel->setStyleSheet("color: #ef6c00; font-weight: bold;");
     } else {
         card.statusLabel->setText("🟢 利用可能");
         card.statusLabel->setStyleSheet("color: #2e7d32; font-weight: bold;");
@@ -154,8 +162,10 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
         card.rpmRow.progressBar->setRange(0, status.rpmMax);
         card.rpmRow.progressBar->setValue(rpmUsed);
 
-        if (rpmUsed >= status.rpmMax) {
+        if (isLimited || rpmUsed >= status.rpmMax) {
             card.rpmRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #e53935; }");
+        } else if (remainingRatio < 0.3) {
+            card.rpmRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #fb8c00; }");
         } else {
             card.rpmRow.progressBar->setStyleSheet("QProgressBar::chunk { background-color: #43a047; }");
         }
@@ -163,6 +173,7 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
     } else {
         card.rpmRow.container->setVisible(false);
     }
+
 
     if (status.rpdMax > 0) {
         int rpdUsed = (status.rpdRemaining >= 0) ? (status.rpdMax - status.rpdRemaining) : 0;

@@ -172,3 +172,26 @@ struct ProviderConfigSpec {
    - チェックボックス `toggled(bool)` シグナル接続時に、他プロバイダの `checkbox->setChecked(false)` を自動実行。
 4. **全自動 JSON 設定ロード ＆ セーブ**:
    - `loadSettingsToUI()` / `saveSettings()` において、`id` に基づく API キー・モデル名・有効フラグの読込／保存を単一ループで全自動実行。
+
+---
+
+## 9. レートリミットタブ 3 段階直感モニタリング詳細設計 (`RateLimitTabWidget`)
+
+### 9.1 3 段階ステータス・色分け判定 (`updateProviderCard`)
+`RateLimitTabWidget::updateProviderCard` において、`status.available` および `status.rpmRemaining` / `status.rpmMax` の比率から以下の 3 段階で画面描画を行う：
+1. **🟢 利用可能 [これはいっぱい使える！]**:
+   - 条件: `status.available == true` かつ 残り枠比率 `rpmRemaining / rpmMax >= 0.3` (または `-1` 無制限)
+   - ラベルテキスト: `🟢 利用可能`
+   - プログレスバー色: **緑色 (`#43a047`)**
+2. **🟡 もうすぐ上限 [もうすぐ使えなくなるよ！]**:
+   - 条件: `status.available == true` かつ 残り枠比率 `rpmRemaining / rpmMax < 0.3` (残り枠 30% 未満)
+   - ラベルテキスト: `🟡 もうすぐ上限 (残り %1 回)`.arg(rpmRemaining)
+   - プログレスバー色: **オレンジ色/黄色 (`#fb8c00`)**
+3. **🔴 レートリミット到達中 [今使えないよ！]**:
+   - 条件: `status.available == false` または `rpmRemaining <= 0`
+   - ラベルテキスト: `🔴 レートリミット到達中 (解除まで あと %1分%2秒)`
+   - プログレスバー色: **赤色 (`#e53935`)**
+
+### 9.2 プロバイダ上限値の自動修復・最低安全ガード
+`AIClientManager` 設定読み込み時および `RateLimitTracker::setMaxValues` 内で、Mistral 等の `rpmMax` が `1` などの不正値に汚染されている場合、規定値（Mistral: 30, Groq: 30, Cerebras: 30, HuggingFace: 60, OpenRouter: 60, Sakura: 60）を下回る値を自動的にクレンジング・最低値ガードする。
+

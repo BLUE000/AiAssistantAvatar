@@ -2295,6 +2295,22 @@ TEST(RateLimitTrackerTest, LocalConsumptionAvailableMaintenanceTest) {
     EXPECT_TRUE(sConsumed.nextResetAt.isValid()); // 1分後のタイマーが設定されていること
 }
 
+// UT-RLT-17: RateLimitTabWidget 3 段階描画ステータス判定テスト
+TEST(RateLimitTrackerTest, ThreeTierStatusRatioTest) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "mistral";
+    s.rpmMax = 30;
+    s.rpmRemaining = 5; // 5 / 30 = 16.6% (< 30%: 🟡 もうすぐ上限)
+    s.available = true;
+    tracker.registerClient(s);
+
+    ProviderStatus sStatus = tracker.statusOf("mistral");
+    EXPECT_TRUE(sStatus.available);
+    EXPECT_LT(static_cast<double>(sStatus.rpmRemaining) / sStatus.rpmMax, 0.3);
+}
+
+
 
 
 
