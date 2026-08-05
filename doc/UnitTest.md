@@ -449,6 +449,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RLT-14** | `RateLimitTabWidget::updateProviderCard` | `nextResetAt` が UTC で設定されたステータスを渡し、UTC 現在時間で差分（`secsTo`）を計算する。 | ローカルタイムゾーンに関わらず正確な残り時間（秒数）が算出され、0秒到達時に `🟢 利用可能` へ動的更新されること。 |
 | **UT-SYS-03** | `SystemResponseManager::processPrompt` | 「レートリミット表示して」「レートリミットの更新して」と入力する。 | レートリミット表示機能が実装されている旨を正しく案内し、「レートリミット」タブから確認できるメッセージが返却されること。 |
 | **UT-HTTP-STT-01** | `ObsHttpServer::handleRequest` | `/stt` エンドポイントに対し HTTP GET `?text=テスト` または JSON POST を送信する。 | 404 エラーとならず `sttTextReceived` シグナルが発火し、`200 OK` JSON レスポンスが返却されること。 |
+| **UT-WEBSTT-01** | `ObsHttpServer::handleRequest` | パラメータなしで `GET /stt` リクエストを送信する。 | `text/html` の Content-Type で WebSTT 音声入力 ＆ ウェイクワード常時監視 Web ページ (HTML) が返却されること。 |
+| **UT-DELAY-01** | `AIClientManager::on_requestAI` | 連続で 2 つのリクエストを `on_requestAI` へ投入する。 | 1 秒未満（約 600ms）の送出遅延（時差）が保持され、API サーバーへの急激な高頻度リクエストが防がれること。 |
+
+
 
 
 

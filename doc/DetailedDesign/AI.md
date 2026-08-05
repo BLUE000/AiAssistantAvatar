@@ -194,6 +194,15 @@ QString RateLimitTracker::selectBestAvailableClient() {
   > `[System Capability]`
   > `本アプリには、各AIプロバイダ（Groq, Mistral, Cerebras, Sakura AI, HuggingFace, OpenRouter等）のレートリミット使用枠（RPM/RPD）や残量、リセット時間をリアルタイム監視・更新・表示する『レートリミット』タブ機能が実装されています。ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。`
 
+---
+
+## 9. Groq 対策 ＆ AI リクエスト送出遅延 (時差) 詳細設計
+
+### 9.1 送出遅延タイマー (`m_requestDelayTimer`)
+- `AIClientManager::on_requestAI` および `AIClientManager::evaluateWithManagerAI` の呼び出し時、リクエスト処理を即時実行せず `600ms` の SingleShot 遅延タイマー（`QTimer::singleShot(600, ...)`）を挿入する。
+- 1 秒未満のわずかな時差（遅延）を保持することで、Groq 等の外部 API サービス側で「短時間の自動スパム/Botアクセス」と判断されるのを確実に防ぐ。
+
+
 
 
 

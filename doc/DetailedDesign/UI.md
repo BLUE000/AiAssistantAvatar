@@ -159,6 +159,15 @@ struct ProviderConfigSpec {
 - **サブPC（別マシン）動作 ＆ HTTP/WebSocket STT 注入**:
   - ローカル HTTP サーバー (`HttpServer`) に `POST /stt` エンドポイントを実装し、JSON パラメータ `{"text": "音声認識テキスト"}` を受け取った場合も、同一の `VoiceInputCompleted` イベントを生成して `CoreModule` 経由で AI にリクエストを配信する。
 
+### 8.3 ブラウザ用 WebSTT 音声認識 ＆ ウェイクワード常時監視 Web 画面詳細設計
+- **HTML 返却ロジック (`ObsHttpServer::handleRequest`)**:
+  - `GET /stt` リクエスト時、クエリパラメータ `?text=...` が含まれない場合は「マイク音声認識 ＆ ウェイクワード常時監視 Web ページ (HTML)」を Content-Type: `text/html; charset=utf-8` で返答する。
+- **ブラウザ側 JavaScript 仕様 (Web Speech API)**:
+  1. `window.SpeechRecognition || window.webkitSpeechRecognition` を初期化し、`continuous = true`, `interimResults = true` で常時マイク認識ループを稼働する。
+  2. マイクから取得されたテキストにウェイクワード（アバター名等）が含まれるか、あるいは発話が確定したタイミングで `fetch('/stt_input?text=' + encodeURIComponent(finalText))` を非同期呼出する。
+  3. アプリケーション側で `sttTextReceived` シグナルを発火し、`CoreModule` 経由で AI アバターが会話・応答を起動する。
+
+
 3. **全自動排他制御シグナル接続ループ**:
    - チェックボックス `toggled(bool)` シグナル接続時に、他プロバイダの `checkbox->setChecked(false)` を自動実行。
 4. **全自動 JSON 設定ロード ＆ セーブ**:
