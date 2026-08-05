@@ -2276,6 +2276,26 @@ TEST(RateLimitTrackerTest, UnlimitedProviderAutoRecoveryTest) {
     EXPECT_EQ(sAfter.rpmRemaining, -1);
 }
 
+// UT-RLT-16: recordLocalConsumption 呼び出し時の残枠保持およびタイマー自動起動テスト
+TEST(RateLimitTrackerTest, LocalConsumptionAvailableMaintenanceTest) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "mistral";
+    s.rpmMax = 30;
+    s.rpmRemaining = 30;
+    s.available = true;
+    tracker.registerClient(s);
+
+    // 1 回消費を記録
+    tracker.recordLocalConsumption("mistral", 10, 10);
+    ProviderStatus sConsumed = tracker.statusOf("mistral");
+
+    EXPECT_EQ(sConsumed.rpmRemaining, 29);
+    EXPECT_TRUE(sConsumed.available); // 残枠 29 回あるため available は true であること
+    EXPECT_TRUE(sConsumed.nextResetAt.isValid()); // 1分後のタイマーが設定されていること
+}
+
+
 
 
 

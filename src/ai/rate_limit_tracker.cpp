@@ -85,6 +85,14 @@ void RateLimitTracker::recordLocalConsumption(const QString &clientId, int input
         s.rpdRemaining = qMax(0, s.rpdRemaining - 1);
     }
 
+    // 初回減算時に 1 分後のリセットタイマーが未設定なら設定
+    if ((s.rpmMax > 0 && s.rpmRemaining < s.rpmMax) || (s.tpmMax > 0 && s.tpmRemaining < s.tpmMax)) {
+        if (!s.nextResetAt.isValid()) {
+            s.nextResetAt = QDateTime::currentDateTimeUtc().addSecs(60);
+        }
+    }
+
+
     // 文字列長からトークン数推定 (1文字 ≒ 1.3 トークン)
     int estTokens = qMax(1, static_cast<int>(std::ceil((inputLength * 1.3 + outputLength * 1.3) * alpha)));
 
@@ -343,14 +351,13 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
         s.nextResetAt = QDateTime();
     }
 
-    bool rpmOk = (s.rpmMax <= 0) || (s.rpmRemaining > 0);
-    bool rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining > 0);
+    bool rpmOk = (s.rpmMax <= 0 && s.rpmRemaining != 0) || (s.rpmRemaining > 0);
+    bool rpdOk = (s.rpdMax <= 0 && s.rpdRemaining != 0) || (s.rpdRemaining > 0);
+    bool tpmOk = (s.tpmMax <= 0 && s.tpmRemaining != 0) || (s.tpmRemaining > 0);
 
-    if (s.nextResetAt.isValid()) {
-        s.available = false;
-    } else {
-        s.available = rpmOk && rpdOk;
-    }
+    s.available = rpmOk && rpdOk && tpmOk;
+
+
 
 
 }
