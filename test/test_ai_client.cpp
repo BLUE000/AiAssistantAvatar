@@ -12,6 +12,8 @@
 #include <QJsonObject>
 #include "ai/ai_client_manager.h"
 #include "ai/mistral_ai_client.h"
+#include "utils/json_comment_remover.h"
+
 
 #include "ai/system_response_manager.h"
 #include "ai/huggingface_ai_client.h"
@@ -2225,6 +2227,28 @@ TEST(AIClientManagerTest, FormatSpeakerTaggedPromptTest) {
     EXPECT_TRUE(tagged.contains("[発言者: userA (配信コメント) | 宛先: blue002]"));
     EXPECT_TRUE(tagged.contains("画面が暗いですよ"));
 }
+
+// UT-JSON-COMMENT-01: JSON 1行コメント (#) 除去機能のテスト
+TEST(JsonCommentRemoverTest, StripHashCommentsTest) {
+    QByteArray rawJson = R"json(
+    {
+        # これは行頭コメントです
+        "ai_provider": "groq", # メインAI設定
+        "groq_api_key": "gsk_test#123key" # キー文字列内の#は保護されるべき
+    }
+    )json";
+
+    QByteArray cleanJson = JsonCommentRemover::stripHashComments(rawJson);
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(cleanJson, &parseError);
+
+    EXPECT_EQ(parseError.error, QJsonParseError::NoError);
+    EXPECT_TRUE(doc.isObject());
+    QJsonObject obj = doc.object();
+    EXPECT_EQ(obj.value("ai_provider").toString(), "groq");
+    EXPECT_EQ(obj.value("groq_api_key").toString(), "gsk_test#123key");
+}
+
 
 
 

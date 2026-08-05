@@ -1,4 +1,6 @@
 #include "avatar_window.h"
+#include "utils/json_comment_remover.h"
+
 #include "avatar_skin_builder_dialog.h"
 #include "history_viewer_dialog.h"
 #include "rate_limit_tab_widget.h"
@@ -1443,10 +1445,11 @@ void AvatarWindow::loadSettingsToUI() {
     qDebug() << "AvatarWindow: Loading settings from:" << configPath;
     QFile file(configPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QByteArray data = file.readAll();
+        QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
         file.close();
         QJsonParseError parseError;
         QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
         if (parseError.error != QJsonParseError::NoError) {
             qWarning() << "AvatarWindow: JSON Parse Error in settings file:" << parseError.errorString() << "at offset" << parseError.offset;
         }

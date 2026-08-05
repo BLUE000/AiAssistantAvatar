@@ -1,4 +1,6 @@
 #include "discord_reader.h"
+#include "utils/json_comment_remover.h"
+
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -53,9 +55,10 @@ void DiscordReader::loadSettings() {
 
     QFile file(configPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QByteArray data = file.readAll();
+        QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
         file.close();
         QJsonDocument doc = QJsonDocument::fromJson(data);
+
         if (!doc.isNull() && doc.isObject()) {
             QJsonObject obj = doc.object();
             m_enabled = obj.value("discord_enabled").toBool(false);

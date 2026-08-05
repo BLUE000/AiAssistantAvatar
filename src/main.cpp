@@ -6,6 +6,8 @@
 #include <QDateTime>
 #include <QMutex>
 #include "app_event.h"
+#include "utils/json_comment_remover.h"
+
 #include "core_module.h"
 #include "ui/avatar_window.h"
 #include "twitch/twitch_reader.h"
@@ -95,9 +97,11 @@ int main(int argc, char *argv[]) {
         quint16 port = 58082;
         QFile file(settingsPath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
             file.close();
+            QJsonObject obj = QJsonDocument::fromJson(data).object();
             enabled = obj.value("obs_http_enabled").toBool(true);
+
             port = obj.value("obs_http_port").toInt(58082);
         }
         if (enabled) {

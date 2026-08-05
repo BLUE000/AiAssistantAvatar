@@ -1,4 +1,6 @@
 #include "twitch_reader.h"
+#include "utils/json_comment_remover.h"
+
 #include <QDebug>
 #include <QTimer>
 #include <QFile>
@@ -69,10 +71,11 @@ void TwitchReader::loadSettings() {
         qWarning() << "TwitchReader: local_settings.json not found or unable to open. Tried path:" << m_configPath;
         return;
     }
-    QByteArray data = file.readAll();
+    QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
     file.close();
 
     QJsonDocument doc = QJsonDocument::fromJson(data);
+
     if (!doc.isNull() && doc.isObject()) {
         QJsonObject obj = doc.object();
         m_clientId = obj.value("twitch_client_id").toString().trimmed();

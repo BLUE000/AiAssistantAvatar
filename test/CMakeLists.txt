@@ -30,6 +30,8 @@ set(TEST_SOURCES
     ../src/discord/discord_reader.cpp
     ../src/core_module.cpp
     ../src/ai/ai_client_manager.cpp
+    ../src/utils/json_comment_remover.cpp
+
 
     ../src/ai/twitch_helix_client.cpp
     ../src/ai/iai_client.cpp
