@@ -332,13 +332,27 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
     // nextResetAt が期限超過した場合は使用枠を全量自動再補充し、リセット状態を完了
     if (s.nextResetAt.isValid() && s.nextResetAt <= nowUtc) {
         if (s.rpmMax > 0) s.rpmRemaining = s.rpmMax;
+        else if (s.rpmMax <= 0) s.rpmRemaining = -1;
+
         if (s.tpmMax > 0) s.tpmRemaining = s.tpmMax;
+        else if (s.tpmMax <= 0) s.tpmRemaining = -1;
+
+        if (s.rpdMax > 0) s.rpdRemaining = s.rpdMax;
+        else if (s.rpdMax <= 0) s.rpdRemaining = -1;
+
         s.nextResetAt = QDateTime();
     }
 
     bool rpmOk = (s.rpmMax <= 0) || (s.rpmRemaining > 0);
     bool rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining > 0);
-    s.available = rpmOk && rpdOk;
+
+    if (s.nextResetAt.isValid()) {
+        s.available = false;
+    } else {
+        s.available = rpmOk && rpdOk;
+    }
+
+
 }
 
 

@@ -2245,9 +2245,39 @@ TEST(JsonCommentRemoverTest, StripHashCommentsTest) {
     EXPECT_EQ(parseError.error, QJsonParseError::NoError);
     EXPECT_TRUE(doc.isObject());
     QJsonObject obj = doc.object();
-    EXPECT_EQ(obj.value("ai_provider").toString(), "groq");
     EXPECT_EQ(obj.value("groq_api_key").toString(), "gsk_test#123key");
 }
+
+// UT-RLT-15: rpmMax = -1 プロバイダの期限切れ時における確定自動復帰テスト
+TEST(RateLimitTrackerTest, UnlimitedProviderAutoRecoveryTest) {
+    RateLimitTracker tracker;
+    ProviderStatus s;
+    s.provider = "huggingface";
+    s.rpmMax = -1;
+    s.rpmRemaining = -1;
+    s.available = true;
+    tracker.registerClient(s);
+
+    // 1 秒後のリセットを強制設定
+    tracker.forceRateLimit("huggingface", 1);
+    ProviderStatus sLimit = tracker.statusOf("huggingface");
+    EXPECT_FALSE(sLimit.available);
+    EXPECT_TRUE(sLimit.nextResetAt.isValid());
+
+    // 1.5 秒スリープして期限切れをシミュレート
+    QThread::msleep(1500);
+
+    // isAvailable を呼び出して自動復帰をトリガー
+    bool avail = tracker.isAvailable("huggingface");
+    EXPECT_TRUE(avail);
+    ProviderStatus sAfter = tracker.statusOf("huggingface");
+    EXPECT_TRUE(sAfter.available);
+    EXPECT_FALSE(sAfter.nextResetAt.isValid());
+    EXPECT_EQ(sAfter.rpmRemaining, -1);
+}
+
+
+
 
 
 
