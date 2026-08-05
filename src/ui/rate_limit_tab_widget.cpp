@@ -1,5 +1,6 @@
 #include "rate_limit_tab_widget.h"
 #include <QDateTime>
+#include <QShowEvent>
 #include <QDebug>
 
 RateLimitTabWidget::RateLimitTabWidget(QWidget *parent)
@@ -7,7 +8,13 @@ RateLimitTabWidget::RateLimitTabWidget(QWidget *parent)
     setupUI();
 }
 
+void RateLimitTabWidget::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    emit requestRefreshStatus();
+}
+
 void RateLimitTabWidget::setupUI() {
+
     QVBoxLayout *containerLayout = new QVBoxLayout(this);
     containerLayout->setContentsMargins(0, 0, 0, 0);
 
@@ -117,13 +124,14 @@ void RateLimitTabWidget::updateProviderCard(const ProviderStatus &status) {
     card.keyStatusLabel->setStyleSheet("color: #2e7d32; font-weight: bold;");
 
     // 2. レートリミットステータス ＆ カウントダウン描画
-    QDateTime now = QDateTime::currentDateTime();
+    QDateTime nowUtc = QDateTime::currentDateTimeUtc();
     bool isLimited = !status.available;
     qint64 waitSec = 0;
 
-    if (status.nextResetAt.isValid() && status.nextResetAt > now) {
-        waitSec = now.secsTo(status.nextResetAt);
+    if (status.nextResetAt.isValid() && status.nextResetAt > nowUtc) {
+        waitSec = nowUtc.secsTo(status.nextResetAt);
     }
+
 
     if (isLimited) {
         qint64 min = waitSec / 60;

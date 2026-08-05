@@ -35,10 +35,17 @@ public:
     explicit RateLimitTabWidget(QWidget *parent = nullptr);
     virtual ~RateLimitTabWidget() = default;
 
+signals:
+    /// タブ表示時・ユーザー操作時に最新ステータス要求をマネージャーへ送信するシグナル
+    void requestRefreshStatus();
+
 public slots:
     /// AIClientManager::rateLimitStatusUpdated シグナルを受信する（QueuedConnection 経由）
     /// aiThread 上の m_tracker に直接アクセスせず、コピー済みリストを受け取る
     void onStatusUpdated(const QList<ProviderStatus> &statuses);
+
+protected:
+    void showEvent(QShowEvent *event) override;
 
 private:
     QVBoxLayout *m_cardsLayout = nullptr;
@@ -49,3 +56,4 @@ private:
 };
 
 #endif // RATE_LIMIT_TAB_WIDGET_H
+

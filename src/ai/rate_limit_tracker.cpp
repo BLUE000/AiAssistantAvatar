@@ -182,8 +182,10 @@ void RateLimitTracker::recordLatency(const QString &clientId, int elapsedMs) {
 // ---------------------------------------------------------------------------
 bool RateLimitTracker::isAvailable(const QString &clientId) const {
     if (!m_statuses.contains(clientId)) return false;
+    const_cast<RateLimitTracker*>(this)->updateAvailable(clientId);
     return m_statuses[clientId].available;
 }
+
 
 // ---------------------------------------------------------------------------
 // earliestResetTime
@@ -239,10 +241,15 @@ QString RateLimitTracker::formatWaitMessage(const ResetInfo &info) const {
 // statusOf / allStatuses / registeredClientIds
 // ---------------------------------------------------------------------------
 ProviderStatus RateLimitTracker::statusOf(const QString &clientId) const {
+    const_cast<RateLimitTracker*>(this)->updateAvailable(clientId);
     return m_statuses.value(clientId, ProviderStatus{});
 }
 
 QList<ProviderStatus> RateLimitTracker::allStatuses() const {
+    auto *self = const_cast<RateLimitTracker*>(this);
+    for (const QString &id : m_statuses.keys()) {
+        self->updateAvailable(id);
+    }
     return m_statuses.values();
 }
 
@@ -318,11 +325,22 @@ void RateLimitTracker::loadFromFile(const QString &path) {
 // private helpers
 // ---------------------------------------------------------------------------
 void RateLimitTracker::updateAvailable(const QString &clientId) {
+    if (!m_statuses.contains(clientId)) return;
     ProviderStatus &s = m_statuses[clientId];
+    QDateTime nowUtc = QDateTime::currentDateTimeUtc();
+
+    // nextResetAt が期限超過した場合は使用枠を全量自動再補充し、リセット状態を完了
+    if (s.nextResetAt.isValid() && s.nextResetAt <= nowUtc) {
+        if (s.rpmMax > 0) s.rpmRemaining = s.rpmMax;
+        if (s.tpmMax > 0) s.tpmRemaining = s.tpmMax;
+        s.nextResetAt = QDateTime();
+    }
+
     bool rpmOk = (s.rpmMax <= 0) || (s.rpmRemaining > 0);
     bool rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining > 0);
     s.available = rpmOk && rpdOk;
 }
+
 
 QString RateLimitTracker::selectBestAvailableClient() const {
     QString bestClient;

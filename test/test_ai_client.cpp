@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 #include <QCoreApplication>
 #include <QSignalSpy>
+#include <QTest>
 #include <QFile>
+
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -2132,6 +2134,53 @@ TEST(CommentSplitTest, ForceSplitWhenNoBoundary) {
     EXPECT_EQ(result.at(1).length(), 500);
     EXPECT_EQ(result.at(2).length(), 200);
 }
+
+// UT-RLT-13: リセット時刻経過時の自動枠再補充・自律復帰テスト
+TEST(RateLimitTrackerTest, AutoResetOnExpiredResetTime) {
+    RateLimitTracker tracker;
+    ProviderStatus defaultStatus;
+    defaultStatus.provider = "test_provider";
+    defaultStatus.rpmMax = 10;
+    defaultStatus.rpmRemaining = 10;
+    defaultStatus.available = true;
+    tracker.registerClient(defaultStatus);
+
+    // 強制的に 1秒間のレートリミットをかける
+    tracker.forceRateLimit("test_provider", 1);
+    EXPECT_FALSE(tracker.isAvailable("test_provider"));
+
+    // 1.5秒待機してリセット時刻を経過させる
+    QTest::qWait(1500);
+
+    // updateAvailable 評価が走り、rpmRemaining が再補充され available == true に自動復帰する
+    EXPECT_TRUE(tracker.isAvailable("test_provider"));
+    ProviderStatus st = tracker.statusOf("test_provider");
+    EXPECT_EQ(st.rpmRemaining, 10);
+    EXPECT_TRUE(st.available);
+}
+
+// UT-RLT-14: UTC タイムゾーンカウントダウン評価テスト
+TEST(RateLimitTrackerTest, UtcTimezoneCountdownCalculation) {
+    RateLimitTracker tracker;
+    ProviderStatus defaultStatus;
+    defaultStatus.provider = "test_provider_utc";
+    defaultStatus.rpmMax = 60;
+    defaultStatus.rpmRemaining = 60;
+    defaultStatus.available = true;
+    tracker.registerClient(defaultStatus);
+
+    // 未来（10秒後）の UTC リセット時刻を割り当て
+    QDateTime futureUtc = QDateTime::currentDateTimeUtc().addSecs(10);
+    tracker.forceRateLimit("test_provider_utc", 10);
+
+    ProviderStatus st = tracker.statusOf("test_provider_utc");
+    QDateTime nowUtc = QDateTime::currentDateTimeUtc();
+    qint64 secsLeft = nowUtc.secsTo(st.nextResetAt);
+
+    EXPECT_GT(secsLeft, 0);
+    EXPECT_LE(secsLeft, 10);
+}
+
 
 
 

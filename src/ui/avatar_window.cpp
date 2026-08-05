@@ -239,11 +239,16 @@ void AvatarWindow::setAIClientManager(AIClientManager *manager) {
             connect(m_aiClientManager, &AIClientManager::rateLimitStatusUpdated,
                     tabWidget, &RateLimitTabWidget::onStatusUpdated,
                     Qt::QueuedConnection);
+            // タブ表示時・要求時のステータス即時更新バインド
+            connect(tabWidget, &RateLimitTabWidget::requestRefreshStatus,
+                    m_aiClientManager, &AIClientManager::emitCurrentStatus,
+                    Qt::QueuedConnection);
             // 接続直後に現在状態を要求（aiThread 上で実行されるので invokeMethod 経由）
             QMetaObject::invokeMethod(m_aiClientManager, "emitCurrentStatus", Qt::QueuedConnection);
         }
     }
 }
+
 
 void AvatarWindow::loadSettings() {
     // picディレクトリのパスを実行後ディレクトリ基準で解決（フォールバック付き）
