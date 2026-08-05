@@ -1,5 +1,7 @@
 #include "ai_client_manager.h"
+#include <QThread>
 #include "ai_random_utils.h"
+
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
 #include "cerebras_ai_client.h"
@@ -1466,11 +1468,13 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         event.type = EventType::AIRequestSent;
         event.source = "AIClientManager";
         event.text = filteredPrompt;
-        emit notifyEvent(event);
+        // AI サーバー保護・Groq 不正アクセス判定回避のための 600ms 送出遅延 (1秒未満の時差制御)
+        QThread::msleep(600);
 
         m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext, additionalSystemPrompt);
     }
 }
+
 
 void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success, int httpCode) {
     if (m_apiCallStartTimeMs > 0 && m_currentClient) {

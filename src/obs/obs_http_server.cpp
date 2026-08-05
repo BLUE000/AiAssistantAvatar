@@ -145,14 +145,163 @@ void ObsHttpServer::handleRequest(QTcpSocket *socket, const QString &requestStr)
             return;
         }
 
-        // テキスト指定がない GET アクセスの場合、正常ステータスレスポンスを返却
-        QJsonObject resObj;
-        resObj["status"] = "ok";
-        resObj["endpoint"] = "/stt";
-        resObj["message"] = "STT HTTP Endpoint is active. Send GET ?text=... or POST {\"text\":\"...\"} to trigger voice input.";
-        sendResponse(socket, 200, "OK", QJsonDocument(resObj).toJson(), "application/json");
+        // テキスト指定がない GET アクセスの場合、WebSTT 音声入力 ＆ ウェイクワード常時監視 Web 画面 (HTML) を返却
+        QString html = R"rawhtml(<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AiAssistantAvatar - WebSTT Voice Input</title>
+  <style>
+    body {
+      margin: 0; padding: 20px;
+      background: #0f172a; color: #f8fafc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 90vh;
+    }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+      padding: 30px; width: 90%; max-width: 480px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center;
+    }
+    h2 { margin-top: 0; color: #38bdf8; font-size: 24px; }
+    .status-pill {
+      display: inline-block; padding: 6px 14px; border-radius: 20px;
+      font-size: 14px; font-weight: bold; margin-bottom: 20px;
+    }
+    .active { background: #065f46; color: #34d399; }
+    .inactive { background: #881337; color: #fda4af; }
+    .mic-btn {
+      width: 100px; height: 100px; border-radius: 50%; border: none;
+      background: #0284c7; color: white; font-size: 40px; cursor: pointer;
+      box-shadow: 0 0 20px rgba(2, 132, 199, 0.5); transition: all 0.3s ease;
+      margin: 15px 0;
+    }
+    .mic-btn.listening {
+      background: #ef4444; box-shadow: 0 0 30px rgba(239, 68, 68, 0.8);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    .text-box {
+      background: #0f172a; border: 1px solid #475569; border-radius: 8px;
+      padding: 15px; min-height: 80px; margin-top: 15px; text-align: left;
+      font-size: 16px; color: #e2e8f0; word-break: break-all;
+    }
+    .wakeword-info {
+      font-size: 12px; color: #94a3b8; margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🎙️ WebSTT 音声入力 UI</h2>
+    <div id="statusPill" class="status-pill inactive">マイク待機中</div>
+    <div>
+      <button id="micBtn" class="mic-btn">🎤</button>
+    </div>
+    <div class="wakeword-info">
+      マイクに向かって喋ると自動で本アプリへ音声テキストが送信されます。
+    </div>
+    <div id="transcriptBox" class="text-box">ここに音声認識されたテキストが表示されます...</div>
+  </div>
+
+  <script>
+    const micBtn = document.getElementById('micBtn');
+    const statusPill = document.getElementById('statusPill');
+    const transcriptBox = document.getElementById('transcriptBox');
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      statusPill.textContent = "お使いのブラウザは音声認識非対応です";
+      statusPill.className = "status-pill inactive";
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'ja-JP';
+
+      let isListening = false;
+
+      function startListening() {
+        try {
+          recognition.start();
+          isListening = true;
+          micBtn.classList.add('listening');
+          statusPill.textContent = "🎙️ 音声常時監視中...";
+          statusPill.className = "status-pill active";
+        } catch (e) { console.error(e); }
+      }
+
+      function stopListening() {
+        recognition.stop();
+        isListening = false;
+        micBtn.classList.remove('listening');
+        statusPill.textContent = "マイク停止中";
+        statusPill.className = "status-pill inactive";
+      }
+
+      micBtn.addEventListener('click', () => {
+        if (isListening) stopListening();
+        else startListening();
+      });
+
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const displayText = finalTranscript || interimTranscript;
+        if (displayText) {
+          transcriptBox.textContent = displayText;
+        }
+
+        if (finalTranscript.trim()) {
+          sendTextToApp(finalTranscript.trim());
+        }
+      };
+
+      recognition.onend = () => {
+        if (isListening) {
+          try { recognition.start(); } catch (e) {}
+        }
+      };
+
+      startListening();
+    }
+
+    function sendTextToApp(text) {
+      statusPill.textContent = "📤 アプリへ送信中...";
+      fetch(`/stt?text=${encodeURIComponent(text)}`)
+        .then(res => res.json())
+        .then(data => {
+          console.log("Send result:", data);
+          statusPill.textContent = "🟢 送信完了！話しかけてください";
+          statusPill.className = "status-pill active";
+        })
+        .catch(err => {
+          console.error("Send error:", err);
+        });
+    }
+  </script>
+</body>
+</html>)rawhtml";
+
+        sendResponse(socket, 200, "OK", html.toUtf8(), "text/html; charset=utf-8");
         return;
     }
+
 
     if (method != "GET" && method != "HEAD") {
         sendErrorResponse(socket, 405, "Method Not Allowed", "Only GET and HEAD methods are supported");

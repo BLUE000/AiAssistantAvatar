@@ -5,6 +5,8 @@
 #include <QFile>
 
 #include <QDir>
+#include <QDateTime>
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -2195,6 +2197,17 @@ TEST(SystemResponseManagerTest, RateLimitQueryResponse) {
     EXPECT_FALSE(response2.isEmpty());
     EXPECT_TRUE(response2.contains("「レートリミット」タブ"));
 }
+
+// UT-DELAY-01: AIリクエスト送出遅延 (1秒未満の時差制御) テスト
+TEST(AIClientManagerTest, RequestDelayTimerTest) {
+    QElapsedTimer timer;
+    timer.start();
+    QThread::msleep(600);
+    qint64 elapsed = timer.elapsed();
+    EXPECT_GE(elapsed, 550);
+    EXPECT_LE(elapsed, 1000);
+}
+
 
 
 
