@@ -24,8 +24,12 @@ public:
     quint16 serverPort() const;
     void setDocumentRoot(const QString &path);
 
+signals:
+    void sttTextReceived(const QString &text);
+
 private slots:
     void handleNewConnection();
+
 
 private:
     QTcpServer *m_server = nullptr;

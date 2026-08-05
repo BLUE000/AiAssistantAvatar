@@ -129,6 +129,17 @@ int main(int argc, char *argv[]) {
     AIClientManager *ai = new AIClientManager();
     window.setAIClientManager(ai);
 
+    // HTTP 経由での外部 STT テキスト注入シグナルの接続
+    QObject::connect(httpServer, &ObsHttpServer::sttTextReceived, [core](const QString &text) {
+        qDebug() << "main: HTTP STT text received, routing to AI:" << text;
+        AppEvent event;
+        event.source = "HTTP_STT";
+        event.type = EventType::VoiceInputCompleted;
+        event.text = text;
+        QMetaObject::invokeMethod(core, "on_notify_events", Qt::QueuedConnection, Q_ARG(AppEvent, event));
+    });
+
+
     // 各オブジェクトを対応する常駐スレッドに移動
     core->moveToThread(&coreThread);
     twitch->moveToThread(&twitchThread);

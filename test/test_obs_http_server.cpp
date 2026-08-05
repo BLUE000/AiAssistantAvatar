@@ -5,7 +5,9 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QUrl>
+#include <QSignalSpy>
 #include <QFile>
+
 #include <QDir>
 #include "obs/obs_http_server.h"
 
@@ -111,3 +113,28 @@ TEST_F(ObsHttpServerTest, DirectoryTraversalBlockTest) {
     reply->deleteLater();
     server.stop();
 }
+
+TEST_F(ObsHttpServerTest, SttEndpointTest) {
+    ObsHttpServer server;
+    quint16 testPort = 59995;
+    ASSERT_TRUE(server.start(testPort));
+
+    QSignalSpy spy(&server, &ObsHttpServer::sttTextReceived);
+
+    QNetworkAccessManager manager;
+    QUrl url(QString("http://127.0.0.1:%1/stt?text=HelloHTTPSTT").arg(testPort));
+    QNetworkRequest request(url);
+
+    QNetworkReply *reply = manager.get(request);
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    EXPECT_EQ(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(), 200);
+    EXPECT_EQ(spy.count(), 1);
+    EXPECT_EQ(spy.at(0).at(0).toString(), "HelloHTTPSTT");
+
+    reply->deleteLater();
+    server.stop();
+}
+

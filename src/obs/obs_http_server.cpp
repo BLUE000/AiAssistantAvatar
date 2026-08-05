@@ -110,14 +110,57 @@ void ObsHttpServer::handleRequest(QTcpSocket *socket, const QString &requestStr)
     QString method = parts.at(0);
     QString rawPath = parts.at(1);
 
+    // パーセントエンコーディングのデコードとクエリ文字列の除去
+    QString decodedPath = QUrl::fromPercentEncoding(rawPath.toUtf8());
+    QString pathOnly = decodedPath.split('?').first().toLower();
+
+    // /stt または /stt_input エンドポイントの判定
+    if (pathOnly == "/stt" || pathOnly == "/stt_input") {
+        QUrl url("http://localhost" + rawPath);
+        QUrlQuery query(url);
+        QString textParam = query.queryItemValue("text");
+
+        // POST ボディのパース (JSON またはプレーンテキスト)
+        if (textParam.isEmpty() && method == "POST") {
+            int bodyIdx = requestStr.indexOf("\r\n\r\n");
+            if (bodyIdx != -1) {
+                QString body = requestStr.mid(bodyIdx + 4);
+                QJsonDocument doc = QJsonDocument::fromJson(body.toUtf8());
+                if (doc.isObject()) {
+                    textParam = doc.object().value("text").toString();
+                } else if (!body.trimmed().isEmpty()) {
+                    textParam = body.trimmed();
+                }
+            }
+        }
+
+        if (!textParam.isEmpty()) {
+            qDebug() << "ObsHttpServer: Received STT text via HTTP:" << textParam;
+            emit sttTextReceived(textParam);
+            QJsonObject resObj;
+            resObj["status"] = "success";
+            resObj["message"] = "STT text received and routed to AI";
+            resObj["text"] = textParam;
+            sendResponse(socket, 200, "OK", QJsonDocument(resObj).toJson(), "application/json");
+            return;
+        }
+
+        // テキスト指定がない GET アクセスの場合、正常ステータスレスポンスを返却
+        QJsonObject resObj;
+        resObj["status"] = "ok";
+        resObj["endpoint"] = "/stt";
+        resObj["message"] = "STT HTTP Endpoint is active. Send GET ?text=... or POST {\"text\":\"...\"} to trigger voice input.";
+        sendResponse(socket, 200, "OK", QJsonDocument(resObj).toJson(), "application/json");
+        return;
+    }
+
     if (method != "GET" && method != "HEAD") {
         sendErrorResponse(socket, 405, "Method Not Allowed", "Only GET and HEAD methods are supported");
         return;
     }
 
-    // パーセントエンコーディングのデコードとクエリ文字列の除去
-    QString decodedPath = QUrl::fromPercentEncoding(rawPath.toUtf8());
     decodedPath = decodedPath.split('?').first();
+
 
     // デフォルトドキュメント
     if (decodedPath == "/" || decodedPath.isEmpty()) {

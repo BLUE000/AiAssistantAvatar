@@ -448,6 +448,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RLT-13** | `RateLimitTracker::updateAvailable` | `forceRateLimit` で 5 秒後にリセット設定した状態で 6 秒経過後に `isAvailable` を呼ぶ。 | `rpmRemaining` が `rpmMax` に再補充され `available == true` に自動復帰すること。 |
 | **UT-RLT-14** | `RateLimitTabWidget::updateProviderCard` | `nextResetAt` が UTC で設定されたステータスを渡し、UTC 現在時間で差分（`secsTo`）を計算する。 | ローカルタイムゾーンに関わらず正確な残り時間（秒数）が算出され、0秒到達時に `🟢 利用可能` へ動的更新されること。 |
 | **UT-SYS-03** | `SystemResponseManager::processPrompt` | 「レートリミット表示して」「レートリミットの更新して」と入力する。 | レートリミット表示機能が実装されている旨を正しく案内し、「レートリミット」タブから確認できるメッセージが返却されること。 |
+| **UT-HTTP-STT-01** | `ObsHttpServer::handleRequest` | `/stt` エンドポイントに対し HTTP GET `?text=テスト` または JSON POST を送信する。 | 404 エラーとならず `sttTextReceived` シグナルが発火し、`200 OK` JSON レスポンスが返却されること。 |
+
 
 
 
