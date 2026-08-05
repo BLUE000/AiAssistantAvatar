@@ -47,4 +47,23 @@ public slots:
     void on_twitchReauthRequested(); // Twitch再認可要求を受け取るスロット
     void on_deleteKnowledgeRequested(const QString &id);
     void on_requestKnowledgeMetadata();
+
+    // 500文字自動分割ヘルパー関数（単体テスト可能）
+    static QStringList splitTextForComment(const QString &text, int maxLen = 500);
+
+private slots:
+    void processCommentQueue();
+
+private:
+    struct CommentQueueItem {
+        enum Target { Twitch, Discord } target;
+        QString destination; // channel or channelId
+        QString text;
+    };
+    QList<CommentQueueItem> m_commentQueue;
+    class QTimer *m_commentTimer = nullptr;
+    int m_slowModeIntervalMs = 1500; // スローモード対応送信間隔 (1.5秒)
+
+    void enqueueCommentSend(CommentQueueItem::Target target, const QString &destination, const QString &fullText);
 };
+

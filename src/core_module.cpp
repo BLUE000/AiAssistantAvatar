@@ -1,8 +1,11 @@
 #include "core_module.h"
 #include <QDebug>
+#include <QTimer>
 
 CoreModule::CoreModule(QObject *parent) : QObject(parent) {
     qDebug() << "CoreModule initialized.";
+    m_commentTimer = new QTimer(this);
+    connect(m_commentTimer, &QTimer::timeout, this, &CoreModule::processCommentQueue);
 }
 
 CoreModule::~CoreModule() {
@@ -31,20 +34,21 @@ void CoreModule::on_notify_events(const AppEvent &event) {
         }
         case EventType::AIResponseReceived:
         case EventType::DirectInputSubmitted: {
-            // AI応答受信時およびダイレクト入力時、送信元プラットフォームへ返信しつつUIにも表示
+            // AI応答受信時およびダイレクト入力時、送信元プラットフォームへ500文字分割＆スローモード遅延キュー経由で返信
             if (event.extraData.contains("channel_id")) {
                 QString channelId = event.extraData.value("channel_id").toString();
-                qDebug() << "CoreModule: Routing response back to Discord. Channel:" << channelId;
-                emit requestDiscordSend(channelId, event.text);
+                qDebug() << "CoreModule: Queueing response back to Discord. Channel:" << channelId;
+                enqueueCommentSend(CommentQueueItem::Discord, channelId, event.text);
             } else if (event.extraData.contains("twitch_channel")) {
                 QString twitchChannel = event.extraData.value("twitch_channel").toString();
-                qDebug() << "CoreModule: Routing response back to Twitch. Channel:" << twitchChannel;
-                emit requestTwitchSend(twitchChannel, event.text);
+                qDebug() << "CoreModule: Queueing response back to Twitch. Channel:" << twitchChannel;
+                enqueueCommentSend(CommentQueueItem::Twitch, twitchChannel, event.text);
             }
             // Discord/Twitch/直接入力いずれの場合もUIに中継
             emit notifyEventToUI(event);
             break;
         }
+
         case EventType::TwitchConnectRequested: {
             // /twitch connect コマンド → TwitchReaderへ挨拶付き再接続を要求
             qDebug() << "CoreModule: Routing TwitchConnectRequested to TwitchReader.";
@@ -157,5 +161,94 @@ void CoreModule::on_requestKnowledgeMetadata() {
     qDebug() << "CoreModule: Propagation of requestKnowledgeMetadata to AIClientManager";
     emit requestKnowledgeMetadata();
 }
+
+QStringList CoreModule::splitTextForComment(const QString &text, int maxLen) {
+    QStringList result;
+    if (text.trimmed().isEmpty()) return result;
+
+    QString remaining = text.trimmed();
+    while (remaining.length() > maxLen) {
+        QString chunk = remaining.left(maxLen);
+        int splitPos = -1;
+
+        // 1. 優先境界文字（句読点・改行）を探索
+        static const QString separators[] = {"。", "！", "？", "\n", "!", "?"};
+        for (const QString &sep : separators) {
+            int pos = chunk.lastIndexOf(sep);
+            if (pos > 0 && pos > splitPos) {
+                splitPos = pos + sep.length();
+            }
+        }
+
+        // 2. 次点境界文字（読点・カンマ・スペース）を探索
+        if (splitPos <= 0) {
+            static const QString seps2[] = {"、", ",", " "};
+            for (const QString &sep : seps2) {
+                int pos = chunk.lastIndexOf(sep);
+                if (pos > 0 && pos > splitPos) {
+                    splitPos = pos + sep.length();
+                }
+            }
+        }
+
+        // 3. 境界が見つからない場合は maxLen で強制切断
+        if (splitPos <= 0) {
+            splitPos = maxLen;
+        }
+
+        QString piece = remaining.left(splitPos).trimmed();
+        if (!piece.isEmpty()) {
+            result.append(piece);
+        }
+        remaining = remaining.mid(splitPos).trimmed();
+    }
+
+    if (!remaining.isEmpty()) {
+        result.append(remaining);
+    }
+
+    return result;
+}
+
+void CoreModule::enqueueCommentSend(CommentQueueItem::Target target, const QString &destination, const QString &fullText) {
+    QStringList chunks = splitTextForComment(fullText, 500);
+    for (const QString &chunk : chunks) {
+        CommentQueueItem item;
+        item.target = target;
+        item.destination = destination;
+        item.text = chunk;
+        m_commentQueue.append(item);
+    }
+
+    if (!m_commentQueue.isEmpty() && m_commentTimer && !m_commentTimer->isActive()) {
+        processCommentQueue(); // 1通目は即時送信
+        if (!m_commentQueue.isEmpty()) {
+            m_commentTimer->start(m_slowModeIntervalMs); // 2通目以降はスローモード対応インターバルを設ける
+        }
+    }
+}
+
+void CoreModule::processCommentQueue() {
+    if (m_commentQueue.isEmpty()) {
+        if (m_commentTimer && m_commentTimer->isActive()) {
+            m_commentTimer->stop();
+        }
+        return;
+    }
+
+    CommentQueueItem item = m_commentQueue.takeFirst();
+    if (item.target == CommentQueueItem::Discord) {
+        qDebug() << "CoreModule: Sending queued comment to Discord. Dest:" << item.destination << "Len:" << item.text.length();
+        emit requestDiscordSend(item.destination, item.text);
+    } else if (item.target == CommentQueueItem::Twitch) {
+        qDebug() << "CoreModule: Sending queued comment to Twitch. Dest:" << item.destination << "Len:" << item.text.length();
+        emit requestTwitchSend(item.destination, item.text);
+    }
+
+    if (m_commentQueue.isEmpty() && m_commentTimer && m_commentTimer->isActive()) {
+        m_commentTimer->stop();
+    }
+}
+
 
 

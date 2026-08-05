@@ -2102,6 +2102,38 @@ TEST(STTFeatureTest, VerifyVoiceInputAIRouting) {
     EXPECT_EQ(arguments.at(1).toString(), "Streamer (Voice)");
 }
 
+// UT-COMMENT-SPLIT-01: 500文字以内の分割不要テスト
+TEST(CommentSplitTest, ShortTextNoSplit) {
+    QString shortText = "こんにちは！今日も良い天気ですね。";
+    QStringList result = CoreModule::splitTextForComment(shortText, 500);
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result.at(0), shortText);
+}
+
+// UT-COMMENT-SPLIT-02: 500文字超え句読点優先分割テスト
+TEST(CommentSplitTest, LongTextSplitBySentenceBoundary) {
+    QString part1 = QString("A").repeated(300) + "。";
+    QString part2 = QString("B").repeated(300) + "！";
+    QString fullText = part1 + part2;
+
+    QStringList result = CoreModule::splitTextForComment(fullText, 500);
+    EXPECT_GE(result.size(), 2);
+    EXPECT_LE(result.at(0).length(), 500);
+    EXPECT_LE(result.at(1).length(), 500);
+    EXPECT_TRUE(result.at(0).endsWith("。"));
+}
+
+// UT-COMMENT-SPLIT-03: 強制切断分割テスト
+TEST(CommentSplitTest, ForceSplitWhenNoBoundary) {
+    QString noBoundaryText = QString("X").repeated(1200);
+    QStringList result = CoreModule::splitTextForComment(noBoundaryText, 500);
+    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(result.at(0).length(), 500);
+    EXPECT_EQ(result.at(1).length(), 500);
+    EXPECT_EQ(result.at(2).length(), 200);
+}
+
+
 
 
 
