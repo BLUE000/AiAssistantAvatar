@@ -1128,6 +1128,9 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
     QString activeModel = m_currentClient ? m_currentClient->currentModelName() : QString();
     QString staticResponse = m_systemResponseManager->processPrompt(trimmedPrompt, m_provider, m_avatarName, activeModel);
     if (!staticResponse.isEmpty()) {
+        if (staticResponse.contains("レートリミット")) {
+            emitCurrentStatus(); // レートリミットステータス更新を即時発火して画面を最新化！
+        }
         AppEvent responseEvent;
         responseEvent.source = "AIClientManager";
         responseEvent.type = EventType::AIResponseReceived;
@@ -1135,6 +1138,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         emit notifyEvent(responseEvent);
         return;
     }
+
 
     // 2. タイムアウト時のキャンセル確認状態の処理
     if (isDirectInput && m_importState == KnowledgeImportState::CancelConfirmation) {
@@ -1303,7 +1307,20 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         }
     }
 
+    // レートリミット監視機能のナレッジをシステムプロンプトに常時注入（誤回答防止）
+    QString rateLimitCapabilityKnowledge =
+        "[システム機能知識: 本アプリには各AIプロバイダ（Groq, Mistral, Cerebras, さくらAI, Hugging Face, OpenRouter）の"
+        "レートリミット（1分間/1日の利用枠・残量・解除カウントダウン）をリアルタイムに確認・更新表示する『レートリミット』タブ機能が実装されています。"
+        "ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。]";
+
+    if (!additionalSystemPrompt.isEmpty()) {
+        additionalSystemPrompt += "\n\n" + rateLimitCapabilityKnowledge;
+    } else {
+        additionalSystemPrompt = rateLimitCapabilityKnowledge;
+    }
+
     if (isSystemGreeting) {
+
         finalPrompt = "接続時の最初の挨拶を行ってください。";
         additionalSystemPrompt = "[システム指示: これは配信接続時の自動挨拶要求です。配信を開始したばかりですので、配信に来てくれた視聴者に向けて明るく元気に最初の挨拶（例:『皆さんこんにちは！配信開始しました！』など）を行ってください。ユーザーからのチャット発言はありませんので、『（システム）チャンネルに接続しました』や『〜についてですね』といったシステム側の文字列をオウム返しにしたり、それに対して回答したりすることは絶対に避けてください。純粋な挨拶のみを出力してください。]";
     }

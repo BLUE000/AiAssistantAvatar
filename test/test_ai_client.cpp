@@ -9,7 +9,9 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "ai/ai_client_manager.h"
+#include "ai/system_response_manager.h"
 #include "ai/huggingface_ai_client.h"
+
 #include "ai/openrouter_ai_client.h"
 #include "ai/sakura_ai_client.h"
 #include "cipher_engine.h"
@@ -2180,6 +2182,20 @@ TEST(RateLimitTrackerTest, UtcTimezoneCountdownCalculation) {
     EXPECT_GT(secsLeft, 0);
     EXPECT_LE(secsLeft, 10);
 }
+
+// UT-SYS-03: レートリミット表示・更新問い合わせの自動応答テスト
+TEST(SystemResponseManagerTest, RateLimitQueryResponse) {
+    SystemResponseManager sysManager;
+    QString response1 = sysManager.processPrompt("アバター、レートリミット更新して", "groq", "アバター");
+    EXPECT_FALSE(response1.isEmpty());
+    EXPECT_TRUE(response1.contains("レートリミット"));
+    EXPECT_TRUE(response1.contains("「レートリミット」タブ"));
+
+    QString response2 = sysManager.processPrompt("レートリミットの表示どうなってる？", "groq", "アバター");
+    EXPECT_FALSE(response2.isEmpty());
+    EXPECT_TRUE(response2.contains("「レートリミット」タブ"));
+}
+
 
 
 

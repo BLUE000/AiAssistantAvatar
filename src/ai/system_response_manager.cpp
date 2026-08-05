@@ -39,11 +39,13 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
 
     // プレフィックスなしでの「version」「バージョン」単体一致も許容
     bool isPlainVersionCmd = (lowerTrimmed == "version" || lowerTrimmed == "バージョン" || lowerTrimmed == "ばーじょん" || lowerTrimmed == "versioninfo");
+    bool isPlainRateLimitCmd = lowerTrimmed.contains("レートリミット") || lowerTrimmed.contains("リミット") || lowerTrimmed == "/ratelimit" || lowerTrimmed == "/status";
 
     // 呼びかけも単体コマンドもなければ、自動応答しない（通常のAIに任せる）
-    if (!mentionsAvatar && !isPlainVersionCmd) {
+    if (!mentionsAvatar && !isPlainVersionCmd && !isPlainRateLimitCmd) {
         return "";
     }
+
 
     // 1. バージョン情報の判定
     if (lowerTrimmed.contains("version") || lowerTrimmed.contains("バージョン") || lowerTrimmed.contains("ばーじょん")) {
@@ -126,5 +128,15 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
         }
     }
 
+    // 3. レートリミット表示・更新問い合わせの判定
+    if (lowerTrimmed.contains("レートリミット") || lowerTrimmed.contains("リミット") || lowerTrimmed.contains("制限")) {
+        if (lowerTrimmed.contains("更新") || lowerTrimmed.contains("表示") || lowerTrimmed.contains("教えて") ||
+            lowerTrimmed.contains("見せて") || lowerTrimmed.contains("どう") || lowerTrimmed.contains("確認") ||
+            lowerTrimmed.contains("チェック") || lowerTrimmed == "/ratelimit" || lowerTrimmed == "/status") {
+            return "レートリミット情報を更新しました。「レートリミット」タブから各AIプロバイダの利用枠や残量、解除までのカウントダウンをご確認いただけます。";
+        }
+    }
+
     return "";
 }
+
