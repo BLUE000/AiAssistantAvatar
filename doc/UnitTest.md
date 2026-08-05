@@ -455,6 +455,9 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-MISTRAL-RPM-01** | `MistralAIClient::getStatus` | `MistralAIClient::getStatus()` を呼び出す。 | 初期 `rpmMax` が 1 ではなく `30` に設定されていること。 |
 | **UT-SPEAKER-CTX-01** | `AIClientManager::formatSpeakerTaggedPrompt` | 発言者 "userA" (配信コメント), 宛先 "blue002", プロンプト "テスト" を指定してタグ整形を呼び出す。 | `[発言者: userA (配信コメント) | 宛先: blue002] テスト` の識別タグ付きプロンプトが生成されること。 |
 | **UT-JSON-COMMENT-01** | `JsonCommentRemover::stripHashComments` | `#` コメント行や行末コメント、および `"key": "val#1"` などの文字列を含む JSON 文字列を渡す。 | コメント行および行末コメントが正常除去され、クォーテーション内の `#` が保持されて正しく JSON パース（`QJsonDocument::fromJson`）できること。 |
+| **UT-JSON-COMMENT-02** | `JsonCommentRemover::updateExistingJsonText` | `#` コメント行を含む既存 JSON テキストに対し特定キー（例: `"ai_provider": "groq"`）の値変更 `QJsonObject` を適用する。 | 既存のすべての `#` コメント行やフォーマットが完全に保護保持され、該当キーの値のみがピンポイントで書き換わること。 |
+
+
 | **UT-RLT-15** | `RateLimitTracker::updateAvailable` | `rpmMax = -1` (HuggingFace等) のプロバイダを `forceRateLimit` で 1 秒後にリセット設定し、2 秒経過後に `updateAvailable` を呼ぶ。 | `s.nextResetAt` がクリアされ、`s.rpmRemaining` が `-1` となり `s.available == true`（🟢 利用可能）に復帰すること。 |
 | **UT-RLT-16** | `RateLimitTracker::recordLocalConsumption` | `rpmMax = 30` (Mistral) のプロバイダに対し 1 回 `recordLocalConsumption` を呼び出す。 | `rpmRemaining` が 29 に減算され、`nextResetAt` が 60 秒後に設定され、`available == true`（🟢 利用可能）が維持されること。 |
 | **UT-RLT-17** | `RateLimitTabWidget::updateProviderCard` | 残り枠 30% 未満（例: `rpmRemaining = 3 / 30`）および 0 回（`0 / 30`）のステータスを渡してカード描画を行う。 | 前者では `🟡 もうすぐ上限 (残り 3 回)` (オレンジ色), 後者では `🔴 レートリミット到達中` (赤色) に描画されること。 |

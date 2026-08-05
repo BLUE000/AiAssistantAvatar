@@ -78,6 +78,15 @@
 - **`RateLimitTracker::updateAvailable` の `rpmOk / rpdOk / tpmOk` 判定補正**:
   - 各残量変数が `-1` (未初期化/無制限) の場合、該当上限値 (`tpmMax` 等) が `> 0` であっても利用可能 (`Ok = true`) と判定する条件 `(remaining == -1)` を判定式に組み込む。
 
+### 2.13 JSON 設定保存時の既存テキスト尊重 ＆ ピンポイント置換更新設計 (`JsonCommentRemover::updateExistingJsonText`)
+- **`JsonCommentRemover::updateExistingJsonText` ユーティリティ設計**:
+  - 設定保存時 (`AvatarWindow::saveSettings()` / `saveToFile()`)、既存の `local_settings.json` ファイルの元のテキスト（すべての `#` コメント行、空行、インデント構造）を読み込み保持する。
+  - `QJsonObject` 内の各更新対象キーについて、既存テキスト内の `"key": value` 部分のみを正規表現/構文解析でピンポイント置換・書き換える。
+  - 既存テキストに存在しない新規キーのみを適切な位置（または文末）に追加挿入する。
+  - これにより、JSON 全体の自動シリアライズ上書きを回避し、既存テキスト内の全 `#` コメント行およびレイアウト・フォーマットを 100% 完全保護する。
+
+
+
 
 
 
