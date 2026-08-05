@@ -238,6 +238,8 @@ public slots:
     void loadCredentials();         // スレッド安全な呼び出しのため public slot 化
     void emitCurrentStatus();       // RateLimitTabWidget 初期化時に現在状態を通知する
     void on_requestAI(const QString &prompt, const QString &user = "");
+    static QString formatSpeakerTaggedPrompt(const QString &prompt, const QString &speaker, const QString &target = "", const QString &categoryStr = "");
+
     void on_twitchRaidReceived(const QString &username);
     void on_shoutoutSuccessReceived(const QString &username);
     void on_clientRequestFinished(const QString &responseText, bool success, int httpCode);

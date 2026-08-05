@@ -2645,7 +2645,8 @@ void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
     if (m_limitRpmEdit->text().trimmed().isEmpty() || m_limitRpmEdit->text().trimmed() == "0") {
         if (providerId == "groq") m_limitRpmEdit->setText("30");
         else if (providerId == "cerebras") m_limitRpmEdit->setText("30");
-        else if (providerId == "mistral") m_limitRpmEdit->setText("1");
+        else if (providerId == "mistral") m_limitRpmEdit->setText("30");
+
     }
     if (m_limitRpdEdit->text().trimmed().isEmpty() || m_limitRpdEdit->text().trimmed() == "0") {
         if (providerId == "groq") m_limitRpdEdit->setText("14400");

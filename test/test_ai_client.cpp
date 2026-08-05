@@ -11,6 +11,8 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "ai/ai_client_manager.h"
+#include "ai/mistral_ai_client.h"
+
 #include "ai/system_response_manager.h"
 #include "ai/huggingface_ai_client.h"
 
@@ -2207,6 +2209,23 @@ TEST(AIClientManagerTest, RequestDelayTimerTest) {
     EXPECT_GE(elapsed, 550);
     EXPECT_LE(elapsed, 1000);
 }
+
+// UT-MISTRAL-RPM-01: Mistral AI デフォルト RPM が 30 であることの確認
+TEST(MistralAIClientTest, DefaultRpmTest) {
+    MistralAIClient client;
+    ProviderStatus s = client.defaultStatus();
+    EXPECT_EQ(s.rpmMax, 30);
+    EXPECT_EQ(s.rpmRemaining, 30);
+}
+
+// UT-SPEAKER-CTX-01: 話者・文脈コンテキスト識別タグ整形テスト
+TEST(AIClientManagerTest, FormatSpeakerTaggedPromptTest) {
+    QString prompt = "画面が暗いですよ";
+    QString tagged = AIClientManager::formatSpeakerTaggedPrompt(prompt, "userA", "blue002", "配信コメント");
+    EXPECT_TRUE(tagged.contains("[発言者: userA (配信コメント) | 宛先: blue002]"));
+    EXPECT_TRUE(tagged.contains("画面が暗いですよ"));
+}
+
 
 
 

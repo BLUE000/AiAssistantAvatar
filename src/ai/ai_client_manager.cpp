@@ -1410,10 +1410,11 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         static const QStringList days = {"", "月", "火", "水", "木", "金", "土", "日"};
         int dayOfWeek = now.date().dayOfWeek();
         QString dayStr = (dayOfWeek >= 1 && dayOfWeek <= 7) ? days.at(dayOfWeek) : "";
-        QString nowStr = QString("※現在の日時は %1(%2) %3 です（日本標準時/JST）。\n計算式や数式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。\n※ユーザーのメッセージに複数の質問や話題が含まれている場合は、省略せずにそれぞれの質問に対して順を追って漏れなく回答してください。")
+        QString nowStr = QString("※現在の日時は %1(%2) %3 です（日本標準時/JST）。\n計算式や数式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。\n※ユーザーのメッセージに複数の質問や話題が含まれている場合は、省略せずにそれぞれの質問に対して順を追って漏れなく回答してください。\n※入力プロンプト冒頭の [発言者: X | 宛先: Y] タグを精読し、誰が誰に対して発言したのか（配信者・視聴者・AI）を正確に把握してください。視聴者の指摘やコメントを、配信者自身の誤りや問題として誤認しないでください。")
                             .arg(now.toString("yyyy-MM-dd"))
                             .arg(dayStr)
                             .arg(now.toString("HH:mm:ss"));
+
 
         if (!additionalSystemPrompt.isEmpty()) {
             additionalSystemPrompt = nowStr + "\n\n" + additionalSystemPrompt;
@@ -2893,16 +2894,37 @@ void AIClientManager::buildFallbackProviderList() {
         "groq", "cerebras", "mistral", "huggingface", "openrouter", "sakura"
     };
     m_fallbackProviders.clear();
+
+    QString activeManagerProvider = (m_managerEnabled && !m_managerProvider.isEmpty()) ? m_managerProvider : QString();
+    bool managerProviderAddedAsTail = false;
+
     for (const QString &id : priorityOrder) {
-        if (id == m_provider) continue;            // 選択中プロバイダはスキップ
+        if (id == m_provider) continue;            // 選択中 Worker プロバイダはスキップ
         if (!m_clientMap.contains(id)) continue;   // 存在しないプロバイダはスキップ
+
+        // マネージャー AI で使用中のプロバイダは最下位（末尾）に回すため、通常スキャンからは一旦スキップ
+        if (!activeManagerProvider.isEmpty() && id == activeManagerProvider) {
+            managerProviderAddedAsTail = true;
+            continue;
+        }
+
         ProviderStatus s = m_tracker.statusOf(id);
         if (s.available) {                         // APIキー設定済みのみ
             m_fallbackProviders.append(id);
         }
     }
-    qDebug() << "AIClientManager: Fallback provider list built:" << m_fallbackProviders;
+
+    // マネージャー AI プロバイダが存在し、APIキー設定済みかつ現在 Worker として選択されていない場合、最下位に追加
+    if (managerProviderAddedAsTail && m_clientMap.contains(activeManagerProvider) && activeManagerProvider != m_provider) {
+        ProviderStatus s = m_tracker.statusOf(activeManagerProvider);
+        if (s.available) {
+            m_fallbackProviders.append(activeManagerProvider);
+        }
+    }
+
+    qDebug() << "AIClientManager: Fallback provider list built (Manager AI provider demoted to tail):" << m_fallbackProviders;
 }
+
 
 QString AIClientManager::buildHumanReadableError(int httpCode, const QString &providerId,
                                                   const QJsonObject &errorJson) const {
@@ -3561,5 +3583,15 @@ QString AIClientManager::formatCombinedPrompt(const QList<ExecutionTask> &tasks,
               .arg(now.toString("yyyy-MM-dd"))
               .arg(contextItems.join("\n\n"));
 }
+
+QString AIClientManager::formatSpeakerTaggedPrompt(const QString &prompt, const QString &speaker, const QString &target, const QString &categoryStr) {
+    if (speaker.isEmpty() && categoryStr.isEmpty()) return prompt;
+    QString tag = "[発言者: " + (speaker.isEmpty() ? "不明" : speaker);
+    if (!categoryStr.isEmpty()) tag += " (" + categoryStr + ")";
+    if (!target.isEmpty()) tag += " | 宛先: " + (target.isEmpty() ? "全体" : target);
+    tag += "]";
+    return tag + " " + prompt;
+}
+
 
 

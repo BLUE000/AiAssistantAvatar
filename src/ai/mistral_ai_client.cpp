@@ -436,8 +436,9 @@ ProviderStatus MistralAIClient::defaultStatus() const {
     ProviderStatus s;
     s.provider      = QStringLiteral("mistral");
     s.available     = true;
-    s.rpmMax        = 1;
-    s.rpmRemaining  = 1;
+    s.rpmMax        = 30;
+    s.rpmRemaining  = 30;
+
     s.rpdMax        = -1;     // Mistral free tier: 制限値不明のため-1（チェックバイパス）
     s.rpdRemaining  = -1;
     s.tpmMax        = -1;
