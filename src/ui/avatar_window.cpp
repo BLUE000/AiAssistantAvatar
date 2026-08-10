@@ -1820,12 +1820,23 @@ void AvatarWindow::saveSettingsFromUI() {
     if (m_shoutoutToneEdit) obj["shoutout_tone"] = m_shoutoutToneEdit->text().trimmed();
     if (m_shoutoutPrefixEdit) obj["shoutout_prefix"] = m_shoutoutPrefixEdit->text().trimmed();
 
-    QJsonDocument newDoc(obj);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.write(newDoc.toJson(QJsonDocument::Indented));
-        file.close();
-        qDebug() << "AvatarWindow: Settings saved to" << configPath;
+    QString existingText;
+    if (QFile::exists(configPath)) {
+        QFile existingFile(configPath);
+        if (existingFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            existingText = QString::fromUtf8(existingFile.readAll());
+            existingFile.close();
+        }
     }
+
+    QString updatedText = JsonCommentRemover::updateExistingJsonText(existingText, obj);
+
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        file.write(updatedText.toUtf8());
+        file.close();
+        qDebug() << "AvatarWindow: Settings saved in-place with comments preserved to" << configPath;
+    }
+
 
     // pic/avatar_obs.htmlのWebSocketポート記述を自動更新
     QString htmlPath = "pic/avatar_obs.html";

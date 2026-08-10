@@ -2326,6 +2326,32 @@ TEST(RateLimitTrackerTest, TpmMaxWithMinusOneRemainingAvailableTest) {
     EXPECT_TRUE(avail); // tpmRemaining == -1 なので available は true であること
 }
 
+// UT-JSON-COMMENT-02: 既存 JSON テキストのコメント・レイアウト保護および値ピンポイント更新テスト
+TEST(JsonCommentRemoverTest, UpdateExistingJsonTextPreservingCommentsTest) {
+    QString originalJson = 
+        "{\n"
+        "  # メインAIプロバイダ設定\n"
+        "  \"ai_provider\": \"mistral\", # 現行プロバイダ\n"
+        "  \"avatar_name\": \"ぶるたろう\"\n"
+        "}";
+
+    QJsonObject newObj;
+    newObj["ai_provider"] = "groq";
+    newObj["avatar_name"] = "ぶるたろう";
+    newObj["new_key"] = "new_val";
+
+    QString resultJson = JsonCommentRemover::updateExistingJsonText(originalJson, newObj);
+
+    // コメント行および行末コメントが100%保持されていること
+    EXPECT_TRUE(resultJson.contains("# メインAIプロバイダ設定"));
+    EXPECT_TRUE(resultJson.contains("# 現行プロバイダ"));
+    // ai_provider の値が groq にピンポイント書き換わっていること
+    EXPECT_TRUE(resultJson.contains("\"ai_provider\": \"groq\""));
+    // 新規キー new_key が追記されていること
+    EXPECT_TRUE(resultJson.contains("\"new_key\": \"new_val\""));
+}
+
+
 
 
 
