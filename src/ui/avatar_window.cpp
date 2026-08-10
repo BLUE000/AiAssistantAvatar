@@ -1648,11 +1648,9 @@ void AvatarWindow::saveSettingsFromUI() {
     m_webhookUrl = m_webhookUrlEdit->text().trimmed();
     m_webhookEnabled = m_webhookEnabledCheckbox->isChecked();
 
+    // websocket_port: 旧フォーマットにキーがない場合のみ追記（既存値は保持・上書きしない）
     if (!obj.contains("websocket_port")) {
-        obj["websocket_port"] = ConfigDefaults::TWITCH_PORT;
-    }
-    if (!obj.contains("ws_port")) {
-        obj["ws_port"] = 58081;
+        obj["websocket_port"] = ConfigDefaults::WEBSOCKET_PORT; // 58081
     }
     if (!obj.contains("obs_http_port")) {
         obj["obs_http_port"] = 58082;

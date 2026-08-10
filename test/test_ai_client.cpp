@@ -2351,8 +2351,68 @@ TEST(JsonCommentRemoverTest, UpdateExistingJsonTextPreservingCommentsTest) {
     EXPECT_TRUE(resultJson.contains("\"new_key\": \"new_val\""));
 }
 
+// ---------------------------------------------------------------------------
+// WebSocket ポート設定のデフォルト追記ロジック検証
+// ---------------------------------------------------------------------------
+class WebSocketPortDefaultTest : public ::testing::Test {};
 
+// テスト 1: websocket_port キーが存在しない場合 → 58081 が追記されること
+TEST_F(WebSocketPortDefaultTest, MissingKeyIsFilledWithDefaultPort) {
+    QJsonObject obj;
+    obj["twitch_channel"] = "test_channel";
+    // websocket_port キーは意図的に含めない
 
+    // saveSettingsFromUI() と同じロジックを模擬
+    if (!obj.contains("websocket_port")) {
+        obj["websocket_port"] = ConfigDefaults::WEBSOCKET_PORT;
+    }
+
+    ASSERT_TRUE(obj.contains("websocket_port"));
+    EXPECT_EQ(obj["websocket_port"].toInt(), 58081)
+        << "websocket_port がない場合は 58081 (WEBSOCKET_PORT) が補完されるべき";
+}
+
+// テスト 2: websocket_port が既に存在する場合 → 上書きされないこと（既存値保持）
+TEST_F(WebSocketPortDefaultTest, ExistingPortValueIsPreserved) {
+    QJsonObject obj;
+    obj["websocket_port"] = 12345; // 任意のカスタムポート
+
+    // saveSettingsFromUI() と同じロジックを模擬
+    if (!obj.contains("websocket_port")) {
+        obj["websocket_port"] = ConfigDefaults::WEBSOCKET_PORT;
+    }
+
+    ASSERT_TRUE(obj.contains("websocket_port"));
+    EXPECT_EQ(obj["websocket_port"].toInt(), 12345)
+        << "既存の websocket_port 値は上書きされてはいけない";
+}
+
+// テスト 3: websocket_port が 58081 で設定されている場合は変わらないこと
+TEST_F(WebSocketPortDefaultTest, DefaultPort58081IsPreserved) {
+    QJsonObject obj;
+    obj["websocket_port"] = 58081;
+
+    if (!obj.contains("websocket_port")) {
+        obj["websocket_port"] = ConfigDefaults::WEBSOCKET_PORT;
+    }
+
+    EXPECT_EQ(obj["websocket_port"].toInt(), 58081)
+        << "正常値 58081 が変更されてはいけない";
+}
+
+// テスト 4: TWITCH_PORT (48080) がデフォルトとして使われていないこと（回帰テスト）
+TEST_F(WebSocketPortDefaultTest, TwitchPortIsNotUsedAsDefault) {
+    QJsonObject obj;
+    // websocket_port を含まない状態で追記ロジックを実行
+    if (!obj.contains("websocket_port")) {
+        obj["websocket_port"] = ConfigDefaults::WEBSOCKET_PORT;
+    }
+
+    EXPECT_NE(obj["websocket_port"].toInt(), ConfigDefaults::TWITCH_PORT)
+        << "websocket_port のデフォルトが TWITCH_PORT (48080) になってはいけない（回帰テスト）";
+    EXPECT_EQ(obj["websocket_port"].toInt(), ConfigDefaults::WEBSOCKET_PORT)
+        << "websocket_port のデフォルトは WEBSOCKET_PORT (58081) であるべき";
+}
 
 
 
