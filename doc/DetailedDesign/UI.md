@@ -73,8 +73,10 @@ sequenceDiagram
 ### 6.2 ロード ＆ 保存仕様 (`loadSettingsToUI` / `saveSettingsFromUI`)
 - **`loadSettingsToUI`**:
   - UI非表示項目 (`name_reaction_enabled`, `ws_port`, `obs_http_port`, `twitch_wakeword`, `twitch_wakeword_mode`) のUIコントロールへの描画・ロードをスキップし、バックエンド層で設定ファイルを直接読み込み。
+  - Twitch 接続時挨拶チェックボックス (`m_twitchGreetingCheckbox`) の状態を `local_settings.json` の `"twitch_greeting_enabled"` (フォールバック: `"greeting_enabled"`) より取得して UI 上に復元。
 - **`saveSettingsFromUI`**:
   - UIフォームからの値取得で既存設定ファイルを空文字・デフォルト値に上書き破壊せず、既存 JSON オブジェクトに保持されている値をそのまま保護維持して保存。
+  - `m_twitchGreetingCheckbox->isChecked()` のチェック状態を取得し、`local_settings.json` の `"twitch_greeting_enabled"` キーへ正しく反映して保存。
 
 ---
 

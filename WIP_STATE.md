@@ -7,21 +7,21 @@
 
 # 作業の状態
 
-## [フェーズ: ソースコード実装 ＆ 単体テスト全 57 ケース PASS 完了（ユーザーチェック待ち）]
+## [フェーズ: 仕様書（詳細設計・単体/結合/システムテスト仕様書）改修完了 ＆ ユーザーチェック待ち]
 
-### 実施した修正作業と検証結果
-1. **返信先・発言者変数の応答完了時クリア ＆ UI入力誤送信防止の実装**:
-   - `AIClientManager::clearRequestState()` を追加し、リクエスト完了（`on_clientRequestFinished`）の全出口で `m_currentTwitchChannel`, `m_currentDiscordChannelId`, `m_currentRequester` を `.clear()` するように実装。
-   - `StateCleanupAndChannelIsolationTest` を新設し、UI直接入力時の返信先隔離と誤送信防止をアサート検証（PASS）。
-2. **翻訳コマンド `!ai trans XX` 前置記号・ウェイクワード正規化の実装**:
-   - `processRequest` の翻訳判定冒頭で、正規表現 `^(?:!ai|/ai|!|/)\s*` を用いて前置記号をトリミング除去・正規化するロジックを実装。
-   - `TranslationCommandTest` に `!ai trans` および `/ai trans` ケースを追加し全正常通過をアサート検証（PASS）。
-3. **`/shoutout` コマンドの Twitch Helix REST API 送信実装**:
-   - `TwitchHelixClient` に `sendShoutout` および `sendShoutoutToUser` メソッド（`POST /helix/chat/shoutouts`）を実装。
-   - `AIClientManager` の `/shoutout` コマンド実行部を IRC `PRIVMSG` 送信から Helix REST API 直接呼び出しへ変更（IRC上の `/shoutout` 文字列無効化を解決）。
-
-### 試験実行結果
-- 全 23 テストスイート / **107 単体テストケース全て PASS**（`0` Failures, 100% 合格）。
+### Twitch 接続時挨拶設定（`m_twitchGreetingCheckbox`）不具合に対する仕様書群の変更点
+1. **`doc/DetailedDesign/UI.md` (6.2節)**:
+   - `loadSettingsToUI` にて `local_settings.json` の `"twitch_greeting_enabled"`（フォールバック: `"greeting_enabled"`）から `m_twitchGreetingCheckbox` のチェック状態を復元する仕様を明記。
+   - `saveSettingsFromUI` にて `m_twitchGreetingCheckbox->isChecked()` の値を `local_settings.json` の `"twitch_greeting_enabled"` キーに保存する仕様を明記。
+2. **`doc/UnitTest.md` (3.10節)**:
+   - `UT-GREET-05`: `AvatarWindow::loadSettingsToUI` が `"twitch_greeting_enabled": true` を正しくチェックボックスへ復元することを確認するテストケースを追加。
+   - `UT-GREET-06`: `AvatarWindow::saveSettingsFromUI` が `m_twitchGreetingCheckbox` のチェック状態を `"twitch_greeting_enabled"` に正しく書き出すことを確認するテストケースを追加。
+3. **`doc/IntegrationTest.md` (2.9節)**:
+   - `IT-GREET-02`: `local_settings.json` からの `loadSettingsToUI()` 実行時に UI チェックボックスが ON 状態へ復元される結合テストケースを追加。
+4. **`doc/SystemTest.md` (2.3節)**:
+   - `ST-F10-04`: GUI 設定保存から Twitch 再接続時の自動挨拶送信動作を確認する手動システムテスト項目を追加。
+   - `ST-F10-05`: GUI 設定OFF保存から Twitch 再接続時の自動挨拶抑制動作を確認する手動システムテスト項目を追加。
 
 ### これから行うこと
-- ユーザー様による動作・修正内容のチェック待ち。
+- Vモデルに従い、仕様書改修内容に対するユーザー様のチェックとOK（ご承認）をいただく。
+- ソースコードおよび実装修正は行わず、ユーザー様のご指示を待つ。

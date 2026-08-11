@@ -106,6 +106,7 @@
 | 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-GREET-01** | UIと設定ファイルの連動 | 設定タブで「Twitch接続時にチャットで挨拶する」をON、「Discord接続時にチャットで挨拶する」をOFFにして「設定を保存して適用」を押下する。 | `local_settings.json` の `twitch_greeting_enabled` が `true`、`discord_greeting_enabled` が `false` にそれぞれ書き込まれ、保存されること。 | 結合テスト |
+| **IT-GREET-02** | UIロード時の設定復元 | `local_settings.json` に `twitch_greeting_enabled: true` が保存された状態で `AvatarWindow::loadSettingsToUI()` を実行する。 | UI上の「Twitch接続時にチャットで挨拶する」チェックボックスが ON 状態で正しく画面描画・復元されること。 | 結合テスト |
 
 ---
 

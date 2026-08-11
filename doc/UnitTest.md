@@ -238,6 +238,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-GREET-02** | `TwitchReader::loadSettings` | `local_settings.json` に `"twitch_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること。 |
 | **UT-GREET-03** | `DiscordReader::loadSettings` | `local_settings.json` に `"discord_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
 | **UT-GREET-04** | `DiscordReader::loadSettings` | `local_settings.json` に `"discord_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること. |
+| **UT-GREET-05** | `AvatarWindow::loadSettingsToUI` | `local_settings.json` に `"twitch_greeting_enabled": true` が設定されている。 | UI上の `m_twitchGreetingCheckbox` のチェック状態が `true` に設定復元されること。 |
+| **UT-GREET-06** | `AvatarWindow::saveSettingsFromUI` | UI上の `m_twitchGreetingCheckbox` のチェックを変更して保存を実行する。 | `local_settings.json` の `"twitch_greeting_enabled"` にチェック状態が正しく反映保存されること。 |
 
 ---
 
