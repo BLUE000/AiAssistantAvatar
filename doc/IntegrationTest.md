@@ -107,6 +107,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-GREET-01** | UIと設定ファイルの連動 | 設定タブで「Twitch接続時にチャットで挨拶する」をON、「Discord接続時にチャットで挨拶する」をOFFにして「設定を保存して適用」を押下する。 | `local_settings.json` の `twitch_greeting_enabled` が `true`、`discord_greeting_enabled` が `false` にそれぞれ書き込まれ、保存されること。 | 結合テスト |
 | **IT-GREET-02** | UIロード時の設定復元 | `local_settings.json` に `twitch_greeting_enabled: true` が保存された状態で `AvatarWindow::loadSettingsToUI()` を実行する。 | UI上の「Twitch接続時にチャットで挨拶する」チェックボックスが ON 状態で正しく画面描画・復元されること。 | 結合テスト |
+| **IT-UI-SAVE-01** | GUI保存時のコメント付設定保護連携 | `#` コメント行と `twitch_client_id` が定義された `local_settings.json` の状態で、設定タブから「設定を保存して適用」を押下する。 | 設定保存後も `local_settings.json` の `twitch_client_id` の値が消去されずに正しく維持・保持され、`TwitchReader` への認証要求イベントが正常に起動すること。 | 結合テスト |
 
 ---
 

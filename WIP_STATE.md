@@ -7,18 +7,18 @@
 
 # 作業の状態
 
-## [フェーズ: ソースコード実装 ＆ 単体テスト全 108 ケース PASS 完了（ユーザーチェック待ち）]
+## [フェーズ: 仕様書（詳細設計・単体/結合/システムテスト仕様書）改修完了 ＆ ユーザーチェック待ち]
 
-### 実施した修正作業と検証結果
-1. **Twitch 接続時挨拶設定 (`m_twitchGreetingCheckbox`) のロード・保存実装**:
-   - `src/ui/avatar_window.cpp` 内の `loadSettingsToUI()` にて `obj.value("twitch_greeting_enabled")`（フォールバック: `greeting_enabled`）を読み込み、`m_twitchGreetingCheckbox->setChecked(...)` で UI 画面上へ状態復元するロジックを実装。
-   - `saveSettingsFromUI()` にて `m_twitchGreetingCheckbox->isChecked()` のチェック状態を `local_settings.json` の `"twitch_greeting_enabled"` キーへ正しく保存するロジックを実装。
-2. **単体テスト (`AvatarWindowTwitchGreetingTest`) の実装・検証**:
-   - `test/test_ai_client.cpp` に `UT-GREET-05`（UI復元テスト）および `UT-GREET-06`（UI保存テスト）の自動テストケースを追加。
-   - 単体テストスイート `AiAssistantAvatarTest.exe` を実行し、新規追加テストを含む全 108 単体テストケースの **全 PASS (0 Failures)** を検証完了。
-
-### 試験実行結果
-- 全 23 テストスイート / **108 単体テストケース全て PASS**（`0` Failures, 100% 合格）。
+### GUI保存時のコメント除去漏れ ＆ Twitch Client ID 消失問題に対する仕様書群の変更点
+1. **`doc/DetailedDesign/UI.md` (6.2節)**:
+   - `saveSettingsFromUI()` にて `local_settings.json` のロード時に `JsonCommentRemover::stripHashComments(...)` を適用し、パース失敗による設定初期化・`twitch_client_id` の空文字上書き消失を防止する仕様を明記。
+2. **`doc/UnitTest.md` (3.10節)**:
+   - `UT-UI-SAVE-01`: コメント行（`#` 行）と `twitch_client_id` を含む設定ファイルを GUI 保存した際、`twitch_client_id` が維持保存される単体テストケースを追加。
+3. **`doc/IntegrationTest.md` (2.9節)**:
+   - `IT-UI-SAVE-01`: コメント付き設定ファイルで GUI 保存を実行しても `twitch_client_id` が消失せず認証イベントが正常発火する結合テストケースを追加。
+4. **`doc/SystemTest.md` (2.2節)**:
+   - `ST-F5-05`: コメント付き設定ファイルの状態で「設定を保存して適用」または「Twitch認証開始」を押下した際、`twitch_client_id` が保持されてブラウザ認証画面が正常起動する手動システムテスト項目を追加。
 
 ### これから行うこと
-- ユーザー様による動作・修正内容のチェック待ち。
+- Vモデルに従い、仕様書改修内容に対するユーザー様のチェックとOK（ご承認）をいただく。
+- ソースコードおよび実装修正は行わず、ユーザー様のご指示を待つ。
