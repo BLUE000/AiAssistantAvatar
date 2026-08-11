@@ -178,9 +178,11 @@ QString JsonCommentRemover::updateExistingJsonText(const QString &existingText, 
         }
 
         QStringList addedLines;
-        for (const QString &k : newKeys) {
+        for (int i = 0; i < newKeys.size(); ++i) {
+            const QString &k = newKeys.at(i);
             QString valStr = formatJsonValue(newObj.value(k));
-            addedLines.append(QString("    \"%1\": %2,").arg(k, valStr));
+            QString comma = (i == newKeys.size() - 1) ? "" : ",";
+            addedLines.append(QString("  \"%1\": %2%3").arg(k, valStr, comma));
         }
 
         if (lastBraceIdx >= 0) {

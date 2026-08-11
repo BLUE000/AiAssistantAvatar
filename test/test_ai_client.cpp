@@ -40,14 +40,28 @@
 
 class AIClientTest : public ::testing::Test {
 protected:
+    static void ensureValidLocalSettings() {
+        QString path = "local_settings.json";
+        if (!QFile::exists(path) || QFile(path).size() == 0) {
+            QString samplePath = "Config/local_settings.json.sample";
+            if (!QFile::exists(samplePath)) {
+                samplePath = "tmp/local_settings.json";
+            }
+            if (QFile::exists(samplePath)) {
+                QFile::remove(path);
+                QFile::copy(samplePath, path);
+            }
+        }
+    }
+
     void SetUp() override {
-        // テストのセットアップ時、古いlogディレクトリを削除してクリーンにする
         QDir("log").removeRecursively();
+        ensureValidLocalSettings();
     }
 
     void TearDown() override {
-        // テスト終了後、生成されたlogディレクトリをクリーンアップする
         QDir("log").removeRecursively();
+        ensureValidLocalSettings();
     }
 };
 
@@ -1522,10 +1536,27 @@ TEST_F(AIClientTest, SegregatedGreetingSettingsTest) {
 }
 
 TEST_F(AIClientTest, AvatarWindowTwitchGreetingTest) {
-    QString targetPath = "local_settings.json";
-    if (!QFile::exists(targetPath)) {
-        targetPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
+    auto getTestConfigPath = []() -> QString {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QStringList candidates = {
+            appDir + "/Config/local_settings.json",
+            "Config/local_settings.json",
+            appDir + "/local_settings.json",
+            "local_settings.json"
+        };
+#ifdef PROJECT_SOURCE_DIR
+        candidates.append(QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json");
+        candidates.append(QString(PROJECT_SOURCE_DIR) + "/local_settings.json");
+#endif
+        for (const QString &path : candidates) {
+            if (QFile::exists(path)) {
+                return QDir::cleanPath(path);
+            }
+        }
+        return "local_settings.json";
+    };
+
+    QString targetPath = getTestConfigPath();
 
     QByteArray originalContent;
     bool hasOriginal = QFile::exists(targetPath);
@@ -1583,14 +1614,86 @@ TEST_F(AIClientTest, AvatarWindowTwitchGreetingTest) {
         EXPECT_FALSE(savedObj.value("twitch_greeting_enabled").toBool());
     }
 
-    if (hasOriginal) {
+    if (hasOriginal && !originalContent.isEmpty()) {
         QFile file(targetPath);
         if (file.open(QIODevice::WriteOnly)) {
             file.write(originalContent);
             file.close();
         }
     } else {
-        QFile::remove(targetPath);
+        ensureValidLocalSettings();
+    }
+}
+
+TEST_F(AIClientTest, AvatarWindowCommentPreservationTest) {
+    auto getTestConfigPath = []() -> QString {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QStringList candidates = {
+            appDir + "/Config/local_settings.json",
+            "Config/local_settings.json",
+            appDir + "/local_settings.json",
+            "local_settings.json"
+        };
+#ifdef PROJECT_SOURCE_DIR
+        candidates.append(QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json");
+        candidates.append(QString(PROJECT_SOURCE_DIR) + "/local_settings.json");
+#endif
+        for (const QString &path : candidates) {
+            if (QFile::exists(path)) {
+                return QDir::cleanPath(path);
+            }
+        }
+        return "local_settings.json";
+    };
+
+    QString targetPath = getTestConfigPath();
+
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(targetPath);
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        // UT-UI-SAVE-01: コメント行 (# 行) と twitch_client_id が定義された local_settings.json を用意
+        QString commentedJsonStr =
+            "{\n"
+            "  # Twitch Bot & Client Credentials\n"
+            "  \"twitch_channel\": \"test_channel\",\n"
+            "  \"twitch_client_id\": \"my_secret_client_id_123\",\n"
+            "  \"twitch_oauth_token\": \"my_secret_token_456\"\n"
+            "}\n";
+
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write(commentedJsonStr.toUtf8());
+        file.close();
+
+        AvatarWindow window;
+        window.saveSettingsFromUI();
+
+        QFile readFile(targetPath);
+        ASSERT_TRUE(readFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        QByteArray readData = JsonCommentRemover::stripHashComments(readFile.readAll());
+        QJsonObject savedObj = QJsonDocument::fromJson(readData).object();
+        readFile.close();
+
+        EXPECT_TRUE(savedObj.contains("twitch_client_id"));
+        EXPECT_EQ(savedObj.value("twitch_client_id").toString(), "my_secret_client_id_123");
+    }
+
+    if (hasOriginal && !originalContent.isEmpty()) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
+    } else {
+        ensureValidLocalSettings();
     }
 }
 

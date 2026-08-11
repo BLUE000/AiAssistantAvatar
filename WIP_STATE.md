@@ -7,18 +7,22 @@
 
 # 作業の状態
 
-## [フェーズ: 仕様書（詳細設計・単体/結合/システムテスト仕様書）改修完了 ＆ ユーザーチェック待ち]
+## [フェーズ: ソースコード実装 ＆ 単体テスト全 109 ケース PASS 完了（ユーザーチェック待ち）]
 
-### GUI保存時のコメント除去漏れ ＆ Twitch Client ID 消失問題に対する仕様書群の変更点
-1. **`doc/DetailedDesign/UI.md` (6.2節)**:
-   - `saveSettingsFromUI()` にて `local_settings.json` のロード時に `JsonCommentRemover::stripHashComments(...)` を適用し、パース失敗による設定初期化・`twitch_client_id` の空文字上書き消失を防止する仕様を明記。
-2. **`doc/UnitTest.md` (3.10節)**:
-   - `UT-UI-SAVE-01`: コメント行（`#` 行）と `twitch_client_id` を含む設定ファイルを GUI 保存した際、`twitch_client_id` が維持保存される単体テストケースを追加。
-3. **`doc/IntegrationTest.md` (2.9節)**:
-   - `IT-UI-SAVE-01`: コメント付き設定ファイルで GUI 保存を実行しても `twitch_client_id` が消失せず認証イベントが正常発火する結合テストケースを追加。
-4. **`doc/SystemTest.md` (2.2節)**:
-   - `ST-F5-05`: コメント付き設定ファイルの状態で「設定を保存して適用」または「Twitch認証開始」を押下した際、`twitch_client_id` が保持されてブラウザ認証画面が正常起動する手動システムテスト項目を追加。
+### 実施した修正作業と検証結果
+1. **`saveSettingsFromUI()` におけるコメント除去処理の実装**:
+   - `src/ui/avatar_window.cpp` 内の `saveSettingsFromUI()` で既存の `local_settings.json` をロードしてマージする際、`JsonCommentRemover::stripHashComments(file.readAll())` を通してから JSON パースを行うよう修正。
+   - コメント行（`#` 行）が存在しても JSON パースエラーとならず、`twitch_client_id` 等の GUI 非編集項目が空文字で上書き消去されない安全な保存処理を実現。
+   - 設定ファイルパスの参照を `resolveExistingFilePath("local_settings.json")` へ統一。
+2. **`updateExistingJsonText()` の末尾カンマ生成処理の修正**:
+   - `src/utils/json_comment_remover.cpp` にて、新規項目を JSON 末尾に追加する際、最後の追加項目に末尾カンマ `,` を付与しないよう修正。常に標準規格に適合する有効な JSON を保存するよう補正。
+3. **単体テスト (`AvatarWindowCommentPreservationTest`) の実装・検証**:
+   - `test/test_ai_client.cpp` に `UT-UI-SAVE-01`（コメント付き `local_settings.json` の保存・Client ID 保持確認）テストを追加。
+   - 単体テスト実行時の設定ファイル隔離（`ensureValidLocalSettings()`）を整備。
+   - 単体テストスイート `AiAssistantAvatarTest.exe` を実機実行し、全 109 テストケースの **全 PASS (0 Failures, 100% 合格)** を検証完了。
+
+### 試験実行結果
+- 全 23 テストスイート / **109 単体テストケース全て PASS**（`0` Failures, EXIT CODE: 0）。
 
 ### これから行うこと
-- Vモデルに従い、仕様書改修内容に対するユーザー様のチェックとOK（ご承認）をいただく。
-- ソースコードおよび実装修正は行わず、ユーザー様のご指示を待つ。
+- ユーザー様による動作・修正内容のチェック待ち。

@@ -1616,23 +1616,9 @@ void AvatarWindow::loadSettingsToUI() {
 
 void AvatarWindow::saveSettingsFromUI() {
     qDebug() << "[TRACE-UI] >>> AvatarWindow::saveSettingsFromUI START";
-    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-    if (!QFile::exists(configPath) && QFile::exists("Config/local_settings.json")) {
-        configPath = "Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath) && QFile::exists("local_settings.json")) {
-        configPath = "local_settings.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath) && QFile::exists(QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json")) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath) && QFile::exists(QString(PROJECT_SOURCE_DIR) + "/local_settings.json")) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
-#endif
-    if (!QFile::exists(configPath) && QFile::exists(QCoreApplication::applicationDirPath() + "/local_settings.json")) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    QString configPath = resolveExistingFilePath("local_settings.json");
+    if (configPath.isEmpty()) {
+        configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
     }
 
     QFileInfo fileInfo(configPath);
@@ -1641,7 +1627,7 @@ void AvatarWindow::saveSettingsFromUI() {
     QJsonObject obj;
     QFile file(configPath);
     if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QByteArray data = file.readAll();
+        QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
         file.close();
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
