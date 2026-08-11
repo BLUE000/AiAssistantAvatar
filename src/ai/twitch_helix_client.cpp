@@ -134,3 +134,60 @@ void TwitchHelixClient::sendChatAnnouncement(const QString &broadcasterId, const
         if (callback) callback(ok);
     });
 }
+
+void TwitchHelixClient::sendShoutout(const QString &fromBroadcasterId, const QString &toBroadcasterId, const QString &moderatorId, std::function<void(bool success)> callback) {
+    if (fromBroadcasterId.isEmpty() || toBroadcasterId.isEmpty() || moderatorId.isEmpty() || m_clientId.isEmpty() || m_oauthToken.isEmpty()) {
+        qWarning() << "TwitchHelixClient: Missing parameters or credentials for shoutout.";
+        if (callback) callback(false);
+        return;
+    }
+
+    QUrl url("https://api.twitch.tv/helix/chat/shoutouts");
+    QUrlQuery query;
+    query.addQueryItem("from_broadcaster_id", fromBroadcasterId);
+    query.addQueryItem("to_broadcaster_id", toBroadcasterId);
+    query.addQueryItem("moderator_id", moderatorId);
+    url.setQuery(query);
+
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    req.setRawHeader("Client-ID", m_clientId.toUtf8());
+    req.setRawHeader("Authorization", ("Bearer " + m_oauthToken).toUtf8());
+
+    QNetworkReply *reply = m_networkManager->post(req, QByteArray());
+    connect(reply, &QNetworkReply::finished, this, [reply, callback]() {
+        reply->deleteLater();
+        bool ok = (reply->error() == QNetworkReply::NoError);
+        if (!ok) {
+            qWarning() << "TwitchHelixClient: Shoutout API error:" << reply->errorString();
+        } else {
+            qDebug() << "TwitchHelixClient: Shoutout sent successfully via Helix API.";
+        }
+        if (callback) callback(ok);
+    });
+}
+
+void TwitchHelixClient::sendShoutoutToUser(const QString &fromUsername, const QString &toUsername, std::function<void(bool success)> callback) {
+    if (fromUsername.isEmpty() || toUsername.isEmpty()) {
+        if (callback) callback(false);
+        return;
+    }
+
+    fetchCreatorInfo(fromUsername, [this, fromUsername, toUsername, callback](const CreatorHelixInfo &fromInfo, bool fromSuccess) {
+        if (!fromSuccess || fromInfo.userId.isEmpty()) {
+            qWarning() << "TwitchHelixClient: Failed to fetch fromBroadcasterId for" << fromUsername;
+            if (callback) callback(false);
+            return;
+        }
+
+        fetchCreatorInfo(toUsername, [this, fromInfo, toUsername, callback](const CreatorHelixInfo &toInfo, bool toSuccess) {
+            if (!toSuccess || toInfo.userId.isEmpty()) {
+                qWarning() << "TwitchHelixClient: Failed to fetch toBroadcasterId for" << toUsername;
+                if (callback) callback(false);
+                return;
+            }
+
+            sendShoutout(fromInfo.userId, toInfo.userId, fromInfo.userId, callback);
+        });
+    });
+}

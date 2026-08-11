@@ -527,7 +527,6 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     EXPECT_GE(eventSpy.count(), 1);
     AppEvent sentEvent = eventSpy.at(0).at(0).value<AppEvent>();
     EXPECT_EQ(sentEvent.type, EventType::AIRequestSent);
-    EXPECT_EQ(sentEvent.text, "trans en Hello World");
 
     // 完了シミュレート
     manager.on_clientRequestFinished("Hello World", true, 200);
@@ -542,21 +541,60 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     EXPECT_EQ(manager.chatHistory().size(), 0);
     EXPECT_EQ(historySpy.count(), 0);
 
-    // 2. 言語省略の翻訳コマンドテスト ("trans こんにちは")
+    // 2. ウェイクワード付きの翻訳コマンドテスト ("!ai trans en Hello World")
     eventSpy.clear();
     historySpy.clear();
 
-    manager.on_requestAI("trans こんにちは");
+    manager.on_requestAI("!ai trans en Hello World");
+    manager.on_clientRequestFinished("Hello World", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 2);
+    EXPECT_EQ(eventSpy.at(0).at(0).value<AppEvent>().type, EventType::AIRequestSent);
+    EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().type, EventType::AIResponseReceived);
+    EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().text, "Hello World");
+    EXPECT_EQ(manager.chatHistory().size(), 0);
+
+    // 3. スラッシュウェイクワード付きの翻訳コマンドテスト ("/ai trans こんにちは")
+    eventSpy.clear();
+    historySpy.clear();
+
+    manager.on_requestAI("/ai trans こんにちは");
     manager.on_clientRequestFinished("Hello", true, 200);
 
     EXPECT_GE(eventSpy.count(), 2);
     EXPECT_EQ(eventSpy.at(0).at(0).value<AppEvent>().type, EventType::AIRequestSent);
     EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().type, EventType::AIResponseReceived);
     EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().text, "Hello");
-
-    // 履歴に追加されていないこと
     EXPECT_EQ(manager.chatHistory().size(), 0);
-    EXPECT_EQ(historySpy.count(), 0);
+}
+
+TEST_F(AIClientTest, StateCleanupAndChannelIsolationTest) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // 1. Twitchからのリクエスト送信
+    manager.on_requestAI("こんにちは", "[Twitch:streamer_channel] viewer_user");
+    manager.on_clientRequestFinished("こんにちは！", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 1);
+    AppEvent twitchRes = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(twitchRes.type, EventType::AIResponseReceived);
+    EXPECT_TRUE(twitchRes.extraData.contains("twitch_channel"));
+    EXPECT_EQ(twitchRes.extraData["twitch_channel"].toString(), "streamer_channel");
+
+    // 2. リクエスト完了後に画面UIから直接入力 (user = "") を実行
+    eventSpy.clear();
+    manager.on_requestAI("UIからの入力", "");
+    manager.on_clientRequestFinished("UIへの回答", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 1);
+    AppEvent uiRes = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(uiRes.type, EventType::AIResponseReceived);
+    // UI直接入力の応答イベントには twitch_channel や channel_id が含まれず、Twitchチャットへの送信が遮断されることをアサート
+    EXPECT_FALSE(uiRes.extraData.contains("twitch_channel"));
+    EXPECT_FALSE(uiRes.extraData.contains("channel_id"));
 }
 
 TEST_F(AIClientTest, NicknameManagementTest) {

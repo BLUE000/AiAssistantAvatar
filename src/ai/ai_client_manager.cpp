@@ -1230,9 +1230,14 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         m_lastPromptWithTag = QString("[Direct] %1").arg(filteredPrompt);
     }
 
-    // 翻訳コマンドの判定 ("trans" で始まるか)
-    if (trimmedPrompt.startsWith("trans", Qt::CaseInsensitive)) {
-        QString cmdArgs = trimmedPrompt.mid(5).trimmed(); // "trans" の後
+    // 翻訳コマンドの判定 ("trans" で始まるか、または "!ai trans", "/ai trans" 等の前置記号付きか)
+    QString transCheckPrompt = trimmedPrompt;
+    static const QRegularExpression prefixRegex("^(?:!ai|/ai|!|/)\\s*", QRegularExpression::CaseInsensitiveOption);
+    transCheckPrompt.remove(prefixRegex);
+    transCheckPrompt = transCheckPrompt.trimmed();
+
+    if (transCheckPrompt.startsWith("trans", Qt::CaseInsensitive)) {
+        QString cmdArgs = transCheckPrompt.mid(5).trimmed(); // "trans" の後
         QString targetLanguage = "Japanese";
         QString textToTranslate = cmdArgs;
 
@@ -1602,6 +1607,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             event.text = responseText;
         }
         emit notifyEvent(event);
+        clearRequestState();
         processPendingRequests();
         return;
     }
@@ -1896,10 +1902,10 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
                 }
             }
 
-            // 全フォールバック先も失敗した場合
             event.type = EventType::ErrorOccurred;
             event.text = "❌ 全ての AI プロバイダがレート制限中です。しばらく待ってから再試行してください。";
             emit notifyEvent(event);
+            clearRequestState();
             processPendingRequests();
             return;
         }
@@ -1910,7 +1916,14 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
                                              errDoc.isObject() ? errDoc.object() : QJsonObject());
         emit notifyEvent(event);
     }
+    clearRequestState();
     processPendingRequests();
+}
+
+void AIClientManager::clearRequestState() {
+    m_currentDiscordChannelId.clear();
+    m_currentTwitchChannel.clear();
+    m_currentRequester.clear();
 }
 
 void AIClientManager::resetSession(bool isManual) {
@@ -3004,12 +3017,6 @@ QString AIClientManager::buildHumanReadableError(int httpCode, const QString &pr
 bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
     QString targetProvider = m_provider;
 
-#ifndef QT_DEBUG
-    if (targetProvider == "dummy") {
-        targetProvider = "auto";
-    }
-#endif
-
     // 1. 全 API キーが未設定かどうかの検証
     bool hasAnyApiKey = false;
     QStringList unconfiguredProviders;
@@ -3024,6 +3031,12 @@ bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
             }
         }
     }
+
+#ifndef QT_DEBUG
+    if (targetProvider == "dummy" && hasAnyApiKey) {
+        targetProvider = "auto";
+    }
+#endif
 
     if (!hasAnyApiKey && targetProvider != "dummy") {
         qWarning() << "AIClientManager: No API keys configured for any provider.";
@@ -3287,17 +3300,9 @@ void AIClientManager::handleRaidShoutout(const QString &username) {
                 updateShoutoutUiStatus();
             } else {
                 // 即時送信
-                qDebug() << "AIClientManager: Sending immediate /shoutout command for" << username;
+                qDebug() << "AIClientManager: Sending immediate Twitch Helix Shoutout for" << username;
                 m_lastShoutoutUser = username;
-                AppEvent shoutoutEv;
-                shoutoutEv.type = EventType::AIResponseReceived;
-                shoutoutEv.text = "/shoutout " + username;
-                shoutoutEv.source = "ShoutoutModule";
-                QString targetChannel = m_currentTwitchChannel.isEmpty() ? m_twitchChannel : m_currentTwitchChannel;
-                if (!targetChannel.isEmpty()) {
-                    shoutoutEv.extraData["twitch_channel"] = targetChannel;
-                }
-                emit notifyEvent(shoutoutEv);
+                triggerShoutout(username);
 
                 if (m_shoutoutCooldownTimer) {
                     m_shoutoutCooldownTimer->start(120000);
@@ -3309,6 +3314,20 @@ void AIClientManager::handleRaidShoutout(const QString &username) {
     });
 }
 
+void AIClientManager::triggerShoutout(const QString &username) {
+    if (m_helixClient) {
+        QString fromUser = m_twitchChannel.isEmpty() ? m_currentTwitchChannel : m_twitchChannel;
+        m_helixClient->sendShoutoutToUser(fromUser, username, [this, username](bool ok) {
+            if (ok) {
+                qDebug() << "AIClientManager: Twitch Helix Shoutout API succeeded for" << username;
+                on_shoutoutSuccessReceived(username);
+            } else {
+                qWarning() << "AIClientManager: Twitch Helix Shoutout API failed for" << username;
+            }
+        });
+    }
+}
+
 void AIClientManager::processNextShoutoutInQueue() {
     qDebug() << "AIClientManager: Shoutout cooldown expired.";
     m_shoutoutCooldownStartMs = 0;
@@ -3318,22 +3337,13 @@ void AIClientManager::processNextShoutoutInQueue() {
         qDebug() << "AIClientManager: Processing queued shoutout for" << ps.username;
         m_lastShoutoutUser = ps.username;
 
-        AppEvent shoutoutEv;
-        shoutoutEv.type = EventType::AIResponseReceived;
-        shoutoutEv.text = "/shoutout " + ps.username;
-        shoutoutEv.source = "ShoutoutModule";
-        QString targetChannel = m_currentTwitchChannel.isEmpty() ? m_twitchChannel : m_currentTwitchChannel;
-        if (!targetChannel.isEmpty()) {
-            shoutoutEv.extraData["twitch_channel"] = targetChannel;
-        }
-        emit notifyEvent(shoutoutEv);
+        triggerShoutout(ps.username);
 
         if (m_shoutoutCooldownTimer) {
             m_shoutoutCooldownTimer->start(120000);
             m_shoutoutCooldownStartMs = QDateTime::currentMSecsSinceEpoch();
         }
     }
-
     updateShoutoutUiStatus();
 }
 

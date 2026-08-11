@@ -187,6 +187,8 @@ private:
     QTimer *m_shoutoutUiTimer = nullptr;
     qint64 m_shoutoutCooldownStartMs = 0;
 
+    void clearRequestState();
+    void triggerShoutout(const QString &username);
     void processNextShoutoutInQueue();
     void updateShoutoutUiStatus();
 
