@@ -19,10 +19,11 @@
 - Twitch IRC (PRIVMSG) の送信テキスト内に `/announce` や `/shoutout` スラッシュコマンド文字列を直接埋め込んで送信すると、Twitch サーバー側で静かに廃棄（サイレントドロップ）され、チャット欄に表示されない問題があった。
 
 ### 3.2 ハイブリッド送信アルゴリズム
-1. **IRC 直接送信テキストからの `/announce` コマンド文字列完全除去**:
-   - IRC 送信用テキストの先頭から `/announce` コマンド文字列を削除し、純粋なチャットテキストとして送信（チャット投稿成功率 100% 保証）。
-2. **Twitch Helix API (`TwitchHelixClient`) 優先発火**:
+1. **IRC 直接送信テキストからの `/announce` / `/shoutout` コマンド文字列完全除去**:
+   - IRC 送信用テキストの先頭から `/announce` や `/shoutout` コマンド文字列を削除し、純粋なチャットテキストとして送信（チャット投稿成功率 100% 保証）。
+2. **Twitch Helix API (`TwitchHelixClient`) 優先発火 (アナウンス ＆ 公式 Shoutout)**:
    - アナウンス枠表示が有効な場合、`POST /helix/chat/announcements` REST API を呼び出して公式カラーバナー枠表示を非同期で実行。
+   - シャウトアウト実行時、IRC PRIVMSG での文字列送信を廃止し、`TwitchHelixClient::sendShoutout(toBroadcasterId, fromBroadcasterId)` 経由で `POST /helix/channels/shoutouts?from_broadcaster_id=...&to_broadcaster_id=...&moderator_id=...` REST API を呼び出して Twitch 公式 Shoutout を発火させる。
 
 ```mermaid
 sequenceDiagram
@@ -32,7 +33,14 @@ sequenceDiagram
     participant Core as CoreModule
     participant IRC as TwitchReader (IRC)
 
-    ACM->>ACM: on_clientRequestFinished (m_isShoutoutRequest == true)
+    alt シャウトアウトコマンド実行時
+        ACM->>Helix: POST /helix/channels/shoutouts (fromBroadcasterId, toBroadcasterId)
+        alt Helix API 送信成功
+            Helix-->>ACM: 204 No Content (公式 Shoutout 成功)
+        else Helix API 送信失敗
+            Helix-->>ACM: HTTP Error
+        end
+    end
     alt アナウンス有効かつ Helix 認証トークン存在時
         ACM->>Helix: POST /helix/chat/announcements (color, message)
         alt API 送信成功
@@ -46,3 +54,4 @@ sequenceDiagram
     Core->>IRC: PRIVMSG #channel :純粋メッセージ
     IRC->>Twitch: 100% 確実にチャット欄へ投稿完了
 ```
+

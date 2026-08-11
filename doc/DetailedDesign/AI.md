@@ -274,17 +274,30 @@ struct SpeakerContext {
 - `rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining == -1) || (s.rpdRemaining > 0);`
 - `tpmOk = (s.tpmMax <= 0) || (s.tpmRemaining == -1) || (s.tpmRemaining > 0);`
 - `tpdOk = (s.tpdMax <= 0) || (s.tpdRemaining == -1) || (s.tpdRemaining > 0);`
-- ただし `s.nextResetAt.isValid() && s.rpmRemaining <= 0` の場合は該当項目の `Ok` を `false` とする。
+---
 
+## 14. 宛先・話者変数の初期化 ＆ 翻訳コマンド前置正規化詳細設計
 
+### 14.1 応答完了時・中断時の状態変数クリーンアップ (`clearRequestState`)
+- `AIClientManager::on_clientRequestFinished` の出口（正常応答通知時、エラー発生時、タイムアウト時、翻訳処理時問わず）において、各リクエストスコープの変数をリセットする：
+  ```cpp
+  m_currentDiscordChannelId.clear();
+  m_currentTwitchChannel.clear();
+  m_currentRequester.clear();
+  ```
+- これにより、次回リクエスト処理時に前回の Twitch/Discord 返信先や話者識別子が意図せず残存・リークすることを完全に防ぎ、UI画面直接入力に対する応答が Twitch へ誤送信される障害および人違いの発生を防止する。
 
+### 14.2 翻訳コマンド前置記号・ウェイクワード正規化アルゴリズム
+- `processRequest` における翻訳判定前処理：
+  ```cpp
+  QString transCheckPrompt = trimmedPrompt;
+  static const QRegularExpression prefixRegex("^(?:!ai|/ai|!|/)\\s*", QRegularExpression::CaseInsensitiveOption);
+  transCheckPrompt.remove(prefixRegex);
+  transCheckPrompt = transCheckPrompt.trimmed();
 
-
-
-
-
-
-
-
-
-
+  if (transCheckPrompt.startsWith("trans", Qt::CaseInsensitive)) {
+      m_isTranslationRequest = true;
+      // "trans" 以降の引数を言語・テキストとしてパース
+  }
+  ```
+- `!ai trans en こんにちは` や `/ai trans こんにちは` などの表記ゆれ入力に対し、前置記号を除去・正規化して評価することにより、100% 確実に翻訳処理（`m_isTranslationRequest = true`）を起動する。
