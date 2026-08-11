@@ -127,8 +127,8 @@ sequenceDiagram
 
   - **AI設定タブ**: AIに関する設定値（AIプロバイダ（Mistral AI / Cerebras AI を選択する排他チェックボックス）、各APIキー（Mistral / Cerebras）、Cerebras モデル選択（プルダウン）、Tavily APIキー）をGUIから編集・適用可能とする。
   - **セキュリティ保護**: 秘密情報である「Mistral APIキー」、「Cerebras APIキー」、および「Tavily APIキー」の入力欄は、パスワード入力モード（文字を隠すマスク表示）とする（※TwitchクライアントIDはUI上から削除され設定ファイルでのみ管理される）。
-  - **設定ファイル群の保存場所 (`Config/` フォルダ)**: `local_settings.json` や `user_names.json`、モデレーション用単語ファイル（`blacklist.txt`, `whitelist.txt`）は、実行ファイルと同階層の `Config/` フォルダ配下（`Config/local_settings.json` 等）に一元保存・管理する（起動時・保存時にフォルダおよびファイルを動的参照/生成する）。
-  - **Twitch OAuth 再認可ボタン**: 設定タブ内にボタンを配置し、押下時に既存トークンを破棄してブラウザでTwitch認証画面を開き、自動認証フローを即時再実行する。
+  - **設定ファイル群の保存場所 (`Config/` フォルダ)**: `local_settings.json` や `user_names.json`、モデレーション用単語ファイル（`blacklist.txt`, `whitelist.txt`）は、実行ファイルと同階層の `Config/` フォルダ配下（`Config/local_settings.json` 等）に完全一元化して保存・管理する（読み込み・保存時にルート直下等を探す古いフォールバック処理を全廃し、`Config/` 配下のパスのみを厳格参照する）。また、初回起動時または `Config/local_settings.json` が存在しない場合、`Config/local_settings.json.sample` より自動複製・生成して初期化する。
+  - **Twitch OAuth 再認可ボタン**: 設定タブ内にボタンを配置し、押下時に既存トークンを破棄し、ディスク上の `Config/local_settings.json` から最新の設定（`twitch_client_id` 等）を即座に同期再読み込み（`loadSettings()`）した上で、ブラウザでTwitch認証画面を開き、自動認証フローを即時再実行する。
 - **右クリックメニューからは、不要となった「バリアント切り替え」、「アニメーション」に加えて、重複となる「直接テキスト入力」および「音声入力開始(STT)」を削除し、メニューのシンプル化を図る。**
 
 ### F-6: OBS配信連携用WebSocketサーバー機能

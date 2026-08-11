@@ -234,13 +234,14 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-GREET-01** | `TwitchReader::loadSettings` | `local_settings.json` に `"twitch_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
-| **UT-GREET-02** | `TwitchReader::loadSettings` | `local_settings.json` に `"twitch_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること。 |
-| **UT-GREET-03** | `DiscordReader::loadSettings` | `local_settings.json` に `"discord_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
-| **UT-GREET-04** | `DiscordReader::loadSettings` | `local_settings.json` に `"discord_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること. |
-| **UT-GREET-05** | `AvatarWindow::loadSettingsToUI` | `local_settings.json` に `"twitch_greeting_enabled": true` が設定されている。 | UI上の `m_twitchGreetingCheckbox` のチェック状態が `true` に設定復元されること。 |
-| **UT-GREET-06** | `AvatarWindow::saveSettingsFromUI` | UI上の `m_twitchGreetingCheckbox` のチェックを変更して保存を実行する。 | `local_settings.json` の `"twitch_greeting_enabled"` にチェック状態が正しく反映保存されること。 |
-| **UT-UI-SAVE-01** | `AvatarWindow::saveSettingsFromUI` | コメント行（`#` 行）および `"twitch_client_id": "test_client_id"` が含まれる `local_settings.json` が存在する状態で GUI から保存を実行する。 | コメント行を含む JSON のパースが正常に行われ、`twitch_client_id` の既存値が空文字に消去されることなく正しく保持保存されること。 |
+| **UT-GREET-01** | `TwitchReader::loadSettings` | `Config/local_settings.json` （テスト隔離パス）に `"twitch_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
+| **UT-GREET-02** | `TwitchReader::loadSettings` | `Config/local_settings.json` に `"twitch_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること。 |
+| **UT-GREET-03** | `DiscordReader::loadSettings` | `Config/local_settings.json` に `"discord_greeting_enabled": true` が設定されている。 | 内部フラグ `m_greetingEnabled` が `true` に設定されること。 |
+| **UT-GREET-04** | `DiscordReader::loadSettings` | `Config/local_settings.json` に `"discord_greeting_enabled"` は存在せず、旧キー `"greeting_enabled": true` が存在する。 | フォールバックが働き、`m_greetingEnabled` が `true` に設定されること. |
+| **UT-GREET-05** | `AvatarWindow::loadSettingsToUI` | `Config/local_settings.json` に `"twitch_greeting_enabled": true` が設定されている。 | UI上の `m_twitchGreetingCheckbox` のチェック状態が `true` に設定復元されること。 |
+| **UT-GREET-06** | `AvatarWindow::saveSettingsFromUI` | UI上の `m_twitchGreetingCheckbox` のチェックを変更して保存を実行する。 | `Config/local_settings.json` の `"twitch_greeting_enabled"` にチェック状態が正しく反映保存されること。 |
+| **UT-UI-SAVE-01** | `AvatarWindow::saveSettingsFromUI` | コメント行（`#` 行）および `"twitch_client_id": "test_client_id"` が含まれる `Config/local_settings.json` （テスト隔離パス）が存在する状態で GUI から保存を実行する。 | コメント行を含む JSON のパースが正常に行われ、`twitch_client_id` の既存値が空文字に消去されることなく正しく保持保存されること。 |
+| **UT-TWITCH-REAUTH-01** | `TwitchReader::on_twitchReauthRequested` | `Config/local_settings.json` 内に `"twitch_client_id": "test_client_123"` が設定された状態で `on_twitchReauthRequested()` を呼び出す。 | 認証開始直前に `Config/local_settings.json` から設定が同期再読み込みされ、`m_clientId` が `"test_client_123"` に即座に更新された上で OAuth ローカルサーバーの起動が開始されること。 |
 
 ---
 

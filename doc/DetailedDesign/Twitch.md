@@ -55,3 +55,36 @@ sequenceDiagram
     IRC->>Twitch: 100% 確実にチャット欄へ投稿完了
 ```
 
+---
+
+## 4. Twitch OAuth 認証 ＆ 設定再読み込み仕様 (`TwitchReader::on_twitchReauthRequested`)
+
+### 4.1 動作仕様
+1. **設定パスの厳格固定化**:
+   - `TwitchReader::loadSettings()` での読込先を `Config/local_settings.json` に完全一元化・固定する。
+2. **`on_twitchReauthRequested` 呼び出し時の即時同期ロード**:
+   - 「Twitch認証開始」ボタン押下時または reauth 要求イベント受信時、`on_twitchReauthRequested()` の冒頭で **必ず同期的に `loadSettings()` を呼び出し、`Config/local_settings.json` から最新の `m_clientId` をメモリに再ロード** する。
+3. **Client ID 不在チェックと Local Server 起動**:
+   - 再ロード後の `m_clientId` が空文字または初期ダミー値（`YOUR_TWITCH_CLIENT_ID`）であるか判定する。
+   - 正しい Client ID が設定されている場合は、即座に OAuth ローカルサーバー (`m_authServer`) を起動し、ブラウザ認証画面を起動する。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as AvatarWindow
+    participant Core as CoreModule
+    participant Twitch as TwitchReader
+    participant File as Config/local_settings.json
+
+    UI->>Core: twitchReauthRequested
+    Core->>Twitch: on_twitchReauthRequested()
+    Note over Twitch: 認証直前に設定ファイルを最新化
+    Twitch->>File: loadSettings() [Config/local_settings.json]
+    File-->>Twitch: m_clientId 最新値読み込み完了
+    alt m_clientId が正常設定されている場合
+        Twitch->>Twitch: startOAuthServer() 起動 ＆ ブラウザオープン
+    else m_clientId が空または初期ダミー値の場合
+        Twitch->>UI: ErrorOccurred ("Twitch クライアントIDが設定されていないため、認証を開始できません。")
+    end
+```
+

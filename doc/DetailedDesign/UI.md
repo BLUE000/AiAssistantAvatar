@@ -71,13 +71,16 @@ sequenceDiagram
   - WebSocketポート (`m_wsPortEdit`) および HTTP配信ポート (`m_obsHttpPortEdit`) の画面UIコントロールを完全削除。
 
 ### 6.2 ロード ＆ 保存仕様 (`loadSettingsToUI` / `saveSettingsFromUI`)
+- **ファイルパスの厳格固定**:
+  - 設定の読み込み・保存先パスを `Config/local_settings.json` に完全固定・一元化する（ルート直下等の古いフォールバック探索を排除）。
+  - ファイルが存在しない場合は `Config/local_settings.json.sample` より自動的に複製生成して初期化した上で処理を実行する。
 - **`loadSettingsToUI`**:
-  - UI非表示項目 (`name_reaction_enabled`, `ws_port`, `obs_http_port`, `twitch_wakeword`, `twitch_wakeword_mode`) のUIコントロールへの描画・ロードをスキップし、バックエンド層で設定ファイルを直接読み込み。
-  - Twitch 接続時挨拶チェックボックス (`m_twitchGreetingCheckbox`) の状態を `local_settings.json` の `"twitch_greeting_enabled"` (フォールバック: `"greeting_enabled"`) より取得して UI 上に復元。
+  - UI非表示項目 (`name_reaction_enabled`, `ws_port`, `obs_http_port`, `twitch_wakeword`, `twitch_wakeword_mode`) のUIコントロールへの描画・ロードをスキップし、バックエンド層で `Config/local_settings.json` を直接読み込み。
+  - Twitch 接続時挨拶チェックボックス (`m_twitchGreetingCheckbox`) の状態を `Config/local_settings.json` の `"twitch_greeting_enabled"` (フォールバック: `"greeting_enabled"`) より取得して UI 上に復元。
 - **`saveSettingsFromUI`**:
-  - 既存の `local_settings.json` をロードして既存設定値をマージする際、`JsonCommentRemover::stripHashComments(...)` を通してコメント行（`#` 行）を除去してからパースを実行し、パース失敗による設定初期化・消失を防止する。
+  - 既存の `Config/local_settings.json` をロードして既存設定値をマージする際、`JsonCommentRemover::stripHashComments(...)` を通してコメント行（`#` 行）を除去してからパースを実行し、パース失敗による設定初期化・消失を防止する。
   - UIフォーム上に直接の入力欄を持たない設定項目（`twitch_client_id`, `twitch_port`, `twitch_wakeword`, `twitch_wakeword_mode` 等）は、既存 JSON オブジェクトに保持されている値をそのまま保護・維持して上書き保存する。
-  - `m_twitchGreetingCheckbox->isChecked()` のチェック状態を取得し、`local_settings.json` の `"twitch_greeting_enabled"` キーへ正しく反映して保存。
+  - `m_twitchGreetingCheckbox->isChecked()` のチェック状態を取得し、`Config/local_settings.json` の `"twitch_greeting_enabled"` キーへ正しく反映して保存。
 
 ---
 
