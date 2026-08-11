@@ -116,6 +116,7 @@ struct ProviderConfigSpec {
 
 class AvatarWindow : public QMainWindow {
     Q_OBJECT
+    friend class AIClientTest;
 private:
     QList<ProviderConfigSpec> m_providerSpecs;
     QLabel *m_avatarLabel;
@@ -314,8 +315,6 @@ private:
     void initKnowledgeTab(QWidget *parent);
     void updateNicknameTables();
     void updateKnowledgeTable();
-    void loadSettingsToUI();
-    void saveSettingsFromUI();
 
     void startWebSocketServer();
 
@@ -367,6 +366,8 @@ public:
     void onAddDiscordChannelClicked();
     void onSttPressed();
     void onSttReleased();
+    void loadSettingsToUI();
+    void saveSettingsFromUI();
 
 
 

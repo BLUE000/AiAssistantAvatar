@@ -1531,6 +1531,10 @@ void AvatarWindow::loadSettingsToUI() {
             m_twitchOAuthToken = obj.value("twitch_oauth_token").toString();
             m_twitchUsername = obj.value("twitch_username").toString();
             
+            bool fallbackTwitchGreet = obj.value("greeting_enabled").toBool(false);
+            bool twitchGreet = obj.value("twitch_greeting_enabled").toBool(fallbackTwitchGreet);
+            if (m_twitchGreetingCheckbox) m_twitchGreetingCheckbox->setChecked(twitchGreet);
+            
             if (m_webhookUrlEdit) m_webhookUrlEdit->setText(obj.value("webhook_url").toString());
             m_webhookUrl = obj.value("webhook_url").toString();
             
@@ -1744,6 +1748,9 @@ void AvatarWindow::saveSettingsFromUI() {
         m_twitchUsername = obj.value("twitch_username").toString();
     } else {
         obj["twitch_username"] = "";
+    }
+    if (m_twitchGreetingCheckbox) {
+        obj["twitch_greeting_enabled"] = m_twitchGreetingCheckbox->isChecked();
     }
     obj["webhook_url"] = m_webhookUrl;
     obj["webhook_enabled"] = m_webhookEnabled;

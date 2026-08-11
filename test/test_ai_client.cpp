@@ -1521,6 +1521,79 @@ TEST_F(AIClientTest, SegregatedGreetingSettingsTest) {
     }
 }
 
+TEST_F(AIClientTest, AvatarWindowTwitchGreetingTest) {
+    QString targetPath = "local_settings.json";
+    if (!QFile::exists(targetPath)) {
+        targetPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
+    }
+
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(targetPath);
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        // 1. UT-GREET-05: local_settings.json に twitch_greeting_enabled = true がある場合、
+        // AvatarWindow::loadSettingsToUI により UI チェックボックスが true に設定復元されること
+        QJsonObject obj;
+        obj["twitch_greeting_enabled"] = true;
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        AvatarWindow window;
+        QCheckBox *chk = nullptr;
+        for (QCheckBox *c : window.findChildren<QCheckBox*>()) {
+            if (c->text().contains("接続時にチャットで挨拶する")) {
+                chk = c;
+                break;
+            }
+        }
+        ASSERT_NE(chk, nullptr);
+        EXPECT_TRUE(chk->isChecked());
+    }
+
+    {
+        // 2. UT-GREET-06: UI チェックボックスのチェックを変更して保存を実行した際、
+        // local_settings.json の twitch_greeting_enabled に値が保存されること
+        AvatarWindow window;
+        QCheckBox *chk = nullptr;
+        for (QCheckBox *c : window.findChildren<QCheckBox*>()) {
+            if (c->text().contains("接続時にチャットで挨拶する")) {
+                chk = c;
+                break;
+            }
+        }
+        ASSERT_NE(chk, nullptr);
+        chk->setChecked(false);
+        window.saveSettingsFromUI();
+
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        QJsonObject savedObj = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+
+        EXPECT_TRUE(savedObj.contains("twitch_greeting_enabled"));
+        EXPECT_FALSE(savedObj.value("twitch_greeting_enabled").toBool());
+    }
+
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
+    } else {
+        QFile::remove(targetPath);
+    }
+}
+
 TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
     AIClientManager manager;
     manager.setAIProvider(""); // 自動ルーティングモード（優先順位順フォールバック）をテストするため特定の固定プロバイダ指定をクリア
