@@ -24,10 +24,38 @@ void quietMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
     }
 }
 
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+
 int main(int argc, char* argv[])
 {
     qInstallMessageHandler(quietMessageHandler);
     QApplication app(argc, argv);
+
+    // テスト実行環境専用の Config/local_settings.json を準備 (テスト隔離)
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString testConfigDir = appDir + "/Config";
+    QDir().mkpath(testConfigDir);
+    QString path = testConfigDir + "/local_settings.json";
+
+    QJsonObject testObj;
+    testObj["ai_provider"] = "dummy";
+    testObj["mistral_api_key"] = "test_api_key_from_test";
+    testObj["trans_cipher_key"] = "AiAssistantAvatar";
+    testObj["twitch_channel"] = "YOUR_CHANNEL_NAME";
+    testObj["twitch_client_id"] = "test_client_id";
+    testObj["twitch_port"] = 48080;
+    testObj["twitch_wakeword"] = "AI";
+    testObj["twitch_wakeword_mode"] = "contains";
+    testObj["blacklist_enabled"] = true;
+
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

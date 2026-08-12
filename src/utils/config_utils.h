@@ -22,6 +22,8 @@ namespace ConfigUtils {
         QString appDir = QCoreApplication::applicationDirPath();
         QStringList candidates = {
             appDir + "/Config/" + fileName,
+            appDir + "/../Config/" + fileName,
+            appDir + "/../../Config/" + fileName,
             "Config/" + fileName
         };
 
@@ -40,6 +42,8 @@ namespace ConfigUtils {
         QString sampleName = fileName + ".sample";
         QStringList sampleCandidates = {
             appDir + "/Config/" + sampleName,
+            appDir + "/../Config/" + sampleName,
+            appDir + "/../../Config/" + sampleName,
             "Config/" + sampleName
         };
 

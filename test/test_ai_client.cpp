@@ -73,31 +73,26 @@ namespace {
 class AIClientTest : public ::testing::Test {
 protected:
     static void ensureValidLocalSettings() {
-        QString path = ConfigUtils::resolveConfigFilePath("local_settings.json");
-        bool needsRestore = false;
-        if (!QFile::exists(path) || QFile(path).size() == 0) {
-            needsRestore = true;
-        } else {
-            QFile f(path);
-            if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QByteArray data = JsonCommentRemover::stripHashComments(f.readAll());
-                f.close();
-                QJsonObject obj = QJsonDocument::fromJson(data).object();
-                if (!obj.contains("trans_cipher_key")) {
-                    needsRestore = true;
-                }
-            }
-        }
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString testConfigDir = appDir + "/Config";
+        QDir().mkpath(testConfigDir);
+        QString path = testConfigDir + "/local_settings.json";
 
-        if (needsRestore) {
-            QString samplePath = "tmp/local_settings.json";
-            if (!QFile::exists(samplePath)) {
-                samplePath = "Config/local_settings.json.sample";
-            }
-            if (QFile::exists(samplePath)) {
-                QFile::remove(path);
-                QFile::copy(samplePath, path);
-            }
+        QJsonObject testObj;
+        testObj["ai_provider"] = "dummy";
+        testObj["mistral_api_key"] = "test_api_key_from_test";
+        testObj["trans_cipher_key"] = "AiAssistantAvatar";
+        testObj["twitch_channel"] = "YOUR_CHANNEL_NAME";
+        testObj["twitch_client_id"] = "test_client_id";
+        testObj["twitch_port"] = 48080;
+        testObj["twitch_wakeword"] = "AI";
+        testObj["twitch_wakeword_mode"] = "contains";
+        testObj["blacklist_enabled"] = true;
+
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(QJsonDocument(testObj).toJson());
+            file.close();
         }
     }
 
