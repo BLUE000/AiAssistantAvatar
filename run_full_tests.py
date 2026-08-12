@@ -24,10 +24,10 @@ def main():
     project_dir = script_dir
     build_dir = os.path.join(project_dir, "build")
     
-    # ターゲット実行ファイルの探索 (Release または build 直下)
+    # ターゲット実行ファイルの探索 (build 直下 または Release)
     test_exe_candidates = [
-        os.path.join(build_dir, "Release", "AiAssistantAvatarTest.exe"),
-        os.path.join(build_dir, "AiAssistantAvatarTest.exe")
+        os.path.join(build_dir, "AiAssistantAvatarTest.exe"),
+        os.path.join(build_dir, "Release", "AiAssistantAvatarTest.exe")
     ]
     
     test_exe = None
