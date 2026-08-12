@@ -15,3 +15,11 @@
 - **初回自動生成**: 起動時または保存時に `Config/local_settings.json` が存在しない場合、同梱されている `Config/local_settings.json.sample` から自動的に `Config/local_settings.json` を複製生成して初期化する。
 - **単体テスト環境の分離**: `AiAssistantAvatarTest.exe` などの単体テスト実行時は、実環境の `Config/local_settings.json` を上書き汚染しないよう、独立したテスト専用パス（`test_local_settings.json` 等）または一時ディレクトリで実行・検証する構造とする。
 
+### 2.3 音声入力（STT）無音タイムアウト設定 ＆ 未存在キー自動補完 (`F-2`)
+- **無音タイムアウト設定項目 (`voice_silence_timeout_ms`)**:
+  - 音声入力における無音判定時間をミリ秒（ms）単位で定義する（デフォルト値: `1000`）。
+  - 設定ファイル `Config/local_settings.json` 内に保存・管理され、アプリケーション起動時および設定更新時に動的にロードされる。
+- **未存在キーの自動補完 (Auto-Injection)**:
+  - 既存の `Config/local_settings.json` に `"voice_silence_timeout_ms"` キーが存在しない場合、アプリケーションは読み込み時に自動検知し、コメント `# 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）` 付きでデフォルト項目をファイルへ追記保存する。
+
+

@@ -157,11 +157,23 @@ struct ProviderConfigSpec {
   - 押下時 (`onSttPressed`): ボタンテキストを `🎤 録音中...` に変更し、背景色 `#e74c3c` (赤色) のスタイルシートを適用し、`startSTTRequested()` シグナルを発火。
   - 解放時 (`onSttReleased`): ボタンテキストを `音声` に戻し、標準スタイルシートへ復元し、`stopSTTRequested()` シグナルを発火。
 
-### 8.2 共有マイクアクセス ＆ 音声認識ルーティング設計 (`CoreModule` / `STTManager`)
+### 8.2 共有マイクアクセス ＆ 会話状態遷移ルーティング詳細設計 (`CoreModule` / `STTManager`)
 - **`SAPIEngine` 共有キャプチャ制御**:
   - `CLSID_SpSharedRecognizer` を使用して認識エンジンを初期化し、WASAPI 共有モードでマイク入力をキャプチャ。他の音声アプリ（OBS, Discord 等）のマイク占有・遮断を回避する。
-- **音声認識完了イベント (`VoiceInputCompleted`) の自動AI連動回路**:
-  - `CoreModule::on_notify_events` で `EventType::VoiceInputCompleted` イベントを受信した際、イベントのテキスト内容 (`event.text`) を確認し、空でない場合即座に `requestAIExecution(event.text, "Streamer (Voice)")` シグナルを発火して AI 応答フローに自動直結する。
+- **会話状態遷移制御 (State Machine)**:
+  - `CoreModule` 内に会話アクティブ状態フラグ `m_isVoiceActive` (bool) および無音タイムアウト用タイマー `m_voiceSilenceTimer` (QTimer) を保持する。
+  - **待機状態 (`m_isVoiceActive == false`)**:
+    - 受信した音声テキスト (`event.text`) にアバター名 (`avatar_name`) または `twitch_wakeword` が含まれているか判定。
+    - アバター名等が含まれない場合、呼びかけ意図のない発言（「テスト」「独り言」等）として処理を中断し破棄する。
+    - アバター名が含まれている場合、テキストからアバター名および敬称を除去し、`requestAIExecution` を発火して `m_isVoiceActive = true` へ遷移し、`m_voiceSilenceTimer` を開始する。
+  - **アクティブ状態 (`m_isVoiceActive == true`)**:
+    - アバター名の指定がない発言であっても、そのまま `requestAIExecution` へ転送して連続会話を実行し、`m_voiceSilenceTimer` を再スタート (Reset) する。
+  - **無音タイムアウト処理**:
+    - 設定値 `voice_silence_timeout_ms` (デフォルト: `1000ms`) の間新たな発言がない場合、`m_voiceSilenceTimer` の `timeout()` シグナルが発火し、`m_isVoiceActive = false` (待機状態) へ自動復帰する。
+  - **PTT入力のバイパス制御**:
+    - UI の「音声」ボタン PTT 経由での入力（`extraData["is_ptt"] == true`）の場合、意図的な操作であるため状態遷移・アバター名判定をバイパスし、即座に AI へ送信する。
+- **設定値 `voice_silence_timeout_ms` の自動補完 (Auto-Injection)**:
+  - 設定ファイル読み込み時、`local_settings.json` に `voice_silence_timeout_ms` キーが存在しない場合、`# 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）` コメントと共に初期値 `1000` を自動的に追記保存する。
 - **サブPC（別マシン）動作 ＆ HTTP/WebSocket STT 注入**:
   - ローカル HTTP サーバー (`HttpServer`) に `POST /stt` エンドポイントを実装し、JSON パラメータ `{"text": "音声認識テキスト"}` を受け取った場合も、同一の `VoiceInputCompleted` イベントを生成して `CoreModule` 経由で AI にリクエストを配信する。
 
@@ -171,7 +183,7 @@ struct ProviderConfigSpec {
 - **ブラウザ側 JavaScript 仕様 (Web Speech API)**:
   1. `window.SpeechRecognition || window.webkitSpeechRecognition` を初期化し、`continuous = true`, `interimResults = true` で常時マイク認識ループを稼働する。
   2. マイクから取得されたテキストにウェイクワード（アバター名等）が含まれるか、あるいは発話が確定したタイミングで `fetch('/stt_input?text=' + encodeURIComponent(finalText))` を非同期呼出する。
-  3. アプリケーション側で `sttTextReceived` シグナルを発火し、`CoreModule` 経由で AI アバターが会話・応答を起動する。
+  3. アプリケーション側で `sttTextReceived` シグナルを発火し、`CoreModule` の会話状態遷移回路を経由して AI アバターが会話・応答を起動する。
 
 
 3. **全自動排他制御シグナル接続ループ**:
