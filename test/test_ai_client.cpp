@@ -2373,7 +2373,7 @@ TEST(STTFeatureTest, VerifyPTTButtonStateAndSignals) {
     EXPECT_EQ(spyStop.count(), 1);
 }
 
-// UT-STT-05: CoreModule 音声AI自動ルーティングテスト
+// UT-STT-05: CoreModule 音声AI自動ルーティングテスト (ウェイクワード検出 ＆ アバター名除去)
 TEST(STTFeatureTest, VerifyVoiceInputAIRouting) {
     CoreModule core;
     QSignalSpy spyAI(&core, &CoreModule::requestAI);
@@ -2381,14 +2381,79 @@ TEST(STTFeatureTest, VerifyVoiceInputAIRouting) {
     AppEvent voiceEvent;
     voiceEvent.type = EventType::VoiceInputCompleted;
     voiceEvent.source = "STTManager";
-    voiceEvent.text = "こんにちは、テストです";
+    voiceEvent.text = "ぶるたろう、こんにちは";
 
     core.on_notify_events(voiceEvent);
 
     EXPECT_EQ(spyAI.count(), 1);
     QList<QVariant> arguments = spyAI.takeFirst();
-    EXPECT_EQ(arguments.at(0).toString(), "こんにちは、テストです");
+    EXPECT_EQ(arguments.at(0).toString(), "こんにちは");
     EXPECT_EQ(arguments.at(1).toString(), "Streamer (Voice)");
+}
+
+// UT-STT-07: CoreModule 待機状態非ウェイクワード無視テスト
+TEST(STTFeatureTest, VerifyIdleNonWakewordIgnored) {
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    AppEvent voiceEvent;
+    voiceEvent.type = EventType::VoiceInputCompleted;
+    voiceEvent.source = "STTManager";
+    voiceEvent.text = "テスト発言です";
+
+    core.on_notify_events(voiceEvent);
+
+    // アバター名・ウェイクワードが含まれないため、AI呼び出しは発火しない
+    EXPECT_EQ(spyAI.count(), 0);
+}
+
+// UT-STT-08: CoreModule 会話アクティブ ＆ 無音タイムアウト復帰テスト
+TEST(STTFeatureTest, VerifyActiveStateAndSilenceTimeout) {
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    // 1. 待機状態からアバター名呼びかけでアクティブ移行
+    AppEvent event1;
+    event1.type = EventType::VoiceInputCompleted;
+    event1.source = "STTManager";
+    event1.text = "ぶるたろう、今日の天気を教えて";
+    core.on_notify_events(event1);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "今日の天気を教えて");
+
+    // 2. アクティブ状態ではアバター名なしでも連続会話可能
+    AppEvent event2;
+    event2.type = EventType::VoiceInputCompleted;
+    event2.source = "STTManager";
+    event2.text = "明日も晴れるかな";
+    core.on_notify_events(event2);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "明日も晴れるかな");
+
+    // 3. 無音タイマー経過（1100ms経過で1000msタイムアウト発火）
+    QTest::qWait(1100);
+
+    // 4. タイムアウト後（待機状態復帰後）はアバター名なし発話が無視される
+    AppEvent event3;
+    event3.type = EventType::VoiceInputCompleted;
+    event3.source = "STTManager";
+    event3.text = "ありがとう";
+    core.on_notify_events(event3);
+
+    EXPECT_EQ(spyAI.count(), 0);
+}
+
+// UT-STT-09: 設定ファイル自動補完 (voice_silence_timeout_ms) テスト
+TEST(STTFeatureTest, VerifySilenceTimeoutAutoInjection) {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString content = QString::fromUtf8(file.readAll());
+        file.close();
+        EXPECT_TRUE(content.contains("voice_silence_timeout_ms"));
+    }
 }
 
 // UT-COMMENT-SPLIT-01: 500文字以内の分割不要テスト

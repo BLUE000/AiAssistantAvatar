@@ -27,5 +27,8 @@
 
   # 各種機能設定
   "trans_cipher_key": "AiAssistantAvatar",
-  "blacklist_enabled": true
+  "blacklist_enabled": true,
+
+  # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）
+  "voice_silence_timeout_ms": 1000
 }

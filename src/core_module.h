@@ -53,6 +53,7 @@ public slots:
 
 private slots:
     void processCommentQueue();
+    void onVoiceSilenceTimeout();
 
 private:
     struct CommentQueueItem {
@@ -64,6 +65,12 @@ private:
     class QTimer *m_commentTimer = nullptr;
     int m_slowModeIntervalMs = 1500; // スローモード対応送信間隔 (1.5秒)
 
+    bool m_isVoiceActive = false;
+    class QTimer *m_voiceSilenceTimer = nullptr;
+    int m_voiceSilenceTimeoutMs = 1000;
+
+    void loadVoiceSettings();
+    void ensureVoiceSilenceTimeoutSettingExists();
     void enqueueCommentSend(CommentQueueItem::Target target, const QString &destination, const QString &fullText);
 };
 

@@ -1,11 +1,23 @@
 #include "core_module.h"
+#include "utils/config_utils.h"
+#include "utils/json_comment_remover.h"
 #include <QDebug>
 #include <QTimer>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QRegularExpression>
 
 CoreModule::CoreModule(QObject *parent) : QObject(parent) {
     qDebug() << "CoreModule initialized.";
     m_commentTimer = new QTimer(this);
     connect(m_commentTimer, &QTimer::timeout, this, &CoreModule::processCommentQueue);
+
+    m_voiceSilenceTimer = new QTimer(this);
+    m_voiceSilenceTimer->setSingleShot(true);
+    connect(m_voiceSilenceTimer, &QTimer::timeout, this, &CoreModule::onVoiceSilenceTimeout);
+
+    loadVoiceSettings();
 }
 
 CoreModule::~CoreModule() {
@@ -78,10 +90,74 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             break;
         }
         case EventType::VoiceInputCompleted: {
-            qDebug() << "CoreModule: Voice input completed. Routing text to AI. Text:" << event.text;
-            if (!event.text.trimmed().isEmpty()) {
-                emit requestAI(event.text.trimmed(), "Streamer (Voice)", "UI");
+            qDebug() << "CoreModule: Voice input completed. Text:" << event.text << "Active:" << m_isVoiceActive;
+            QString trimmedText = event.text.trimmed();
+            if (trimmedText.isEmpty()) {
+                emit notifyEventToUI(event);
+                break;
             }
+
+            bool isPtt = event.extraData.value("is_ptt").toBool(false);
+            if (isPtt) {
+                // PTT ボタン長押し時はアバター名チェック・状態遷移を行わずに無条件送信
+                qDebug() << "CoreModule: PTT voice input. Routing directly to AI.";
+                emit requestAI(trimmedText, "Streamer (Voice)", "UI");
+                emit notifyEventToUI(event);
+                break;
+            }
+
+            loadVoiceSettings();
+
+            if (!m_isVoiceActive) {
+                // 待機状態 (Idle): アバター名またはウェイクワードが含まれているか確認
+                QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+                QString avatarName = "ぶるたろう";
+                QString wakeword = "AIアシスタント";
+                
+                QFile file(configPath);
+                if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
+                    file.close();
+                    QJsonObject obj = QJsonDocument::fromJson(data).object();
+                    if (obj.contains("avatar_name")) avatarName = obj.value("avatar_name").toString("ぶるたろう");
+                    if (obj.contains("twitch_wakeword")) wakeword = obj.value("twitch_wakeword").toString("AIアシスタント");
+                }
+
+                auto stripKeywordWithHonorifics = [](const QString &src, const QString &keyword) -> QString {
+                    if (keyword.isEmpty()) return src;
+                    QRegularExpression regex(QRegularExpression::escape(keyword) + "(?:くん|君|さん|ちゃん|様|たん|殿|氏|ー|〜)*[、。！？!?\\s\\t,.]*");
+                    QString result = src;
+                    result.replace(regex, "");
+                    return result.trimmed();
+                };
+
+                bool matched = false;
+                QString cleanText = trimmedText;
+
+                if (!wakeword.isEmpty() && trimmedText.contains(wakeword)) {
+                    matched = true;
+                    cleanText = stripKeywordWithHonorifics(trimmedText, wakeword);
+                } else if (!avatarName.isEmpty() && trimmedText.contains(avatarName)) {
+                    matched = true;
+                    cleanText = stripKeywordWithHonorifics(trimmedText, avatarName);
+                }
+
+                if (matched) {
+                    m_isVoiceActive = true;
+                    if (m_voiceSilenceTimer) m_voiceSilenceTimer->start(m_voiceSilenceTimeoutMs);
+                    if (cleanText.isEmpty()) cleanText = trimmedText;
+                    qDebug() << "CoreModule: Wakeword matched. State -> Active. Routing to AI:" << cleanText;
+                    emit requestAI(cleanText, "Streamer (Voice)", "UI");
+                } else {
+                    qDebug() << "CoreModule: No wakeword/avatar_name match while Idle. Dropping text:" << trimmedText;
+                }
+            } else {
+                // アクティブ状態 (Active): そのままAIに送信し、タイマー再スタート
+                if (m_voiceSilenceTimer) m_voiceSilenceTimer->start(m_voiceSilenceTimeoutMs);
+                qDebug() << "CoreModule: Voice active. Routing to AI and resetting timer:" << trimmedText;
+                emit requestAI(trimmedText, "Streamer (Voice)", "UI");
+            }
+
             emit notifyEventToUI(event);
             break;
         }
@@ -141,6 +217,7 @@ void CoreModule::on_exportSessionRequested(const QString &encPath, const QString
 void CoreModule::on_settingsUpdated() {
     qDebug() << "[TRACE-CORE] >>> CoreModule::on_settingsUpdated START";
     qDebug() << "CoreModule: Settings updated, propagating to submodules.";
+    loadVoiceSettings();
     emit settingsUpdated();
     qDebug() << "[TRACE-CORE] <<< CoreModule::on_settingsUpdated END";
 }
@@ -247,6 +324,47 @@ void CoreModule::processCommentQueue() {
 
     if (m_commentQueue.isEmpty() && m_commentTimer && m_commentTimer->isActive()) {
         m_commentTimer->stop();
+    }
+}
+
+void CoreModule::onVoiceSilenceTimeout() {
+    qDebug() << "CoreModule: Voice silence timeout (" << m_voiceSilenceTimeoutMs << "ms). State -> Idle.";
+    m_isVoiceActive = false;
+}
+
+void CoreModule::loadVoiceSettings() {
+    ensureVoiceSilenceTimeoutSettingExists();
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
+        file.close();
+        QJsonObject obj = QJsonDocument::fromJson(data).object();
+        if (obj.contains("voice_silence_timeout_ms")) {
+            m_voiceSilenceTimeoutMs = obj.value("voice_silence_timeout_ms").toInt(1000);
+        }
+    }
+}
+
+void CoreModule::ensureVoiceSilenceTimeoutSettingExists() {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    if (!content.contains("voice_silence_timeout_ms")) {
+        int lastBrace = content.lastIndexOf('}');
+        if (lastBrace != -1) {
+            QString addition = "  # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）\n"
+                               "  \"voice_silence_timeout_ms\": 1000,\n";
+            content.insert(lastBrace, addition);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                file.write(content.toUtf8());
+                file.close();
+                qDebug() << "CoreModule: Auto-injected voice_silence_timeout_ms setting into" << configPath;
+            }
+        }
     }
 }
 
