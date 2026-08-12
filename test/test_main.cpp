@@ -20,8 +20,8 @@ void quietMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
         break;
     case QtFatalMsg:
         fprintf(stderr, "Fatal: %s\n", localMsg.constData());
-        std::exit(-1);
     }
+    fflush(stderr);
 }
 
 #include <QDir>
@@ -36,9 +36,11 @@ int main(int argc, char* argv[])
 
     // テスト実行環境専用の Config/local_settings.json を準備 (テスト隔離)
     QString appDir = QCoreApplication::applicationDirPath();
-    QString testConfigDir = appDir + "/Config";
-    QDir().mkpath(testConfigDir);
-    QString path = testConfigDir + "/local_settings.json";
+    QStringList targetPaths = {
+        appDir + "/Config/local_settings.json",
+        appDir + "/../Config/local_settings.json",
+        "Config/local_settings.json"
+    };
 
     QJsonObject testObj;
     testObj["ai_provider"] = "dummy";
@@ -50,11 +52,17 @@ int main(int argc, char* argv[])
     testObj["twitch_wakeword"] = "AI";
     testObj["twitch_wakeword_mode"] = "contains";
     testObj["blacklist_enabled"] = true;
+    testObj["manager_ai_enabled"] = false;
+    testObj["manager_ai_provider"] = "dummy";
 
-    QFile file(path);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.write(QJsonDocument(testObj).toJson());
-        file.close();
+    for (const QString &path : targetPaths) {
+        QFileInfo fi(path);
+        QDir().mkpath(fi.absolutePath());
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(QJsonDocument(testObj).toJson());
+            file.close();
+        }
     }
 
     ::testing::InitGoogleTest(&argc, argv);

@@ -16,7 +16,7 @@ signals:
     void requestTwitchStart();
     void requestSTTStart();
     void requestSTTStop();
-    void requestAI(const QString &prompt, const QString &user = "");
+    void requestAI(const QString &prompt, const QString &user = "", const QString &source = "UI");
     void requestSessionReset(bool isManual); // セッションリセット要求シグナル
     void requestSessionImport(const QString &filePath);
     void requestSessionExport(const QString &encPath, const QString &txtPath);

@@ -803,7 +803,7 @@ void AvatarWindow::onSendClicked() {
     if (!m_inputEdit) return;
     QString text = m_inputEdit->text().trimmed();
     if (!text.isEmpty()) {
-        enqueueRequest(text);
+        enqueueRequest(text, "", "UI");
         m_inputEdit->clear();
     }
 }
@@ -850,7 +850,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
 
         case EventType::VoiceInputCompleted:
             statusBar()->showMessage("音声認識完了: キューに追加されました");
-            enqueueRequest(event.text);
+            enqueueRequest(event.text, "", "UI");
             break;
 
         case EventType::TwitchCommentReceived:
@@ -861,7 +861,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 QString encodedUser = twitchChannel.isEmpty()
                     ? QString("[Twitch] %1").arg(username)
                     : QString("[Twitch:%1] %2").arg(twitchChannel, username);
-                enqueueRequest(event.text, encodedUser);
+                enqueueRequest(event.text, encodedUser, "Twitch");
             }
             break;
 
@@ -878,11 +878,14 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 m_responseBrowser->setMarkdown(event.text);
             }
 
-            // OBSへの通知
-            QJsonObject resObj;
-            resObj["type"] = "AIResponseReceived";
-            resObj["responseText"] = event.text;
-            broadcastToOBS(resObj);
+            // OBSへの通知（Twitch経由のAI応答時のみ配信し、UI直接入力やDiscord応答は非中継）
+            bool isTwitchSource = (event.source == "Twitch" || event.extraData.contains("twitch_channel"));
+            if (isTwitchSource) {
+                QJsonObject resObj;
+                resObj["type"] = "AIResponseReceived";
+                resObj["responseText"] = event.text;
+                broadcastToOBS(resObj);
+            }
 
             // WebHookへの通知
             if (m_webhookEnabled && !m_webhookUrl.isEmpty()) {
@@ -907,16 +910,18 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 m_resumeTimer->setSingleShot(true);
             }
             m_resumeTimer->disconnect();
-            connect(m_resumeTimer, &QTimer::timeout, this, [this]() {
+            connect(m_resumeTimer, &QTimer::timeout, this, [this, isTwitchSource]() {
                 m_isProcessingAI = false;
                 resumeScheduler();
                 statusBar()->showMessage("待機中...");
 
-                // 吹き出しを消すための通知（空の文字列を送信）
-                QJsonObject clearObj;
-                clearObj["type"] = "AIResponseReceived";
-                clearObj["responseText"] = "";
-                broadcastToOBS(clearObj);
+                // 吹き出しを消すための通知（Twitch経由時のみ送信）
+                if (isTwitchSource) {
+                    QJsonObject clearObj;
+                    clearObj["type"] = "AIResponseReceived";
+                    clearObj["responseText"] = "";
+                    broadcastToOBS(clearObj);
+                }
 
                 // 次のキューがあれば処理を開始
                 processNextRequest();
@@ -2047,10 +2052,14 @@ void AvatarWindow::onWebHookReplyFinished(QNetworkReply *reply) {
     }
 }
 
-void AvatarWindow::enqueueRequest(const QString &text, const QString &user) {
+void AvatarWindow::enqueueRequest(const QString &text, const QString &user, const QString &source) {
     if (text.trimmed().isEmpty()) return;
-    m_aiRequestQueue.enqueue(qMakePair(text.trimmed(), user));
-    qDebug() << "AvatarWindow: Enqueued AI request. Current queue size:" << m_aiRequestQueue.size();
+    AIRequestItem item;
+    item.text = text.trimmed();
+    item.user = user;
+    item.source = source.isEmpty() ? "UI" : source;
+    m_aiRequestQueue.enqueue(item);
+    qDebug() << "AvatarWindow: Enqueued AI request (Source:" << item.source << "). Current queue size:" << m_aiRequestQueue.size();
     processNextRequest();
 }
 
@@ -2065,10 +2074,11 @@ void AvatarWindow::processNextRequest() {
     }
 
     m_isProcessingAI = true;
-    QPair<QString, QString> nextRequest = m_aiRequestQueue.dequeue();
-    QString nextPrompt = nextRequest.first;
-    QString user = nextRequest.second;
-    qDebug() << "AvatarWindow: Processing next request:" << nextPrompt << "from user:" << user;
+    AIRequestItem nextRequest = m_aiRequestQueue.dequeue();
+    QString nextPrompt = nextRequest.text;
+    QString user = nextRequest.user;
+    QString source = nextRequest.source;
+    qDebug() << "AvatarWindow: Processing next request:" << nextPrompt << "from user:" << user << "source:" << source;
 
     pauseScheduler();
     updateAvatarDisplay("thinking");
@@ -2078,7 +2088,7 @@ void AvatarWindow::processNextRequest() {
     }
 
     // AIクライアントへリクエストを要求するシグナルを発火
-    emit requestAIExecution(nextPrompt, user);
+    emit requestAIExecution(nextPrompt, user, source);
 }
 
 void AvatarWindow::onCopyObsPathClicked() {

@@ -29,17 +29,17 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             QString encodedUser = QString("[Discord:%1] %2").arg(channelId, username);
             
             qDebug() << "CoreModule: Routing Discord message to AI. User:" << encodedUser;
-            emit requestAI(event.text, encodedUser);
+            emit requestAI(event.text, encodedUser, "Discord");
             break;
         }
         case EventType::AIResponseReceived:
         case EventType::DirectInputSubmitted: {
             // AI応答受信時およびダイレクト入力時、送信元プラットフォームへ500文字分割＆スローモード遅延キュー経由で返信
-            if (event.extraData.contains("channel_id")) {
+            if (event.source == "Discord" && event.extraData.contains("channel_id")) {
                 QString channelId = event.extraData.value("channel_id").toString();
                 qDebug() << "CoreModule: Queueing response back to Discord. Channel:" << channelId;
                 enqueueCommentSend(CommentQueueItem::Discord, channelId, event.text);
-            } else if (event.extraData.contains("twitch_channel")) {
+            } else if (event.source == "Twitch" && event.extraData.contains("twitch_channel")) {
                 QString twitchChannel = event.extraData.value("twitch_channel").toString();
                 qDebug() << "CoreModule: Queueing response back to Twitch. Channel:" << twitchChannel;
                 enqueueCommentSend(CommentQueueItem::Twitch, twitchChannel, event.text);
@@ -80,7 +80,7 @@ void CoreModule::on_notify_events(const AppEvent &event) {
         case EventType::VoiceInputCompleted: {
             qDebug() << "CoreModule: Voice input completed. Routing text to AI. Text:" << event.text;
             if (!event.text.trimmed().isEmpty()) {
-                emit requestAI(event.text.trimmed(), "Streamer (Voice)");
+                emit requestAI(event.text.trimmed(), "Streamer (Voice)", "UI");
             }
             emit notifyEventToUI(event);
             break;
@@ -120,7 +120,7 @@ void CoreModule::on_directInputSubmitted(const QString &text) {
     sentEvent.text = text;
     emit notifyEventToUI(sentEvent);
 
-    emit requestAI(text, "");
+    emit requestAI(text, "", "UI");
 }
 
 void CoreModule::on_resetSessionRequested() {

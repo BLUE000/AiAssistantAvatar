@@ -95,6 +95,7 @@ private:
     struct PendingRequest {
         QString prompt;
         QString user;
+        QString source;
     };
     QList<PendingRequest> m_pendingRequests;
     void processPendingRequests();
@@ -114,6 +115,7 @@ private:
     // Discord / Twitch / 長期記憶用メンバ
     QString m_currentDiscordChannelId;
     QString m_currentTwitchChannel; // Twitch入力時の返信先チャンネル名
+    QString m_currentSource = "UI"; // リクエスト入力ソース ("UI", "Twitch", "Discord")
     QString m_recalledContext;
     void scanMemorySummaries(const QString &prompt);
     void loadMemoryDetail(const QString &sessionId);
@@ -239,7 +241,7 @@ signals:
 public slots:
     void loadCredentials();         // スレッド安全な呼び出しのため public slot 化
     void emitCurrentStatus();       // RateLimitTabWidget 初期化時に現在状態を通知する
-    void on_requestAI(const QString &prompt, const QString &user = "");
+    void on_requestAI(const QString &prompt, const QString &user = "", const QString &source = "UI");
     static QString formatSpeakerTaggedPrompt(const QString &prompt, const QString &speaker, const QString &target = "", const QString &categoryStr = "");
 
     void on_twitchRaidReceived(const QString &username);

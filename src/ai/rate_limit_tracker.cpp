@@ -337,7 +337,7 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
     ProviderStatus &s = m_statuses[clientId];
     QDateTime nowUtc = QDateTime::currentDateTimeUtc();
 
-    // nextResetAt が期限超過した場合は使用枠を全量自動再補充し、リセット状態を完了
+    // 1. nextResetAt が期限超過した場合は使用枠を全量自動再補充し、リセット状態を完了
     if (s.nextResetAt.isValid() && s.nextResetAt <= nowUtc) {
         if (s.rpmMax > 0) s.rpmRemaining = s.rpmMax;
         else if (s.rpmMax <= 0) s.rpmRemaining = -1;
@@ -349,28 +349,20 @@ void RateLimitTracker::updateAvailable(const QString &clientId) {
         else if (s.rpdMax <= 0) s.rpdRemaining = -1;
 
         s.nextResetAt = QDateTime();
+        s.available = true;
     }
 
-    // リセットタイマーが作動していない（!nextResetAt.isValid()）状態で、rpmRemaining <= 0 の場合は即座に rpmMax へ全量自動自己修復
-    if (!s.nextResetAt.isValid() && s.rpmMax > 0 && s.rpmRemaining <= 0) {
-        s.rpmRemaining = s.rpmMax;
-    }
-
+    // 2. 数値制限のある項目のチェック
     bool rpmOk = (s.rpmMax <= 0) || (s.rpmRemaining == -1) || (s.rpmRemaining > 0);
     bool rpdOk = (s.rpdMax <= 0) || (s.rpdRemaining == -1) || (s.rpdRemaining > 0);
     bool tpmOk = (s.tpmMax <= 0) || (s.tpmRemaining == -1) || (s.tpmRemaining > 0);
+    bool tpdOk = (s.tpdMax <= 0) || (s.tpdRemaining == -1) || (s.tpdRemaining > 0);
 
-    // リセット待ち中かつ rpmRemaining == 0 の場合のみ rpmOk = false
-    if (s.nextResetAt.isValid() && s.rpmRemaining == 0) {
-        rpmOk = false;
+    if (!rpmOk || !rpdOk || !tpmOk || !tpdOk) {
+        s.available = false;
+    } else if (s.nextResetAt.isValid() && (s.rpmRemaining == 0 || s.rpdRemaining == 0)) {
+        s.available = false;
     }
-
-    s.available = rpmOk && rpdOk && tpmOk;
-
-
-
-
-
 }
 
 

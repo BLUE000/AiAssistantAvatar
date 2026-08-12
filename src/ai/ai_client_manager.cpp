@@ -962,7 +962,7 @@ void AIClientManager::forceSummarizeHistory() {
     }
 }
 
-void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
+void AIClientManager::on_requestAI(const QString &prompt, const QString &user, const QString &source) {
     // --- F-26 多層スコアフィルタリング評価 ---
     QStringList historyMsgs;
     for (const auto &pair : m_chatHistory) {
@@ -981,19 +981,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
 
     QString processedPrompt = (modResult.action == ModerationAction::WARN) ? modResult.maskedText : prompt;
 
-    // すでにリセット要約中、マージ処理中の場合はキューに入れる
-    if (m_isResetting || m_isMergingSummaries) {
-        qDebug() << "AIClientManager: Manager is busy (resetting:" << m_isResetting
-                 << ", merging:" << m_isMergingSummaries
-                 << "). Queueing request.";
-        PendingRequest req;
-        req.prompt = prompt;
-        req.user = user;
-        m_pendingRequests.append(req);
-        return;
-    }
-
-    // Discord / Twitchユーザー情報のパース
+    // Discord / Twitchユーザー情報のパースおよび入力ソース判定
     QString channelId;
     QString twitchChannel;
     QString cleanUser = user;
@@ -1003,15 +991,34 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             channelId = user.mid(9, closeBracketIdx - 9);
             cleanUser = user.mid(closeBracketIdx + 1).trimmed();
         }
+        m_currentSource = "Discord";
     } else if (user.startsWith("[Twitch:")) {
         int closeBracketIdx = user.indexOf(']');
         if (closeBracketIdx != -1) {
             twitchChannel = user.mid(8, closeBracketIdx - 8);
             cleanUser = user.mid(closeBracketIdx + 1).trimmed();
         }
+        m_currentSource = "Twitch";
     } else if (user.startsWith("[Twitch]")) {
         cleanUser = user.mid(8).trimmed();
+        m_currentSource = "Twitch";
+    } else {
+        m_currentSource = source.isEmpty() ? "UI" : source;
     }
+
+    // すでにリセット要約中、マージ処理中の場合はキューに入れる
+    if (m_isResetting || m_isMergingSummaries) {
+        qDebug() << "AIClientManager: Manager is busy (resetting:" << m_isResetting
+                 << ", merging:" << m_isMergingSummaries
+                 << "). Queueing request.";
+        PendingRequest req;
+        req.prompt = prompt;
+        req.user = user;
+        req.source = m_currentSource;
+        m_pendingRequests.append(req);
+        return;
+    }
+
     m_currentDiscordChannelId = channelId;
     m_currentTwitchChannel = twitchChannel;
     m_currentRequester = cleanUser.trimmed().toLower();
@@ -1028,6 +1035,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             PendingRequest req;
             req.prompt = prompt;
             req.user = user;
+            req.source = m_currentSource;
             m_pendingRequests.append(req);
 
             // セッションリセット（非同期でAI要約）を走らせる
@@ -1087,12 +1095,16 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             m_importTimeoutTimer->start(600000); // 10分
             m_importState = KnowledgeImportState::AwaitingFileAndExplanation;
             responseEvent.text = "ナレッジ入力フォルダを開きました。ファイルを配置し、チャットで「ファイル名」と「その説明」を入力してください。(10分以内に登録を開始しない場合、キャンセル確認を行います)";
+            emit notifyEvent(responseEvent);
+            return;
         } else if (trimmedPrompt == "/cancel") {
             m_importTimeoutTimer->stop();
             m_importState = KnowledgeImportState::Idle;
             m_importingFileName.clear();
             m_importingFileContent.clear();
             responseEvent.text = "ナレッジの登録作業をキャンセルしました。";
+            emit notifyEvent(responseEvent);
+            return;
         } else if (trimmedPrompt == "/twitch connect") {
             // TwitchConnectRequested イベントを発火 → CoreModule → TwitchReader::on_twitchConnectRequested()
             AppEvent connectEvent;
@@ -1101,6 +1113,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             connectEvent.text = "";
             emit notifyEvent(connectEvent);
             responseEvent.text = "Twitchチャンネルへ接続します。";
+            emit notifyEvent(responseEvent);
+            return;
         } else if (trimmedPrompt == "/discord connect") {
             // DiscordConnectRequested イベントを発火 → CoreModule → DiscordReader::on_discordConnectRequested()
             AppEvent connectEvent;
@@ -1109,11 +1123,13 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
             connectEvent.text = "";
             emit notifyEvent(connectEvent);
             responseEvent.text = "Discordチャンネルへ接続します。";
-        } else {
+            emit notifyEvent(responseEvent);
+            return;
+        } else if (!trimmedPrompt.startsWith("/ai ", Qt::CaseInsensitive)) {
             responseEvent.text = "無効なコマンドです。";
+            emit notifyEvent(responseEvent);
+            return;
         }
-        emit notifyEvent(responseEvent);
-        return;
     }
 
     // システム固定応答モジュールによる判定
@@ -1464,6 +1480,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user) {
         event.type = EventType::AIRequestSent;
         event.source = "AIClientManager";
         event.text = filteredPrompt;
+        emit notifyEvent(event);
         // AI サーバー保護・Groq 不正アクセス判定回避のための 600ms 送出遅延 (1秒未満の時差制御)
         QThread::msleep(600);
 
@@ -1782,11 +1799,12 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         }
 
         event.text = filteredResponse;
+        event.source = m_currentSource;
 
-        // Discord / Twitch宛てであれば返信先情報を設定
-        if (!m_currentDiscordChannelId.isEmpty()) {
+        // Discord / Twitch宛てであれば返信先情報を設定（入力ソースに基づく排他設定）
+        if (m_currentSource == "Discord" && !m_currentDiscordChannelId.isEmpty()) {
             event.extraData["channel_id"] = m_currentDiscordChannelId;
-        } else if (!m_currentTwitchChannel.isEmpty()) {
+        } else if (m_currentSource == "Twitch" && !m_currentTwitchChannel.isEmpty()) {
             event.extraData["twitch_channel"] = m_currentTwitchChannel;
         }
 
@@ -1906,6 +1924,7 @@ void AIClientManager::clearRequestState() {
     m_currentDiscordChannelId.clear();
     m_currentTwitchChannel.clear();
     m_currentRequester.clear();
+    m_currentSource = "UI";
 }
 
 void AIClientManager::resetSession(bool isManual) {
@@ -2886,8 +2905,8 @@ void AIClientManager::processPendingRequests() {
 
     if (!m_pendingRequests.isEmpty()) {
         PendingRequest req = m_pendingRequests.takeFirst();
-        qDebug() << "AIClientManager: Processing queued pending request for user:" << req.user;
-        on_requestAI(req.prompt, req.user);
+        qDebug() << "AIClientManager: Processing queued pending request for user:" << req.user << "source:" << req.source;
+        on_requestAI(req.prompt, req.user, req.source);
     }
 }
 
@@ -3014,12 +3033,6 @@ bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
         }
     }
 
-#ifndef QT_DEBUG
-    if (targetProvider == "dummy" && hasAnyApiKey) {
-        targetProvider = "auto";
-    }
-#endif
-
     if (!hasAnyApiKey && targetProvider != "dummy") {
         qWarning() << "AIClientManager: No API keys configured for any provider.";
         QString noKeyMsg = "※【APIキー未設定の通知】AIプロバイダのAPIキーが設定されていません。設定画面からAPIキーを入力してください。";
@@ -3048,9 +3061,7 @@ bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
     // 3. 自動選定 ("auto" または 選択プロバイダがリミット中のフォールバック)
     QString bestClientId = m_tracker.selectBestAvailableClient();
     if (bestClientId.isEmpty() && targetProvider == "dummy") {
-#ifdef QT_DEBUG
         bestClientId = "dummy";
-#endif
     }
 
     if (bestClientId.isEmpty()) {

@@ -222,7 +222,12 @@ private:
     int m_bubbleDisplayLongSec = 10;
     QString m_avatarName = "AIアシスタント";
     bool m_nameReactionEnabled = true;
-    QQueue<QPair<QString, QString>> m_aiRequestQueue;
+    struct AIRequestItem {
+        QString text;
+        QString user;
+        QString source; // "UI", "Twitch", "Discord"
+    };
+    QQueue<AIRequestItem> m_aiRequestQueue;
     bool m_isProcessingAI = false;
 
     QComboBox *m_comboAvatarSkin = nullptr;
@@ -243,9 +248,10 @@ private:
     void onSequenceFrameTimeout();
     void onSkinBuilderClicked();
 
-    void enqueueRequest(const QString &text, const QString &user = "");
+    void enqueueRequest(const QString &text, const QString &user = "", const QString &source = "UI");
     void processNextRequest();
     void initShoutoutTab(QWidget *parent);
+
 
     QString m_twitchOAuthToken;
     QString m_twitchUsername;
@@ -380,7 +386,7 @@ signals:
     void stopSTTRequested();
     void directInputSubmitted(const QString &text);
 
-    void requestAIExecution(const QString &text, const QString &user);
+    void requestAIExecution(const QString &text, const QString &user = "", const QString &source = "UI");
     void resetSessionRequested(); // 会話履歴リセット要求シグナル
     void importSessionRequested(const QString &filePath);
     void exportSessionRequested(const QString &encPath, const QString &txtPath);

@@ -74,9 +74,14 @@ class AIClientTest : public ::testing::Test {
 protected:
     static void ensureValidLocalSettings() {
         QString appDir = QCoreApplication::applicationDirPath();
-        QString testConfigDir = appDir + "/Config";
-        QDir().mkpath(testConfigDir);
-        QString path = testConfigDir + "/local_settings.json";
+        QStringList targetPaths = {
+            appDir + "/Config/local_settings.json",
+            appDir + "/../Config/local_settings.json",
+            "Config/local_settings.json"
+        };
+#ifdef PROJECT_SOURCE_DIR
+        targetPaths.append(QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json");
+#endif
 
         QJsonObject testObj;
         testObj["ai_provider"] = "dummy";
@@ -91,10 +96,14 @@ protected:
         testObj["manager_ai_enabled"] = false;
         testObj["manager_ai_provider"] = "dummy";
 
-        QFile file(path);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            file.write(QJsonDocument(testObj).toJson());
-            file.close();
+        for (const QString &path : targetPaths) {
+            QFileInfo fi(path);
+            QDir().mkpath(fi.absolutePath());
+            QFile file(path);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                file.write(QJsonDocument(testObj).toJson());
+                file.close();
+            }
         }
     }
 
@@ -529,7 +538,7 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     eventSpy.clear();
     historySpy.clear();
 
-    manager.on_requestAI("/ai trans こんにちは");
+    manager.on_requestAI("/ai trans en こんにちは");
     manager.on_clientRequestFinished("Hello", true, 200);
 
     EXPECT_GE(eventSpy.count(), 2);
@@ -546,27 +555,46 @@ TEST_F(AIClientTest, StateCleanupAndChannelIsolationTest) {
     QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
 
     // 1. Twitchからのリクエスト送信
-    manager.on_requestAI("こんにちは", "[Twitch:streamer_channel] viewer_user");
+    manager.on_requestAI("こんにちは", "[Twitch:streamer_channel] viewer_user", "Twitch");
     manager.on_clientRequestFinished("こんにちは！", true, 200);
 
     EXPECT_GE(eventSpy.count(), 1);
     AppEvent twitchRes = eventSpy.last().at(0).value<AppEvent>();
     EXPECT_EQ(twitchRes.type, EventType::AIResponseReceived);
+    EXPECT_EQ(twitchRes.source, "Twitch");
     EXPECT_TRUE(twitchRes.extraData.contains("twitch_channel"));
     EXPECT_EQ(twitchRes.extraData["twitch_channel"].toString(), "streamer_channel");
 
     // 2. リクエスト完了後に画面UIから直接入力 (user = "") を実行（セッションをリセットして履歴干渉を防ぐ）
     manager.resetSession(true);
+    manager.on_clientRequestFinished("Keywords: test\nSummary: summary test", true, 200);
     eventSpy.clear();
-    manager.on_requestAI("UIからの入力", "");
+
+    manager.on_requestAI("UIからの入力", "", "UI");
     manager.on_clientRequestFinished("UIへの回答", true, 200);
 
     EXPECT_GE(eventSpy.count(), 1);
     AppEvent uiRes = eventSpy.last().at(0).value<AppEvent>();
     EXPECT_EQ(uiRes.type, EventType::AIResponseReceived);
-    // UI直接入力の応答イベントには twitch_channel や channel_id が含まれず、Twitchチャットへの送信が遮断されることをアサート
+    EXPECT_EQ(uiRes.source, "UI");
+    // UI直接入力の応答イベントには twitch_channel や channel_id が含まれず、Twitch/Discordへの送信が遮断されることをアサート
     EXPECT_FALSE(uiRes.extraData.contains("twitch_channel"));
     EXPECT_FALSE(uiRes.extraData.contains("channel_id"));
+
+    // 3. Discordからの入力テスト
+    manager.resetSession(true);
+    manager.on_clientRequestFinished("Keywords: test\nSummary: summary test", true, 200);
+    eventSpy.clear();
+
+    manager.on_requestAI("Discordからの入力", "[Discord:channel99] user_d", "Discord");
+    manager.on_clientRequestFinished("Discordへの回答", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 1);
+    AppEvent discordRes = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(discordRes.type, EventType::AIResponseReceived);
+    EXPECT_EQ(discordRes.source, "Discord");
+    EXPECT_TRUE(discordRes.extraData.contains("channel_id"));
+    EXPECT_FALSE(discordRes.extraData.contains("twitch_channel"));
 }
 
 TEST_F(AIClientTest, NicknameManagementTest) {
@@ -600,10 +628,18 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     localSettings["twitch_channel"] = "test_streamer";
     localSettings["ai_provider"] = "dummy";
     
-    QFile settingsFile("local_settings.json");
-    ASSERT_TRUE(settingsFile.open(QIODevice::WriteOnly | QIODevice::Text));
-    settingsFile.write(QJsonDocument(localSettings).toJson());
-    settingsFile.close();
+    QStringList settingsPaths = {
+        "local_settings.json",
+        "Config/local_settings.json",
+        appSettings
+    };
+    for (const QString &sp : settingsPaths) {
+        QFile settingsFile(sp);
+        if (settingsFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            settingsFile.write(QJsonDocument(localSettings).toJson());
+            settingsFile.close();
+        }
+    }
 
     // テスト用の空の user_names.json を作成
     QJsonObject initialUserNames;
@@ -613,21 +649,17 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     QDir().mkpath("Config");
     QDir().mkpath(appConfigDir);
 
-    QFile userNamesFile("Config/user_names.json");
-    ASSERT_TRUE(userNamesFile.open(QIODevice::WriteOnly | QIODevice::Text));
-    userNamesFile.write(QJsonDocument(initialUserNames).toJson());
-    userNamesFile.close();
-
-    QFile appUserNamesFile(appUserNames);
-    if (appUserNamesFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        appUserNamesFile.write(QJsonDocument(initialUserNames).toJson());
-        appUserNamesFile.close();
-    }
-
-    QFile userNamesRootFile("user_names.json");
-    if (userNamesRootFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        userNamesRootFile.write(QJsonDocument(initialUserNames).toJson());
-        userNamesRootFile.close();
+    QStringList userNamesPaths = {
+        "user_names.json",
+        "Config/user_names.json",
+        appUserNames
+    };
+    for (const QString &unp : userNamesPaths) {
+        QFile userNamesFile(unp);
+        if (userNamesFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            userNamesFile.write(QJsonDocument(initialUserNames).toJson());
+            userNamesFile.close();
+        }
     }
 
     AIClientManager manager;
@@ -683,8 +715,8 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     
     // AIClientManagerに強制反映するための workaround
     // テスト用に直接ファイルを保存してリロードさせます
-    {
-        QFile file("user_names.json");
+    for (const QString &unp : userNamesPaths) {
+        QFile file(unp);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             file.write(QJsonDocument(customUserNames).toJson());
             file.close();
@@ -711,8 +743,8 @@ TEST_F(AIClientTest, NicknameManagementTest) {
     customPending5.append(reqObj5);
     customUserNames5["pending_requests"] = customPending5;
     
-    {
-        QFile file("user_names.json");
+    for (const QString &unp : userNamesPaths) {
+        QFile file(unp);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             file.write(QJsonDocument(customUserNames5).toJson());
             file.close();

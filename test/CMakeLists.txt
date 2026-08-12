@@ -77,7 +77,6 @@ target_compile_definitions(AiAssistantAvatarTest PRIVATE
 # リンク先ライブラリ
 target_link_libraries(AiAssistantAvatarTest PRIVATE
     gtest
-    gtest_main
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
