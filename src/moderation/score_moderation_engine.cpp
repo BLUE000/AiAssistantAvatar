@@ -1,6 +1,8 @@
 #include "score_moderation_engine.h"
+#include "utils/config_utils.h"
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QTextStream>
 #include <QRegularExpression>
 #include <QDebug>
@@ -14,25 +16,13 @@ ScoreModerationEngine& ScoreModerationEngine::instance() {
 }
 
 bool ScoreModerationEngine::loadBlacklist(const QString &filePath) {
-    QString actualPath = filePath;
-    if (!QFile::exists(actualPath)) {
-        actualPath = QCoreApplication::applicationDirPath() + "/" + filePath;
-    }
-    if (!QFile::exists(actualPath)) {
-        actualPath = QCoreApplication::applicationDirPath() + "/../" + filePath;
-    }
-    if (!QFile::exists(actualPath)) {
-        actualPath = QCoreApplication::applicationDirPath() + "/../../" + filePath;
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(actualPath)) {
-        actualPath = QString(PROJECT_SOURCE_DIR) + "/" + filePath;
-    }
-#endif
+    QString fileName = QFileInfo(filePath).fileName();
+    if (fileName.isEmpty()) fileName = "blacklist.txt";
+    QString actualPath = ConfigUtils::resolveConfigFilePath(fileName);
 
     QFile file(actualPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open blacklist file:" << filePath << "Tried:" << actualPath;
+        qWarning() << "ScoreModerationEngine: Failed to open blacklist file:" << fileName << "Tried:" << actualPath;
         return false;
     }
 
@@ -57,25 +47,13 @@ bool ScoreModerationEngine::loadBlacklist(const QString &filePath) {
 }
 
 bool ScoreModerationEngine::loadWhitelist(const QString &filePath) {
-    QString actualPath = filePath;
-    if (!QFile::exists(actualPath)) {
-        actualPath = QCoreApplication::applicationDirPath() + "/" + filePath;
-    }
-    if (!QFile::exists(actualPath)) {
-        actualPath = QCoreApplication::applicationDirPath() + "/../" + filePath;
-    }
-    if (!QFile::exists(actualPath)) {
-        actualPath = QCoreApplication::applicationDirPath() + "/../../" + filePath;
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(actualPath)) {
-        actualPath = QString(PROJECT_SOURCE_DIR) + "/" + filePath;
-    }
-#endif
+    QString fileName = QFileInfo(filePath).fileName();
+    if (fileName.isEmpty()) fileName = "whitelist.txt";
+    QString actualPath = ConfigUtils::resolveConfigFilePath(fileName);
 
     QFile file(actualPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open whitelist file:" << filePath << "Tried:" << actualPath;
+        qWarning() << "ScoreModerationEngine: Failed to open whitelist file:" << fileName << "Tried:" << actualPath;
         return false;
     }
 

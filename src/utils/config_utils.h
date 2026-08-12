@@ -24,10 +24,14 @@ namespace ConfigUtils {
             appDir + "/Config/" + fileName,
             appDir + "/../Config/" + fileName,
             appDir + "/../../Config/" + fileName,
-            "Config/" + fileName
+            "Config/" + fileName,
+            appDir + "/" + fileName,
+            appDir + "/../" + fileName,
+            appDir + "/../../" + fileName,
+            fileName
         };
 
-#ifdef PROJECT_SOURCE_DIR
+#if defined(PROJECT_SOURCE_DIR) && !defined(QT_NO_DEBUG)
         candidates.append(QString(PROJECT_SOURCE_DIR) + "/Config/" + fileName);
 #endif
 
@@ -47,7 +51,7 @@ namespace ConfigUtils {
             "Config/" + sampleName
         };
 
-#ifdef PROJECT_SOURCE_DIR
+#if defined(PROJECT_SOURCE_DIR) && !defined(QT_NO_DEBUG)
         sampleCandidates.append(QString(PROJECT_SOURCE_DIR) + "/Config/" + sampleName);
 #endif
 

@@ -337,30 +337,7 @@ void AIClientManager::loadBlacklist() {
         return;
     }
 
-    QString blacklistPath = QCoreApplication::applicationDirPath() + "/Config/blacklist.txt";
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = "Config/blacklist.txt";
-    }
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = "blacklist.txt";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = QString(PROJECT_SOURCE_DIR) + "/Config/blacklist.txt";
-    }
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = QString(PROJECT_SOURCE_DIR) + "/blacklist.txt";
-    }
-#endif
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = QCoreApplication::applicationDirPath() + "/blacklist.txt";
-    }
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = QCoreApplication::applicationDirPath() + "/../blacklist.txt";
-    }
-    if (!QFile::exists(blacklistPath)) {
-        blacklistPath = QCoreApplication::applicationDirPath() + "/../../blacklist.txt";
-    }
+    QString blacklistPath = ConfigUtils::resolveConfigFilePath("blacklist.txt");
 
     if (!QFile::exists(blacklistPath)) {
         qDebug() << "AIClientManager: blacklist.txt does not exist. No blacklist loaded.";
@@ -397,30 +374,7 @@ void AIClientManager::loadWhitelist() {
         return;
     }
 
-    QString whitelistPath = QCoreApplication::applicationDirPath() + "/Config/whitelist.txt";
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = "Config/whitelist.txt";
-    }
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = "whitelist.txt";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = QString(PROJECT_SOURCE_DIR) + "/Config/whitelist.txt";
-    }
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = QString(PROJECT_SOURCE_DIR) + "/whitelist.txt";
-    }
-#endif
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = QCoreApplication::applicationDirPath() + "/whitelist.txt";
-    }
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = QCoreApplication::applicationDirPath() + "/../whitelist.txt";
-    }
-    if (!QFile::exists(whitelistPath)) {
-        whitelistPath = QCoreApplication::applicationDirPath() + "/../../whitelist.txt";
-    }
+    QString whitelistPath = ConfigUtils::resolveConfigFilePath("whitelist.txt");
 
     if (!QFile::exists(whitelistPath)) {
         qDebug() << "AIClientManager: whitelist.txt does not exist. No whitelist loaded.";
@@ -453,30 +407,7 @@ void AIClientManager::loadWhitelist() {
 
 void AIClientManager::loadUserNames() {
     m_userNamesObj = QJsonObject();
-    QString path = QCoreApplication::applicationDirPath() + "/Config/user_names.json";
-    if (!QFile::exists(path)) {
-        path = "Config/user_names.json";
-    }
-    if (!QFile::exists(path)) {
-        path = "user_names.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(path)) {
-        path = QString(PROJECT_SOURCE_DIR) + "/Config/user_names.json";
-    }
-    if (!QFile::exists(path)) {
-        path = QString(PROJECT_SOURCE_DIR) + "/user_names.json";
-    }
-#endif
-    if (!QFile::exists(path)) {
-        path = QCoreApplication::applicationDirPath() + "/user_names.json";
-    }
-    if (!QFile::exists(path)) {
-        path = QCoreApplication::applicationDirPath() + "/../user_names.json";
-    }
-    if (!QFile::exists(path)) {
-        path = QCoreApplication::applicationDirPath() + "/../../user_names.json";
-    }
+    QString path = ConfigUtils::resolveConfigFilePath("user_names.json");
 
     if (!QFile::exists(path)) {
         qDebug() << "AIClientManager: user_names.json does not exist. Using empty nickname data.";
@@ -2169,24 +2100,7 @@ void AIClientManager::on_settingsUpdated() {
 }
 
 void AIClientManager::saveUserNames() {
-    QString path = QCoreApplication::applicationDirPath() + "/Config/user_names.json";
-    if (!QFile::exists(path) && QFile::exists("Config/user_names.json")) {
-        path = "Config/user_names.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(path) && QFile::exists(QString(PROJECT_SOURCE_DIR) + "/Config/user_names.json")) {
-        path = QString(PROJECT_SOURCE_DIR) + "/Config/user_names.json";
-    }
-    if (!QFile::exists(path) && QFile::exists(QString(PROJECT_SOURCE_DIR) + "/user_names.json")) {
-        path = QString(PROJECT_SOURCE_DIR) + "/user_names.json";
-    }
-#endif
-    if (!QFile::exists(path) && QFile::exists("user_names.json")) {
-        path = "user_names.json";
-    }
-    if (!QFile::exists(path) && QFile::exists(QCoreApplication::applicationDirPath() + "/user_names.json")) {
-        path = QCoreApplication::applicationDirPath() + "/user_names.json";
-    }
+    QString path = ConfigUtils::resolveConfigFilePath("user_names.json");
 
     QFileInfo fileInfo(path);
     QDir().mkpath(fileInfo.absolutePath());
