@@ -93,9 +93,6 @@ add_custom_command(TARGET AiAssistantAvatarTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/../Config/local_settings.json.sample"
             "$<TARGET_FILE_DIR:AiAssistantAvatarTest>/Config/local_settings.json.sample"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/../Config/user_names.json.sample"
-            "$<TARGET_FILE_DIR:AiAssistantAvatarTest>/Config/user_names.json.sample"
     COMMENT "Copying test configuration files to target Config/ directory"
 )
 
