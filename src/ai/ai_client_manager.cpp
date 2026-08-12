@@ -2,6 +2,7 @@
 #include <QThread>
 #include "ai_random_utils.h"
 #include "utils/config_utils.h"
+#include "utils/json_comment_remover.h"
 
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
