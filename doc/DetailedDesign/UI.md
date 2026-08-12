@@ -201,3 +201,22 @@ struct ProviderConfigSpec {
 ### 9.2 プロバイダ上限値の自動修復・最低安全ガード
 `AIClientManager` 設定読み込み時および `RateLimitTracker::setMaxValues` 内で、Mistral 等の `rpmMax` が `1` などの不正値に汚染されている場合、規定値（Mistral: 30, Groq: 30, Cerebras: 30, HuggingFace: 60, OpenRouter: 60, Sakura: 60）を下回る値を自動的にクレンジング・最低値ガードする。
 
+---
+
+## 10. 入力ソース別出力先分離（ルーティング絶縁）詳細仕様
+
+### 10.1 `AppEvent` およびリクエストキューにおける入力ソース保持仕様
+- `AvatarWindow::enqueueRequest(const QString &text, const QString &user, const QString &source)` において、入力ソース識別子 `source`（`"UI"`, `"Twitch"`, `"Discord"`）を受け取り、キュー要素 `(text, user, source)` として保持する。
+- `processNextRequest()` から発火される `requestAIExecution` シグナルへ `source` パラメータを伝搬する。
+- `AIClientManager` は応答生成完了時、発行する `EventType::AIResponseReceived` の `AppEvent.source` に元の入力ソース識別子（`"UI"`, `"Twitch"`, `"Discord"`）を設定する。
+
+### 10.2 `AvatarWindow` での OBS 出力制御仕様 (`broadcastToOBS`)
+- `AvatarWindow::onEventReceived` (`EventType::AIResponseReceived`) において、`event.source` をチェックする：
+  - `event.source == "Twitch"` の場合のみ `broadcastToOBS(resObj)` を実行し、OBS オーバーレイ（吹き出し画面）へ応答テキストを配信する。
+  - `event.source == "UI"` または `event.source == "Discord"` の場合は `broadcastToOBS(resObj)` の実行をスキップし、OBS オーバーレイへの出力を遮断する。
+
+### 10.3 `AIClientManager` での外部チャット送信制御仕様
+- `AIClientManager::on_clientRequestFinished` 内での外部プラットフォーム送信判定：
+  - `source == "Twitch"` の場合のみ `sendTwitchChatMessage(...)` を呼び出す。
+  - `source == "Discord"` の場合のみ `sendDiscordMessage(...)` を呼び出す。
+  - `source == "UI"` の場合は外部プラットフォームへの送信処理（Twitch / Discord）を一切呼び出さず、UI のみへイベントを発火する。
