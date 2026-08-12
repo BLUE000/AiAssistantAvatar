@@ -32,3 +32,5 @@ test_summary.json
 /pic/*.png
 /pic/avatar_settings.json
 
+# Local WIP state file
+WIP_STATE.md

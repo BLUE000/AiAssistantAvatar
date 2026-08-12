@@ -546,6 +546,32 @@ TEST_F(AIClientTest, TranslationCommandTest) {
     EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().type, EventType::AIResponseReceived);
     EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().text, "Hello");
     EXPECT_EQ(manager.chatHistory().size(), 0);
+
+    // 4. Twitch経由の翻訳コマンドテスト (source="Twitch", extraData["twitch_channel"]="test_ch")
+    eventSpy.clear();
+    historySpy.clear();
+
+    manager.on_requestAI("!ai trans en こんにちは", "[Twitch:test_ch] test_user", "Twitch");
+    manager.on_clientRequestFinished("Hello", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 2);
+    AppEvent twitchResEvent = eventSpy.at(1).at(0).value<AppEvent>();
+    EXPECT_EQ(twitchResEvent.type, EventType::AIResponseReceived);
+    EXPECT_EQ(twitchResEvent.source, "Twitch");
+    EXPECT_EQ(twitchResEvent.extraData.value("twitch_channel").toString(), "test_ch");
+
+    // 5. Discord経由の翻訳コマンドテスト (source="Discord", extraData["channel_id"]="12345")
+    eventSpy.clear();
+    historySpy.clear();
+
+    manager.on_requestAI("!ai trans en こんにちは", "[Discord:12345] test_user", "Discord");
+    manager.on_clientRequestFinished("Hello", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 2);
+    AppEvent discordResEvent = eventSpy.at(1).at(0).value<AppEvent>();
+    EXPECT_EQ(discordResEvent.type, EventType::AIResponseReceived);
+    EXPECT_EQ(discordResEvent.source, "Discord");
+    EXPECT_EQ(discordResEvent.extraData.value("channel_id").toString(), "12345");
 }
 
 TEST_F(AIClientTest, StateCleanupAndChannelIsolationTest) {

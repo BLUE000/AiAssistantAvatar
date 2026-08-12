@@ -1526,10 +1526,11 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         if (success) {
             event.type = EventType::AIResponseReceived;
             event.text = applyMask(responseText);
+            event.source = m_currentSource;
             // Discord/Twitch宛てであれば返信先情報を設定（通常応答と同じ扱い）
-            if (!m_currentDiscordChannelId.isEmpty()) {
+            if (m_currentSource == "Discord" && !m_currentDiscordChannelId.isEmpty()) {
                 event.extraData["channel_id"] = m_currentDiscordChannelId;
-            } else if (!m_currentTwitchChannel.isEmpty()) {
+            } else if (m_currentSource == "Twitch" && !m_currentTwitchChannel.isEmpty()) {
                 event.extraData["twitch_channel"] = m_currentTwitchChannel;
             }
         } else {
