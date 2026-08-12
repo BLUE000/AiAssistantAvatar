@@ -88,6 +88,8 @@ protected:
         testObj["twitch_wakeword"] = "AI";
         testObj["twitch_wakeword_mode"] = "contains";
         testObj["blacklist_enabled"] = true;
+        testObj["manager_ai_enabled"] = false;
+        testObj["manager_ai_provider"] = "dummy";
 
         QFile file(path);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {

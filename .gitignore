@@ -23,6 +23,11 @@ out.txt
 knowledge_index.json
 /log/
 
+# Generated build & test execution summary files
+build_summary.json
+test_summary.json
+*_summary.json
+
 # Root pic dummy assets
 /pic/*.png
 /pic/avatar_settings.json
