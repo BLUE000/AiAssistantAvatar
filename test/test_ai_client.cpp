@@ -2279,13 +2279,15 @@ TEST(UserMappingTest, PlatformSpecificIDCallWithoutPreferred) {
     // 優先呼び名空欄で ID を手動紐づけ
     manager.updateUserMapping("john_profile", "", "john_t", "john_d");
 
-    // 1. Twitch から発言 ➜ john_tさん (推測カタカナ変換なし)
+    // 1. Twitch から発言 ➜ john_t (推測カタカナ変換なし・自然な省略許可)
     manager.on_requestAI("こんにちは", "[Twitch] john_t");
-    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_tさん"));
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_t"));
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("強制的な名前の呼びかけ"));
 
-    // 2. Discord から発言 ➜ john_dさん (推測カタカナ変換なし)
+    // 2. Discord から発言 ➜ john_d (推測カタカナ変換なし・自然な省略許可)
     manager.on_requestAI("こんにちは", "[Discord:12345] john_d");
-    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_dさん"));
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("john_d"));
+    EXPECT_TRUE(manager.lastAdditionalSystemPrompt().contains("強制的な名前の呼びかけ"));
 }
 
 // UT-NICK-04: UIテーブルの5列構造と管理ID列排除テスト

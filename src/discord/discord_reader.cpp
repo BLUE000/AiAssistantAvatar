@@ -254,18 +254,24 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                             bool isMatch = false;
                             QString cleanMessage = content;
 
+                            auto stripKeywordWithHonorifics = [](const QString &src, const QString &keyword, bool prefixOnly) -> QString {
+                                if (keyword.isEmpty()) return src;
+                                QRegularExpression regex((prefixOnly ? "^" : "") + QRegularExpression::escape(keyword) + "(?:くん|君|さん|ちゃん|様|たん|殿|氏|ー|〜)*[、。！？!?\\s\\t,.]*");
+                                QString result = src;
+                                result.replace(regex, "");
+                                return result.trimmed();
+                            };
+
                             if (!m_wakeWord.isEmpty()) {
                                 if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
                                     if (content.startsWith(m_wakeWord)) {
                                         isMatch = true;
-                                        cleanMessage = content.mid(m_wakeWord.length()).trimmed();
+                                        cleanMessage = stripKeywordWithHonorifics(content, m_wakeWord, true);
                                     }
                                 } else {
                                     if (content.contains(m_wakeWord)) {
                                         isMatch = true;
-                                        cleanMessage = content;
-                                        cleanMessage.replace(m_wakeWord, "");
-                                        cleanMessage = cleanMessage.trimmed();
+                                        cleanMessage = stripKeywordWithHonorifics(content, m_wakeWord, false);
                                     }
                                 }
                             }
@@ -273,9 +279,7 @@ void DiscordReader::parseGatewayMessage(const QString &message) {
                             if (!isMatch && m_nameReactionEnabled && !m_avatarName.isEmpty()) {
                                 if (content.contains(m_avatarName)) {
                                     isMatch = true;
-                                    cleanMessage = content;
-                                    cleanMessage.replace(m_avatarName, "");
-                                    cleanMessage = cleanMessage.trimmed();
+                                    cleanMessage = stripKeywordWithHonorifics(content, m_avatarName, false);
                                 }
                             }
 

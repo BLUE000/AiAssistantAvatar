@@ -17,7 +17,7 @@ TEST(TwitchReaderTest, SetSettingsAndWakeWordDetection) {
     AppEvent event = spy.takeFirst().at(0).value<AppEvent>();
     EXPECT_EQ(event.type, EventType::TwitchCommentReceived);
     EXPECT_EQ(event.source, "TwitchReader");
-    EXPECT_EQ(event.text, "、こんにちは！"); // ウェイクワード "アバターさん" が除去されていること
+    EXPECT_EQ(event.text, "こんにちは！"); // ウェイクワード "アバターさん、" が一括除去されていること
     EXPECT_EQ(event.extraData.value("user").toString(), "userA");
     EXPECT_EQ(event.extraData.value("raw_message").toString(), "アバターさん、こんにちは！");
 
@@ -69,7 +69,7 @@ TEST(TwitchReaderTest, AvatarNameReactionDetection) {
 
     AppEvent event = spy.takeFirst().at(0).value<AppEvent>();
     EXPECT_EQ(event.type, EventType::TwitchCommentReceived);
-    EXPECT_EQ(event.text, "、自己紹介をして。"); // アバター名が除去されていること
+    EXPECT_EQ(event.text, "自己紹介をして。"); // アバター名および句読点が除去されていること
     EXPECT_EQ(event.extraData.value("user").toString(), "userA");
 
     // 2. 名前が含まれていないメッセージ (非トリガー)

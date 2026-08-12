@@ -506,19 +506,25 @@ void TwitchReader::injectTestComment(const QString &user, const QString &message
     bool isMatch = false;
     QString cleanMessage = message;
 
+    auto stripKeywordWithHonorifics = [](const QString &src, const QString &keyword, bool prefixOnly) -> QString {
+        if (keyword.isEmpty()) return src;
+        QRegularExpression regex((prefixOnly ? "^" : "") + QRegularExpression::escape(keyword) + "(?:くん|君|さん|ちゃん|様|たん|殿|氏|ー|〜)*[、。！？!?\\s\\t,.]*");
+        QString result = src;
+        result.replace(regex, "");
+        return result.trimmed();
+    };
+
     // 1. まずウェイクワードで判定
     if (!m_wakeWord.isEmpty()) {
         if (m_wakeWordMode == "prefix" || m_wakeWordMode == "command") {
             if (message.startsWith(m_wakeWord)) {
                 isMatch = true;
-                cleanMessage = message.mid(m_wakeWord.length()).trimmed();
+                cleanMessage = stripKeywordWithHonorifics(message, m_wakeWord, true);
             }
         } else {
             if (message.contains(m_wakeWord)) {
                 isMatch = true;
-                cleanMessage = message;
-                cleanMessage.replace(m_wakeWord, "");
-                cleanMessage = cleanMessage.trimmed();
+                cleanMessage = stripKeywordWithHonorifics(message, m_wakeWord, false);
             }
         }
     }
@@ -527,9 +533,7 @@ void TwitchReader::injectTestComment(const QString &user, const QString &message
     if (!isMatch && m_nameReactionEnabled && !m_avatarName.isEmpty()) {
         if (message.contains(m_avatarName)) {
             isMatch = true;
-            cleanMessage = message;
-            cleanMessage.replace(m_avatarName, "");
-            cleanMessage = cleanMessage.trimmed();
+            cleanMessage = stripKeywordWithHonorifics(message, m_avatarName, false);
         }
     }
 

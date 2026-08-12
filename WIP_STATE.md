@@ -7,27 +7,21 @@
 
 # 作業の状態
 
-## [フェーズ: Git Commit & Push 完了 / Release クリーンビルド ＆ パッケージング実施中]
+## [フェーズ: マルチユーザー敬称除去＆省略応答修正 実装・テスト完了 / ユーザーレビュー待ち]
 
 ### 実施した修正作業と検証結果
-1. **設定ファイルパス解決処理の一元化モジュール (`src/utils/config_utils.h`) の導入**:
-   - `ConfigUtils::resolveConfigFilePath` ヘルパー関数を新設し、`Config/local_settings.json` のみを厳格参照するよう統一。
-   - `Config/local_settings.json` 非存在時に同梱の `Config/local_settings.json.sample` より自動的に複製生成するフォールバックを完了。
-2. **全モジュールでのパス一元化の適用 ＆ `on_twitchReauthRequested()` 同期ロード実装**:
-   - `src/ui/avatar_window.cpp`, `src/twitch/twitch_reader.cpp`, `src/discord/discord_reader.cpp`, `src/ai/ai_client_manager.cpp`, `src/main.cpp` のパス参照を一元化。
-   - `TwitchReader::on_twitchReauthRequested()` 冒頭で `loadSettings()` を同期実行し、認証ボタン押下時に `Config/local_settings.json` から最新の `twitch_client_id` をロードする修正を適用。
-3. **`test_ai_client.cpp` 構文エラー修正およびコメント除去漏れの解消**:
-   - `AIClientManager::loadCredentials()` にて `#` コメントが除去されていなかった問題を解消。
-   - `test/test_ai_client.cpp` の構文エラーを修正し、`FileRestorerGuard` によるテストファイルの自動復元を導入。
-4. **単体テスト (`UT-TWITCH-REAUTH-01` 含む全 110 テスト) の実機実行・検証**:
-   - 全 23 テストスイート / **110 単体テストケース全てが合格 (0 Failures, 100% PASS)** することを確認検証完了。
+1. **`TwitchReader` および `DiscordReader` でのウェイクワード・敬称・句読点一括除去の実装**:
+   - `stripKeywordWithHonorifics` 正規表現クリーン処理を実装し、ウェイクワード/アバター名に続く敬称（「くん」「さん」「ちゃん」「君」「様」「たん」「殿」「氏」「ー」「〜」等）および句読点・感嘆符（「、」「。」「！」「!」「？」「?」「,」「.」等）が一括で綺麗に除去されるよう改善。
+   - 「ぶるたろうくん、〜」などの入力が「くん、〜」としてAIに送信されて誤判定を起こす現象を根本防止。
+2. **`AIClientManager` での未登録ユーザー向け省略応答プロンプト ＆ マルチユーザー誤認防止指示の導入**:
+   - 未登録/デフォルトアカウントユーザーの場合、冒頭での「アカウント名さん、」等の強制呼びかけ指示を廃止。
+   - 「回答冒頭での強制的な名前の呼びかけを行わず、日本語として自然な文章（例:『それは〇〇だよ！』『〇〇です』等）で直接回答してください」とインジェクト。
+   - マルチユーザー環境であることを明確化し、セッション要約・過去履歴内の他ユーザー名（例: ミフさん）と今回の発言者を混同しないよう厳格な指示を追加。
+3. **単体テスト (`test/test_ai_client.cpp`) のテストアサート更新および全単体テスト実行**:
+   - `UserMappingTest.PlatformSpecificIDCallWithoutPreferred` を最新のプロンプト仕様に合わせて更新。
+   - 全 23 テストスイート / **110 単体テストケース全てが合格 (0 Failures, 100% PASS)** することを確認完了。
+4. **管理ドキュメントの記録**:
+   - `.ai_rules.md` に従い `DecisionLog/2026-08-12_23-36-00_DecisionLog.md` および本 `WIP_STATE.md` を更新。
 
 ### これから行うこと
-1. 変更ファイルの Git コミットおよび `origin master` への Push。
-2. Release ビルド用のクリーンビルド実行 (`cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`)。
-3. `windeployqt` および `libTransCipher.dll` の配置。
-4. 実行環境一式の `dist/AiAssistantAvatar_Release.zip` へのパッケージング。
-
-
-
-
+1. ユーザーによる修正内容および単体テスト完了結果のチェック待ち。
