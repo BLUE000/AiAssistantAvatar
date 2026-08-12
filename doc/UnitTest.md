@@ -110,7 +110,7 @@ classDiagram
 | **UT-UI-ROUTING-03** | `AvatarWindow::onEventReceived` (Discord入力時のOBS非中継) | `AppEvent.type = EventType::AIResponseReceived` かつ `source = "Discord"` のイベントを受信する。 | 1. アプリ画面上の吹き出しおよびレスポンスペインに応答テキストが描画されること。<br>2. `broadcastToOBS()` が呼び出されず、OBS への WebSocket/HTTP 配信が行われないこと。 |
 | **UT-NICK-01** | `AIClientManager` (プラットフォームID手動対応付け保存) | `updateUserMapping("profile_1", "AAA", "twitch_alice", "alice_discord")` を実行する。 | 1. `Config/user_names.json` に `twitch_id` および `discord_id` が保存されること。<br>2. `userNamesUpdated` シグナルが発火し、UIに通知されること。 |
 | **UT-NICK-02** | `AIClientManager` (重複レコード自動マージ・統合) | レコード1 (`twitch_id`: `aaaa`) と レコード2 (`discord_id`: `bbbb`) がある状態で、レコード1の `discord_id` に `bbbb` を設定する。 | 1. レコード2が自動検出され、レコード1に統合（マージ）されること。<br>2. レコード2が削除され、JSONが同期保存されること。 |
-| **UT-NICK-03** | `AIClientManager` (優先呼び名未設定時のプラットフォーム別ID呼びかけ) | `preferred` が空で `twitch_id`: `john_t`, `discord_id`: `john_d` が設定されたプロファイルで、Twitch および Discord から `on_requestAI` を呼ぶ。 | 1. Twitchからの発言時：システム指示に「`john_tさん`」が含まれること（推測カタカナ変換なし）。<br>2. Discordからの発言時：システム指示に「`john_dさん`」が含まれること（推測カタカナ変換なし）。 |
+| **UT-NICK-03** | `AIClientManager` (優先呼び名未設定時の自然言語省略応答指示) | `preferred` が空で `twitch_id`: `john_t`, `discord_id`: `john_d` が設定されたプロファイルで、Twitch および Discord から `on_requestAI` を呼ぶ。 | 1. システム指示に `john_t` / `john_d` のアカウント名が含まれ、冒頭での強制的な名前呼びかけを行わず自然な文章で直接回答する指示が含まれること（推測カタカナ変換なし・省略応答許可）。<br>2. マルチユーザー環境での過去の会話相手との誤認防止指示が含まれること。 |
 | **UT-NICK-04** | `AvatarWindow` (UIテーブル5列構造と管理ID列排除) | 「ニックネーム」管理タブを表示し `m_usersTable` のヘッダー列数とラベルを検証する。 | 1. 列数が 5 列であること。<br>2. ヘッダー名が `{"優先呼び名", "Twitch ID", "Discord 名", "愛称リスト", "操作"}` と一致し、「管理ID」列が存在しないこと。 |
 
 
