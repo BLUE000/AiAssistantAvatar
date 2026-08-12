@@ -2445,14 +2445,22 @@ TEST(STTFeatureTest, VerifyActiveStateAndSilenceTimeout) {
     EXPECT_EQ(spyAI.count(), 0);
 }
 
-// UT-STT-09: 設定ファイル自動補完 (voice_silence_timeout_ms) テスト
+// UT-STT-09: 設定ファイル自動補完 (voice_silence_timeout_ms) ＆ JSON構文正常性テスト
 TEST(STTFeatureTest, VerifySilenceTimeoutAutoInjection) {
     QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
     QFile file(configPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QString content = QString::fromUtf8(file.readAll());
+        QByteArray rawData = file.readAll();
         file.close();
-        EXPECT_TRUE(content.contains("voice_silence_timeout_ms"));
+
+        QByteArray strippedData = JsonCommentRemover::stripHashComments(rawData);
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(strippedData, &parseError);
+
+        EXPECT_EQ(parseError.error, QJsonParseError::NoError);
+        EXPECT_TRUE(doc.isObject());
+        EXPECT_TRUE(doc.object().contains("voice_silence_timeout_ms"));
+        EXPECT_EQ(doc.object().value("voice_silence_timeout_ms").toInt(), 1000);
     }
 }
 

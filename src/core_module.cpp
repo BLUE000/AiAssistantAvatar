@@ -356,11 +356,41 @@ void CoreModule::ensureVoiceSilenceTimeoutSettingExists() {
     if (!content.contains("voice_silence_timeout_ms")) {
         int lastBrace = content.lastIndexOf('}');
         if (lastBrace != -1) {
-            QString addition = "  # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）\n"
-                               "  \"voice_silence_timeout_ms\": 1000,\n";
-            content.insert(lastBrace, addition);
+            // lastBrace より前のテキストを行単位に分割
+            QString headerText = content.left(lastBrace);
+            QStringList lines = headerText.split('\n');
+            
+            // コメント行や空行を除外した、直前の実効設定行を探す
+            int targetLineIdx = -1;
+            for (int i = lines.size() - 1; i >= 0; --i) {
+                QString trimmed = lines[i].trimmed();
+                if (!trimmed.isEmpty() && !trimmed.startsWith('#') && !trimmed.startsWith("//")) {
+                    targetLineIdx = i;
+                    break;
+                }
+            }
+
+            // 直前の設定行の末尾にカンマがない場合は確実にカンマを補完
+            if (targetLineIdx != -1) {
+                QString line = lines[targetLineIdx];
+                int lastCharPos = line.length() - 1;
+                while (lastCharPos >= 0 && line[lastCharPos].isSpace()) {
+                    lastCharPos--;
+                }
+                if (lastCharPos >= 0 && line[lastCharPos] != ',' && line[lastCharPos] != '{') {
+                    line.insert(lastCharPos + 1, ",");
+                    lines[targetLineIdx] = line;
+                }
+            }
+
+            // 新項目（ファイル末尾になるため項目末尾にカンマなし）を挿入
+            lines.append("  # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）");
+            lines.append("  \"voice_silence_timeout_ms\": 1000");
+
+            QString updatedContent = lines.join('\n') + "\n}\n";
+
             if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                file.write(content.toUtf8());
+                file.write(updatedContent.toUtf8());
                 file.close();
                 qDebug() << "CoreModule: Auto-injected voice_silence_timeout_ms setting into" << configPath;
             }
