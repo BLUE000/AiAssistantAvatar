@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 AiAssistantAvatar Automated Build Runner & Reporter
-Executes CMake Release build, measures compilation time, keeps console output minimal for fast execution,
-and writes a JSON build summary file (build/build_summary.json) for automated monitoring.
+Executes CMake Release build, measures compilation time, captures compiler/CMake warnings,
+keeps console output minimal for fast execution, and writes a JSON build summary file
+(build/build_summary.json) for automated monitoring.
 """
 
 import os
 import sys
 import time
 import subprocess
+import re
 import json
 from datetime import datetime
 
@@ -18,6 +20,25 @@ if sys.platform == "win32":
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
+
+def parse_warnings(output_text):
+    """ビルド出力ログからコンパイラおよび CMake のワーニング行を抽出しリスト化"""
+    warnings = []
+    if not output_text:
+        return warnings
+
+    warning_pattern = re.compile(r"(warning[:\s]|CMake Warning|warning C\d+|:\s*warning\s*:)", re.IGNORECASE)
+
+    for line in output_text.splitlines():
+        line_str = line.strip()
+        if warning_pattern.search(line_str):
+            # デバッグログ等の紛らわしい文字列を除外
+            if "Debug: " in line_str or "Info: " in line_str:
+                continue
+            if line_str not in warnings:
+                warnings.append(line_str)
+
+    return warnings
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,30 +73,36 @@ def main():
     start_time = time.perf_counter()
     success = False
     error_message = ""
+    captured_logs = []
 
     try:
-        # CMake Configure
+        # 1. CMake Configure
         print("[1/2] Configuring CMake (Release)...", end="", flush=True)
         config_cmd = ["cmake", "-S", project_dir, "-B", build_dir, "-DCMAKE_BUILD_TYPE=Release"]
         p_config = subprocess.run(
             config_cmd,
-            stdout=subprocess.PIPE if not verbose else None,
-            stderr=subprocess.PIPE if not verbose else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",
             env=env,
             cwd=project_dir
         )
+        captured_logs.append(p_config.stdout or "")
+
+        if verbose and p_config.stdout:
+            print("\n" + p_config.stdout)
+
         if p_config.returncode != 0:
             print(" [FAILED]")
-            error_message = p_config.stderr or "CMake configure failed."
+            error_message = p_config.stdout or "CMake configure failed."
             if not verbose:
                 print(error_message)
         else:
             print(" [OK]")
 
-            # CMake Build
+            # 2. CMake Build
             print("[2/2] Building targets (Release)...", end="", flush=True)
             build_cmd = ["cmake", "--build", build_dir, "--config", "Release"]
             if clean:
@@ -83,17 +110,22 @@ def main():
 
             p_build = subprocess.run(
                 build_cmd,
-                stdout=subprocess.PIPE if not verbose else None,
-                stderr=subprocess.PIPE if not verbose else None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 env=env,
                 cwd=project_dir
             )
+            captured_logs.append(p_build.stdout or "")
+
+            if verbose and p_build.stdout:
+                print("\n" + p_build.stdout)
+
             if p_build.returncode != 0:
                 print(" [FAILED]")
-                error_message = p_build.stderr or "CMake build failed."
+                error_message = p_build.stdout or "CMake build failed."
                 if not verbose:
                     print(error_message)
             else:
@@ -105,6 +137,9 @@ def main():
         print(f"\n[Error] Build process exception: {e}")
 
     elapsed_seconds = round(time.perf_counter() - start_time, 2)
+    all_output = "\n".join(captured_logs)
+    detected_warnings = parse_warnings(all_output)
+    warning_count = len(detected_warnings)
 
     # 時間のフォーマット
     if elapsed_seconds >= 60:
@@ -121,6 +156,13 @@ def main():
     print("============================================================")
     print(f" Build Type     : Release")
     print(f" Execution Time : {time_str}")
+    print(f" Warning Count  : {warning_count} {'(No warnings)' if warning_count == 0 else 'warning(s) detected!'}")
+    if warning_count > 0:
+        print(" Warning Details:")
+        for w in detected_warnings[:10]: # 最大10件表示
+            print(f"   - {w}")
+        if warning_count > 10:
+            print(f"   ... and {warning_count - 10} more warnings.")
     print(f" Result Status  : [ {status_str} ] {'Build completed cleanly!' if success else 'Build failed!'}")
     print("============================================================\n")
 
@@ -131,6 +173,8 @@ def main():
         "status": status_str,
         "build_type": "Release",
         "elapsed_seconds": elapsed_seconds,
+        "warning_count": warning_count,
+        "warnings": detected_warnings,
         "error_message": error_message
     }
 
