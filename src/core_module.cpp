@@ -97,7 +97,7 @@ void CoreModule::on_notify_events(const AppEvent &event) {
                 break;
             }
 
-            bool isPtt = event.extraData.value("is_ptt").toBool(false);
+            bool isPtt = event.extraData.value("is_ptt").toBool();
             if (isPtt) {
                 // PTT ボタン長押し時はアバター名チェック・状態遷移を行わずに無条件送信
                 qDebug() << "CoreModule: PTT voice input. Routing directly to AI.";
