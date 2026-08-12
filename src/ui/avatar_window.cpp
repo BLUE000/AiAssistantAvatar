@@ -1,5 +1,6 @@
 #include "avatar_window.h"
 #include "utils/json_comment_remover.h"
+#include "utils/config_utils.h"
 
 #include "avatar_skin_builder_dialog.h"
 #include "history_viewer_dialog.h"
@@ -1407,30 +1408,8 @@ void AvatarWindow::initShoutoutTab(QWidget *parent) {
 }
 
 namespace {
-    // コンパイルスイッチ (PROJECT_SOURCE_DIR) の位置と優先順位を厳密に維持するファイル解決ヘルパー
     QString resolveExistingFilePath(const QString &fileName) {
-        QString appDir = QCoreApplication::applicationDirPath();
-        QStringList candidates = {
-            appDir + "/Config/" + fileName,
-            "Config/" + fileName,
-            appDir + "/" + fileName,
-            fileName
-        };
-
-#ifdef PROJECT_SOURCE_DIR
-        candidates.append(QString(PROJECT_SOURCE_DIR) + "/Config/" + fileName);
-        candidates.append(QString(PROJECT_SOURCE_DIR) + "/" + fileName);
-#endif
-
-        candidates.append(appDir + "/../" + fileName);
-        candidates.append(appDir + "/../../" + fileName);
-
-        for (const QString &path : candidates) {
-            if (QFile::exists(path)) {
-                return QDir::cleanPath(path);
-            }
-        }
-        return QString();
+        return ConfigUtils::resolveConfigFilePath(fileName);
     }
 }
 
@@ -1901,30 +1880,7 @@ void AvatarWindow::onTwitchReauthClicked() {
 // OBS WebSocket サーバーの制御
 void AvatarWindow::startWebSocketServer() {
     int port = ConfigDefaults::WEBSOCKET_PORT;
-    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-    if (!QFile::exists(configPath)) {
-        configPath = "Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = "local_settings.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
-#endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-    }
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
 
     if (QFile::exists(configPath)) {
         QFile file(configPath);
@@ -2520,15 +2476,7 @@ void AvatarWindow::onLimitProviderChanged(int index) {
     m_limitRemainingLabel->setText("残り制限: --- / ---");
 
     // 既存設定ファイルから上限値をロードしてUIに仮表示
-    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-    if (!QFile::exists(configPath)) configPath = "Config/local_settings.json";
-    if (!QFile::exists(configPath)) configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    if (!QFile::exists(configPath)) configPath = "local_settings.json";
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-    if (!QFile::exists(configPath)) configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-#endif
-    if (!QFile::exists(configPath)) configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
 
     QFile file(configPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {

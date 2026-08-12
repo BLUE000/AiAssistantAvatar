@@ -1,5 +1,6 @@
 #include "discord_reader.h"
 #include "utils/json_comment_remover.h"
+#include "utils/config_utils.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -31,24 +32,7 @@ DiscordReader::~DiscordReader() {
 void DiscordReader::loadSettings() {
     QString configPath = m_configPath;
     if (configPath.isEmpty()) {
-        configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-        if (!QFile::exists(configPath)) {
-            configPath = "Config/local_settings.json";
-        }
-        if (!QFile::exists(configPath)) {
-            configPath = "local_settings.json";
-        }
-#ifdef PROJECT_SOURCE_DIR
-        if (!QFile::exists(configPath)) {
-            configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-        }
-        if (!QFile::exists(configPath)) {
-            configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-        }
-#endif
-        if (!QFile::exists(configPath)) {
-            configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-        }
+        configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
     }
 
     if (!QFile::exists(configPath)) return;

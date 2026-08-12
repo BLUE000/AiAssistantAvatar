@@ -1,5 +1,6 @@
 #include "twitch_reader.h"
 #include "utils/json_comment_remover.h"
+#include "utils/config_utils.h"
 
 #include <QDebug>
 #include <QTimer>
@@ -40,30 +41,7 @@ void TwitchReader::setSettings(const QString &channel, const QString &token, con
 void TwitchReader::loadSettings() {
     QString actualPath = m_configPath;
     if (actualPath.isEmpty()) {
-        actualPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-        if (!QFile::exists(actualPath)) {
-            actualPath = "Config/local_settings.json";
-        }
-        if (!QFile::exists(actualPath)) {
-            actualPath = "local_settings.json";
-        }
-#ifdef PROJECT_SOURCE_DIR
-        if (!QFile::exists(actualPath)) {
-            actualPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-        }
-        if (!QFile::exists(actualPath)) {
-            actualPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-        }
-#endif
-        if (!QFile::exists(actualPath)) {
-            actualPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-        }
-        if (!QFile::exists(actualPath)) {
-            actualPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-        }
-        if (!QFile::exists(actualPath)) {
-            actualPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-        }
+        actualPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
     }
 
     QFile file(actualPath);
@@ -661,6 +639,10 @@ void TwitchReader::on_twitchConnectRequested() {
 void TwitchReader::on_twitchReauthRequested() {
     qDebug() << "[TRACE-TWITCH] >>> TwitchReader::on_twitchReauthRequested START";
     qDebug() << "TwitchReader: Re-authorization requested.";
+    
+    // ディスク上の最新設定を同期的にロード（m_clientId 等を最新化）
+    loadSettings();
+
     on_stopReading();
     
     // トークンをクリア

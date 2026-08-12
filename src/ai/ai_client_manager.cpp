@@ -1,6 +1,7 @@
 #include "ai_client_manager.h"
 #include <QThread>
 #include "ai_random_utils.h"
+#include "utils/config_utils.h"
 
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
@@ -180,30 +181,7 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
 }
 
 void AIClientManager::loadCredentials() {
-    QString configPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-    if (!QFile::exists(configPath)) {
-        configPath = "Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = "local_settings.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
-#endif
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../local_settings.json";
-    }
-    if (!QFile::exists(configPath)) {
-        configPath = QCoreApplication::applicationDirPath() + "/../../local_settings.json";
-    }
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
 
     ScoreModerationEngine::instance().loadBlacklist("blacklist.txt");
     ScoreModerationEngine::instance().loadWhitelist("whitelist.txt");
@@ -215,7 +193,7 @@ void AIClientManager::loadCredentials() {
 
     QFile file(configPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QByteArray data = file.readAll();
+        QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
         file.close();
 
         QJsonDocument doc = QJsonDocument::fromJson(data);
@@ -1503,6 +1481,9 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         m_tracker.recordLocalConsumption(m_currentClient->clientId(), m_lastFinalPrompt.length(), responseText.length());
     }
     m_tracker.saveToFile("log/usage_stats.json");
+    if (m_dummyClient) {
+        m_dummyClient->stopTimer();
+    }
     // RateLimitTabWidget 向け通知（aiThread 上から QueuedConnection 経由で UI スレッドへ安全に配信）
     emit rateLimitStatusUpdated(m_tracker.allStatuses());
 

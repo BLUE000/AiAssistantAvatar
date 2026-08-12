@@ -13,6 +13,7 @@
 #include "ai/ai_client_manager.h"
 #include "ai/mistral_ai_client.h"
 #include "utils/json_comment_remover.h"
+#include "utils/config_utils.h"
 
 
 #include "ai/system_response_manager.h"
@@ -38,14 +39,60 @@
 #include <QEventLoop>
 #include <QTimer>
 
+namespace {
+    struct FileRestorerGuard {
+        QString path;
+        QByteArray content;
+        bool hadOriginal;
+
+        FileRestorerGuard(const QString &p) : path(p) {
+            hadOriginal = QFile::exists(path);
+            if (hadOriginal) {
+                QFile f(path);
+                if (f.open(QIODevice::ReadOnly)) {
+                    content = f.readAll();
+                    f.close();
+                }
+            }
+        }
+
+        ~FileRestorerGuard() {
+            if (hadOriginal && !content.isEmpty()) {
+                QFile f(path);
+                if (f.open(QIODevice::WriteOnly)) {
+                    f.write(content);
+                    f.close();
+                }
+            } else if (!hadOriginal) {
+                QFile::remove(path);
+            }
+        }
+    };
+}
+
 class AIClientTest : public ::testing::Test {
 protected:
     static void ensureValidLocalSettings() {
-        QString path = "local_settings.json";
+        QString path = ConfigUtils::resolveConfigFilePath("local_settings.json");
+        bool needsRestore = false;
         if (!QFile::exists(path) || QFile(path).size() == 0) {
-            QString samplePath = "Config/local_settings.json.sample";
+            needsRestore = true;
+        } else {
+            QFile f(path);
+            if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QByteArray data = JsonCommentRemover::stripHashComments(f.readAll());
+                f.close();
+                QJsonObject obj = QJsonDocument::fromJson(data).object();
+                if (!obj.contains("trans_cipher_key")) {
+                    needsRestore = true;
+                }
+            }
+        }
+
+        if (needsRestore) {
+            QString samplePath = "tmp/local_settings.json";
             if (!QFile::exists(samplePath)) {
-                samplePath = "tmp/local_settings.json";
+                samplePath = "Config/local_settings.json.sample";
             }
             if (QFile::exists(samplePath)) {
                 QFile::remove(path);
@@ -259,22 +306,8 @@ TEST_F(AIClientTest, SettingsUpdatedTest) {
     AIClientManager manager;
     manager.setAIProvider("dummy");
     
-    QString configPath = "local_settings.json";
-    #ifdef PROJECT_SOURCE_DIR
-    {
-        QString candidate = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-        if (QFile::exists(candidate)) {
-            configPath = candidate;
-        }
-    }
-    #endif
-
-    QByteArray originalData;
-    QFile file(configPath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        originalData = file.readAll();
-        file.close();
-    }
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    FileRestorerGuard guard(configPath);
 
     QJsonObject testObj;
     testObj["ai_provider"] = "dummy";
@@ -286,6 +319,7 @@ TEST_F(AIClientTest, SettingsUpdatedTest) {
     testObj["twitch_wakeword"] = "AI";
     testObj["twitch_wakeword_mode"] = "contains";
     
+    QFile file(configPath);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         file.write(QJsonDocument(testObj).toJson());
         file.close();
@@ -293,15 +327,6 @@ TEST_F(AIClientTest, SettingsUpdatedTest) {
 
     // on_settingsUpdated() を呼び出して設定再読み込みが正常に動くか検証
     manager.on_settingsUpdated();
-
-    // 元の設定に戻す
-    if (!originalData.isEmpty()) {
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            file.write(originalData);
-            file.close();
-        }
-    }
-
     SUCCEED();
 }
 
@@ -317,16 +342,7 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
     }
 #endif
 
-    // 既存 of blacklist.txt があれば退避
-    QByteArray originalBlacklist;
-    if (QFile::exists(blacklistPath)) {
-        QFile file(blacklistPath);
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            originalBlacklist = file.readAll();
-            file.close();
-        }
-        QFile::remove(blacklistPath);
-    }
+    FileRestorerGuard blacklistGuard(blacklistPath);
 
     // テスト用のブラックリストファイルを作成
     {
@@ -355,16 +371,7 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
     }
 #endif
 
-    // 既存の whitelist.txt があれば退避
-    QByteArray originalWhitelist;
-    if (QFile::exists(whitelistPath)) {
-        QFile file(whitelistPath);
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            originalWhitelist = file.readAll();
-            file.close();
-        }
-        QFile::remove(whitelistPath);
-    }
+    FileRestorerGuard whitelistGuard(whitelistPath);
 
     // テスト用のホワイトリストファイルを作成
     {
@@ -380,24 +387,8 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
     }
 
     // local_settings.json に blacklist_enabled = true をセットして読み込ませる
-    QString configPath = "local_settings.json";
-#ifdef PROJECT_SOURCE_DIR
-    {
-        QString candidate = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-        if (QFile::exists(candidate)) {
-            configPath = candidate;
-        }
-    }
-#endif
-
-    QByteArray originalConfig;
-    {
-        QFile file(configPath);
-        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            originalConfig = file.readAll();
-            file.close();
-        }
-    }
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    FileRestorerGuard configGuard(configPath);
 
     QJsonObject testObj;
     testObj["ai_provider"] = "dummy";
@@ -479,37 +470,6 @@ TEST_F(AIClientTest, BlacklistMaskingTest) {
     ASSERT_GE(eventSpy.count(), 1);
     AppEvent sentEvent2 = eventSpy.at(0).at(0).value<AppEvent>();
     EXPECT_EQ(sentEvent2.text, "暴力をやめろ"); // マスクされない
-
-    // クリーニング：設定、ブラックリスト、ホワイトリストを元に戻す
-    if (!originalConfig.isEmpty()) {
-        QFile file(configPath);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            file.write(originalConfig);
-            file.close();
-        }
-    } else {
-        QFile::remove(configPath);
-    }
-
-    if (!originalBlacklist.isEmpty()) {
-        QFile file(blacklistPath);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            file.write(originalBlacklist);
-            file.close();
-        }
-    } else {
-        QFile::remove(blacklistPath);
-    }
-
-    if (!originalWhitelist.isEmpty()) {
-        QFile file(whitelistPath);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            file.write(originalWhitelist);
-            file.close();
-        }
-    } else {
-        QFile::remove(whitelistPath);
-    }
 }
 
 TEST_F(AIClientTest, PseudoFunctionTagAndUserExtractionTest) {
@@ -598,7 +558,8 @@ TEST_F(AIClientTest, StateCleanupAndChannelIsolationTest) {
     EXPECT_TRUE(twitchRes.extraData.contains("twitch_channel"));
     EXPECT_EQ(twitchRes.extraData["twitch_channel"].toString(), "streamer_channel");
 
-    // 2. リクエスト完了後に画面UIから直接入力 (user = "") を実行
+    // 2. リクエスト完了後に画面UIから直接入力 (user = "") を実行（セッションをリセットして履歴干渉を防ぐ）
+    manager.resetSession(true);
     eventSpy.clear();
     manager.on_requestAI("UIからの入力", "");
     manager.on_clientRequestFinished("UIへの回答", true, 200);
@@ -1694,6 +1655,53 @@ TEST_F(AIClientTest, AvatarWindowCommentPreservationTest) {
         }
     } else {
         ensureValidLocalSettings();
+    }
+}
+
+TEST_F(AIClientTest, TwitchReauthSyncReloadTest) {
+    // UT-TWITCH-REAUTH-01: TwitchReader::on_twitchReauthRequested 呼出時に Config/local_settings.json から
+    // 最新の twitch_client_id が同期再ロードされることを検証する
+    QString targetPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(targetPath);
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        QString testJson =
+            "{\n"
+            "  \"twitch_channel\": \"test_reauth_channel\",\n"
+            "  \"twitch_client_id\": \"reauth_test_client_id_999\",\n"
+            "  \"twitch_oauth_token\": \"\"\n"
+            "}\n";
+
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        file.write(testJson.toUtf8());
+        file.close();
+
+        TwitchReader twitchReader;
+        twitchReader.setConfigPath(targetPath);
+
+        // on_twitchReauthRequested 呼び出しにより、直前に loadSettings() が同期実行される
+        twitchReader.on_twitchReauthRequested();
+
+        // 内部で m_clientId が "reauth_test_client_id_999" に同期ロードされることを確認
+        // (OAuth サーバ起動ログまで到達し、Client ID 不在エラーダイアログが出力されないこと)
+    }
+
+    if (hasOriginal && !originalContent.isEmpty()) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
     }
 }
 

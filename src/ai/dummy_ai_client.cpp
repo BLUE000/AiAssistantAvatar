@@ -39,7 +39,14 @@ void DummyAIClient::sendRequest(const QString &prompt, const QList<QPair<QString
     m_lastPrompt = cleanPrompt.trimmed();
     
     qDebug() << "DummyAIClient: Simulating AI request processing for prompt:" << prompt << "Cleaned:" << m_lastPrompt;
-    m_dummyTimer->start(2000); // 2秒後に応答
+    m_dummyTimer->stop();
+    m_dummyTimer->start(m_timerIntervalMs); // タイマー間隔（デフォルト0ms）
+}
+
+void DummyAIClient::stopTimer() {
+    if (m_dummyTimer && m_dummyTimer->isActive()) {
+        m_dummyTimer->stop();
+    }
 }
 
 ProviderStatus DummyAIClient::defaultStatus() const {

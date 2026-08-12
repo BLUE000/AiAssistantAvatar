@@ -7,6 +7,7 @@
 #include <QMutex>
 #include "app_event.h"
 #include "utils/json_comment_remover.h"
+#include "utils/config_utils.h"
 
 #include "core_module.h"
 #include "ui/avatar_window.h"
@@ -73,26 +74,9 @@ int main(int argc, char *argv[]) {
 
     // OBS用簡易HTTPサーバーの初期化
     ObsHttpServer *httpServer = new ObsHttpServer();
-    QString settingsPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
-    if (!QFile::exists(settingsPath)) {
-        settingsPath = "Config/local_settings.json";
-    }
-    if (!QFile::exists(settingsPath)) {
-        settingsPath = QCoreApplication::applicationDirPath() + "/local_settings.json";
-    }
-    if (!QFile::exists(settingsPath)) {
-        settingsPath = "local_settings.json";
-    }
-#ifdef PROJECT_SOURCE_DIR
-    if (!QFile::exists(settingsPath)) {
-        settingsPath = QString(PROJECT_SOURCE_DIR) + "/Config/local_settings.json";
-    }
-    if (!QFile::exists(settingsPath)) {
-        settingsPath = QString(PROJECT_SOURCE_DIR) + "/local_settings.json";
-    }
-#endif
 
-    auto loadAndStartHttpServer = [httpServer, settingsPath]() {
+    auto loadAndStartHttpServer = [httpServer]() {
+        QString settingsPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
         bool enabled = true;
         quint16 port = 58082;
         QFile file(settingsPath);
