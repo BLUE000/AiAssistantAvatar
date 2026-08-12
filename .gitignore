@@ -34,3 +34,8 @@ test_summary.json
 
 # Local WIP state file
 WIP_STATE.md
+
+# Accumulated Build logs (Git ignored)
+/log/build_logs/
+/BuildLog/
+*_BuildLog.log
