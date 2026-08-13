@@ -123,9 +123,84 @@ void CoreModule::on_notify_events(const AppEvent &event) {
                     if (obj.contains("twitch_wakeword")) wakeword = obj.value("twitch_wakeword").toString("AIアシスタント");
                 }
 
-                auto stripKeywordWithHonorifics = [](const QString &src, const QString &keyword) -> QString {
+                auto toKatakana = [](const QString &src) -> QString {
+                    QString res = src;
+                    for (int i = 0; i < res.length(); ++i) {
+                        ushort ch = res[i].unicode();
+                        if (ch >= 0x3041 && ch <= 0x3096) {
+                            res[i] = QChar(ch + 0x0060);
+                        }
+                    }
+                    return res;
+                };
+
+                auto normalizeForMatch = [&toKatakana](const QString &src) -> QString {
+                    QString s = toKatakana(src.toLower());
+                    // 濁音・半濁音の表記ゆれ（例: プル -> ブル）
+                    s.replace(QChar(0x30D7), QChar(0x30D6)); // プ -> ブ
+                    s.replace(QChar(0x30D8), QChar(0x30D5)); // ペ -> ベ
+                    s.replace(QChar(0x30D1), QChar(0x30D0)); // パ -> バ
+                    s.replace(QChar(0x30D4), QChar(0x30D3)); // ピ -> ビ
+                    s.replace(QChar(0x30D9), QChar(0x30D6)); // ポ -> ボ
+                    // 名前の定番漢字表記ゆれ（例: 太郎 -> タロウ）
+                    s.replace("太郎", "タロウ");
+                    // 空白・記号の除去
+                    s.remove(QChar(0x3000));
+                    s.remove(' ');
+                    s.remove(QRegularExpression("[、。！？!?,.\\-_~〜ー]"));
+                    return s;
+                };
+
+                auto stripKeywordWithHonorifics = [&toKatakana](const QString &src, const QString &keyword) -> QString {
                     if (keyword.isEmpty()) return src;
-                    QRegularExpression regex(QRegularExpression::escape(keyword) + "(?:くん|君|さん|ちゃん|様|たん|殿|氏|ー|〜)*[、。！？!?\\s\\t,.]*");
+
+                    QString katakanaKw = toKatakana(keyword);
+                    QString hiraganaKw = keyword;
+                    for (int i = 0; i < hiraganaKw.length(); ++i) {
+                        ushort ch = hiraganaKw[i].unicode();
+                        if (ch >= 0x30A1 && ch <= 0x30F6) hiraganaKw[i] = QChar(ch - 0x0060);
+                    }
+
+                    QStringList prefixList;
+                    prefixList << "ぶる" << "ブル" << "プル" << "ぶ" << "ブ" << "プ";
+
+                    QStringList suffixList;
+                    suffixList << "たろう" << "タロウ" << "太郎";
+
+                    QSet<QString> variantSet;
+                    variantSet.insert(keyword);
+                    variantSet.insert(katakanaKw);
+                    variantSet.insert(hiraganaKw);
+
+                    bool containsPrefix = false;
+                    for (const QString &p : prefixList) {
+                        if (keyword.contains(p)) { containsPrefix = true; break; }
+                    }
+                    bool containsSuffix = false;
+                    for (const QString &s : suffixList) {
+                        if (keyword.contains(s)) { containsSuffix = true; break; }
+                    }
+
+                    if (containsPrefix && containsSuffix) {
+                        for (const QString &p : prefixList) {
+                            for (const QString &s : suffixList) {
+                                variantSet.insert(p + s);
+                            }
+                        }
+                    }
+
+                    QStringList variants = variantSet.values();
+                    std::sort(variants.begin(), variants.end(), [](const QString &a, const QString &b) {
+                        return a.length() > b.length();
+                    });
+
+                    QStringList escapedVariants;
+                    for (const QString &v : variants) {
+                        escapedVariants << QRegularExpression::escape(v);
+                    }
+
+                    QString patternStr = "(?:" + escapedVariants.join("|") + ")(?:くん|君|さん|ちゃん|様|たん|殿|氏|ー|〜)*[、。！？!?\\s\\t,.]*";
+                    QRegularExpression regex(patternStr, QRegularExpression::CaseInsensitiveOption);
                     QString result = src;
                     result.replace(regex, "");
                     return result.trimmed();
@@ -133,11 +208,12 @@ void CoreModule::on_notify_events(const AppEvent &event) {
 
                 bool matched = false;
                 QString cleanText = trimmedText;
+                QString normTrimmed = normalizeForMatch(trimmedText);
 
-                if (!wakeword.isEmpty() && trimmedText.contains(wakeword)) {
+                if (!wakeword.isEmpty() && normTrimmed.contains(normalizeForMatch(wakeword))) {
                     matched = true;
                     cleanText = stripKeywordWithHonorifics(trimmedText, wakeword);
-                } else if (!avatarName.isEmpty() && trimmedText.contains(avatarName)) {
+                } else if (!avatarName.isEmpty() && normTrimmed.contains(normalizeForMatch(avatarName))) {
                     matched = true;
                     cleanText = stripKeywordWithHonorifics(trimmedText, avatarName);
                 }

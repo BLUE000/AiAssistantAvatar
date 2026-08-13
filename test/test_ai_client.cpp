@@ -2373,22 +2373,39 @@ TEST(STTFeatureTest, VerifyPTTButtonStateAndSignals) {
     EXPECT_EQ(spyStop.count(), 1);
 }
 
-// UT-STT-05: CoreModule 音声AI自動ルーティングテスト (ウェイクワード検出 ＆ アバター名除去)
+// UT-STT-05: CoreModule 音声AI自動ルーティングテスト (ウェイクワード検出 ＆ 表記ゆれ補正・アバター名除去)
 TEST(STTFeatureTest, VerifyVoiceInputAIRouting) {
     CoreModule core;
     QSignalSpy spyAI(&core, &CoreModule::requestAI);
 
-    AppEvent voiceEvent;
-    voiceEvent.type = EventType::VoiceInputCompleted;
-    voiceEvent.source = "STTManager";
-    voiceEvent.text = "ぶるたろう、こんにちは";
+    // 1. ひらがな正規表記パターン
+    AppEvent voiceEvent1;
+    voiceEvent1.type = EventType::VoiceInputCompleted;
+    voiceEvent1.source = "STTManager";
+    voiceEvent1.text = "ぶるたろう、こんにちは";
 
-    core.on_notify_events(voiceEvent);
+    core.on_notify_events(voiceEvent1);
 
     EXPECT_EQ(spyAI.count(), 1);
-    QList<QVariant> arguments = spyAI.takeFirst();
-    EXPECT_EQ(arguments.at(0).toString(), "こんにちは");
-    EXPECT_EQ(arguments.at(1).toString(), "Streamer (Voice)");
+    QList<QVariant> arguments1 = spyAI.takeFirst();
+    EXPECT_EQ(arguments1.at(0).toString(), "こんにちは");
+    EXPECT_EQ(arguments1.at(1).toString(), "Streamer (Voice)");
+
+    // タイマー満了で待機状態に復帰
+    QTest::qWait(1100);
+
+    // 2. 音声認識（STT）特有の同音異字（プル太郎）表記ゆれ補正パターン
+    AppEvent voiceEvent2;
+    voiceEvent2.type = EventType::VoiceInputCompleted;
+    voiceEvent2.source = "STTManager";
+    voiceEvent2.text = "プル太郎 テスト";
+
+    core.on_notify_events(voiceEvent2);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    QList<QVariant> arguments2 = spyAI.takeFirst();
+    EXPECT_EQ(arguments2.at(0).toString(), "テスト");
+    EXPECT_EQ(arguments2.at(1).toString(), "Streamer (Voice)");
 }
 
 // UT-STT-07: CoreModule 待機状態非ウェイクワード無視テスト
