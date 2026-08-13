@@ -302,6 +302,94 @@ void ObsHttpServer::handleRequest(QTcpSocket *socket, const QString &requestStr)
         return;
     }
 
+    // /ui_text または /text_overlay.html エンドポイントの判定 (F-31: UI応答専用Webテキスト表示)
+    if (pathOnly == "/ui_text" || pathOnly == "/text_overlay.html") {
+        QString html = R"rawhtml(<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AiAssistantAvatar - UI Text Viewer</title>
+  <style>
+    body {
+      margin: 0; padding: 20px;
+      background: #0f172a; color: #f8fafc;
+      font-family: 'Segoe UI', 'Meiryo', sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 90vh;
+    }
+    .container {
+      background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+      padding: 30px; width: 90%; max-width: 800px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .header {
+      font-size: 16px; color: #38bdf8; font-weight: bold;
+      border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .status-badge {
+      font-size: 12px; padding: 4px 10px; border-radius: 12px; background: #065f46; color: #34d399;
+    }
+    .text-content {
+      font-size: 24px; line-height: 1.6; color: #f1f5f9; white-space: pre-wrap; word-break: break-all;
+      min-height: 150px;
+    }
+    .placeholder { color: #64748b; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span>💡 AI アシスタント - 応答テキスト表示</span>
+      <span id="status" class="status-badge">接続待機中...</span>
+    </div>
+    <div id="textContent" class="text-content placeholder">AIへの質問・音声入力の応答がここに表示されます...</div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const textContentEl = document.getElementById('textContent');
+
+    function connectWS() {
+      const host = window.location.hostname || 'localhost';
+      const ws = new WebSocket(`ws://${host}:58081`);
+
+      ws.onopen = () => {
+        statusEl.textContent = '🟢 接続中';
+        statusEl.style.background = '#065f46';
+        statusEl.style.color = '#34d399';
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'UIResponse' || (data.type === 'AIResponse' && data.source === 'UI')) {
+            if (data.text) {
+              textContentEl.classList.remove('placeholder');
+              textContentEl.textContent = data.text;
+            }
+          }
+        } catch (e) { console.error('JSON parse error:', e); }
+      };
+
+      ws.onclose = () => {
+        statusEl.textContent = '🔴 切断（再接続中...）';
+        statusEl.style.background = '#881337';
+        statusEl.style.color = '#fda4af';
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>)rawhtml";
+
+        sendResponse(socket, 200, "OK", html.toUtf8(), "text/html; charset=utf-8");
+        return;
+    }
+
 
     if (method != "GET" && method != "HEAD") {
         sendErrorResponse(socket, 405, "Method Not Allowed", "Only GET and HEAD methods are supported");

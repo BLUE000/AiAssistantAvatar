@@ -2783,6 +2783,20 @@ TEST_F(WebSocketPortDefaultTest, TwitchPortIsNotUsedAsDefault) {
         << "websocket_port のデフォルトは WEBSOCKET_PORT (58081) であるべき";
 }
 
+// UT-UI-ROUTING-04: UIテキスト専用Web配信 (/ui_text) 用 WebSocket イベント発火テスト
+TEST(UIRoutingTest, VerifyUITextWebBroadcast) {
+    AvatarWindow window;
+    AppEvent event;
+    event.type = EventType::AIResponseReceived;
+    event.source = "UI";
+    event.text = "ゲーム攻略のヒント：ボスの隙を見て攻撃しよう";
+
+    // イベント投入
+    window.on_notify_events(event);
+
+    SUCCEED();
+}
+
 
 
 

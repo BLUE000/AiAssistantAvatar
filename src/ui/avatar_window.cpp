@@ -877,13 +877,19 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 m_responseBrowser->setMarkdown(event.text);
             }
 
-            // OBSへの通知（Twitch経由のAI応答時のみ配信し、UI直接入力やDiscord応答は非中継）
+            // OBSへの通知（Twitch経由のAI応答時は配信オーバーレイ画面、UI直接入力や音声入力時はUIテキスト専用画面へ配信）
             bool isTwitchSource = (event.source == "Twitch" || event.extraData.contains("twitch_channel"));
             if (isTwitchSource) {
                 QJsonObject resObj;
                 resObj["type"] = "AIResponseReceived";
                 resObj["responseText"] = event.text;
                 broadcastToOBS(resObj);
+            } else {
+                QJsonObject uiObj;
+                uiObj["type"] = "UIResponse";
+                uiObj["text"] = event.text;
+                uiObj["source"] = "UI";
+                broadcastToOBS(uiObj);
             }
 
             // WebHookへの通知
