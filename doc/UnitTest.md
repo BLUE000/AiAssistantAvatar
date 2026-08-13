@@ -478,6 +478,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-WM-01** | `WakewordMatcher::matchAndStrip` | "ブルタロー 攻略法を教えて" や "プルタロー テスト" 等の長音・表記ゆれテキストを投入する。 | `match == true` と判定され、アバター名が除去された本文 ("攻略法を教えて", "テスト") が正しく抽出されること。 |
 | **UT-STT-NORM-01** | `STTTextNormalizer::normalizePhonetics` | 四つ仮名 ("ぶぢたろう", "みづ"), 音素類似子音 ("ぶちたろう", "ぶすたろう") を含む認識テキストを投入する。 | 1. 四つ仮名が `じ`/`ず` へ自動統一されること。<br>2. 編集距離類似度判定により類似度 75% 以上でウェイクワードおよび発話本文として補正評価できること。 |
 | **UT-ROUTER-01** | `ResponseRouter::dispatchResponse` | `ReplyTarget::WebText | ReplyTarget::DiscordChat` を指定した AI 応答イベントを渡す。 | `/ui_text` Web表示および Discord メッセージ送信処理へ非同期でそれぞれ正しくルーティング配信されること。 |
+| **UT-BOUYOMI-01** | `BouyomiChanClient::sendText` | `enabled = true`, `baseUrl = "http://localhost:50080/talk"` で日本語テキスト "こんにちは" を渡す。 | HTTP GET リクエスト URL が `"http://localhost:50080/talk?text=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF"` と正確にエンコード生成され非同期送信されること。 |
+| **UT-BOUYOMI-02** | `AvatarWindow::saveSettingsFromUI` | `"bouyomichan_url"` が含まれない設定 JSON をロードする。 | 自動補完処理によりコメント付きで `"bouyomichan_enabled": false`, `"bouyomichan_url": "http://localhost:50080/talk"` がファイルに追記・保存されること。 |
 
 
 

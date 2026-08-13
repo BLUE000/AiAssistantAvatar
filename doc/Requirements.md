@@ -65,6 +65,15 @@ sequenceDiagram
   - 入力イベント (`AppEvent`) ごとに応答の出力先を示すターゲットフラグ (`replyTarget` / `extraData["reply_target"]`) を標準化する。
   - 出力先ターゲット（`UI`: 本体アプリ, `WebText`: `/ui_text`, `OBSOverlay`: `avatar_obs.html`, `TwitchChat`: Twitchコメント, `DiscordChat`: Discordメッセージ, `TTSVoice`: 音声読み上げ）をビットフラグとして合成・保持可能とし、送信元や将来的な機能追加に応じて出力先を動的に拡張・変更できる柔軟なルーティング構造を提供する。
 
+### F-33: 棒読みちゃん (Bouyomi-chan) 独立モジュール HTTP 読み上げ連携仕様 (`BouyomiChanClient`)
+- **独立モジュール化 (`BouyomiChanClient`)**:
+  - 棒読みちゃん（Bouyomi-chan）へのアクセス処理を独立した専用モジュール `BouyomiChanClient`（`src/tts/bouyomichan_client.h` / `.cpp`）として切り出し、他モジュールから完全分離する。
+- **設定ファイル管理 ＆ 自動補完仕様**:
+  - 棒読みちゃんアクセス用 URL および有効化フラグを設定ファイル (`Config/local_settings.json`) の `"bouyomichan_enabled"` (初期値: `false`) および `"bouyomichan_url"` (初期値: `"http://localhost:50080/talk"`) キーとして保存・管理する。
+  - 設定ファイルにキーが存在しない場合、アプリケーション起動時に日本語説明コメント付きで該当キーを自動補完（自動追記保存）する。同PC上の固定パス運用だけでなく、別PCへの展開時にも IP アドレスを書き換えるだけで対応可能とする。
+- **音声応答イベント連動 ＆ 非同期 HTTP 送信**:
+  - AI 応答イベント (`AIResponseReceived`) 受信時、応答ターゲットに `ReplyTarget::TTSVoice`（または音声入力・UI入力からの応答）が含まれる場合、回答本文テキストを URL エンコード処理（`QUrl::toPercentEncoding`）し、指定された Bouyomi-chan URL へ非同期 HTTP GET リクエストを送信して音声読み上げを実行する。
+
 
 
 ### F-3: 外部AI API連携機能

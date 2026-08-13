@@ -296,3 +296,33 @@ struct ProviderConfigSpec {
   - イベント生成時またはハンドラにおいて `replyTarget`（または `extraData["reply_target"]`）を設定・上書き可能とする。
   - AIからの回答受信時 (`AIResponseReceived`)、ルーティングエンジンがフラグ判定を行い、設定されたすべてのターゲットへ一斉・非同期で応答を分散配信する。
 
+---
+
+## 13. 棒読みちゃん (Bouyomi-chan) 独立モジュール詳細設計 (`BouyomiChanClient` - F-33)
+
+### 13.1 クラス設計 ＆ API インターフェース ([src/tts/bouyomichan_client.h](file:///d:/prog/C++/AiAssistantAvatar/src/tts/bouyomichan_client.h))
+```cpp
+#pragma once
+#include <QObject>
+#include <QString>
+#include <QNetworkAccessManager>
+
+class BouyomiChanClient : public QObject {
+    Q_OBJECT
+public:
+    explicit BouyomiChanClient(QObject *parent = nullptr);
+    void sendText(const QString &text, bool enabled, const QString &baseUrl);
+
+private:
+    QNetworkAccessManager m_networkManager;
+};
+```
+
+### 13.2 HTTP GET 送信 ＆ URL エンコード処理フロー
+1. **設定値検証**: `enabled == true` かつ `baseUrl` が空でない場合のみ処理を実行する。
+2. **URLパラメータ組み立て ＆ パーセントエンコード**:
+   - `baseUrl`（例: `"http://localhost:50080/talk"`）の末尾パラメータを解析。
+   - `QUrl::toPercentEncoding(text)` により日本語回答テキストを URL エンコードし、`?text=...` クエリ文字列を生成。
+3. **非同期 HTTP リクエスト発行**:
+   - `QNetworkAccessManager::get(QNetworkRequest(url))` を使用して非同期送信し、メインスレッドをブロックしない構造とする。
+

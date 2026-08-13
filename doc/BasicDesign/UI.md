@@ -99,6 +99,13 @@
     3. `OBSOverlay`: `avatar_obs.html` OBSアバターオーバーレイ
     4. `TwitchChat`: Twitchチャットへの自動返信
     5. `DiscordChat`: Discordメッセージへの自動返信
-    6. `TTSVoice`: 音声読み上げ Engine
+    6. `TTSVoice`: 音声読み上げ Engine (棒読みちゃん `BouyomiChanClient` 連携)
   - 今後入力・出力ソースが増加した場合でも、ターゲットフラグを組み合わせるだけで自由に応答の送信先を変更・拡張できる疎結合なアーキテクチャを提供する。
+
+### 2.13 棒読みちゃん (Bouyomi-chan) 独立モジュール HTTP 送信設計 (F-33)
+- **独立モジュール化 (`BouyomiChanClient`)**:
+  - 棒読みちゃんへの通信ロジックを UI や Core モジュールから独立した専用送信モジュール `BouyomiChanClient`（`src/tts/bouyomichan_client.h` / `.cpp`）として定義・カプセル化する。
+- **連携フロー ＆ 設定駆動動作**:
+  - `AIResponseReceived` 発生時、応答ターゲットに `ReplyTarget::TTSVoice`（または音声入力・UI入力等による応答）が含まれる場合、`BouyomiChanClient` を通じて非同期で HTTP GET (`?text=...`) を発行し、棒読みちゃんに読み上げを依頼する。
+  - 有効無効およびアクセス先 URL は設定ファイル `Config/local_settings.json` の `"bouyomichan_enabled"` および `"bouyomichan_url"` に従う。
 

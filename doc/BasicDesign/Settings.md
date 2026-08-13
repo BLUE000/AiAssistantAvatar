@@ -19,7 +19,11 @@
 - **無音タイムアウト設定項目 (`voice_silence_timeout_ms`)**:
   - 音声入力における無音判定時間をミリ秒（ms）単位で定義する（デフォルト値: `1000`）。
   - 設定ファイル `Config/local_settings.json` 内に保存・管理され、アプリケーション起動時および設定更新時に動的にロードされる。
+### 2.4 棒読みちゃん (Bouyomi-chan) HTTP連携設定 ＆ 未存在キー自動補完 (`F-33`)
+- **棒読みちゃん設定項目 (`bouyomichan_enabled`, `bouyomichan_url`)**:
+  - `bouyomichan_enabled`: 棒読みちゃん音声読み上げ機能の有効化フラグ（bool、デフォルト値: `false`）。
+  - `bouyomichan_url`: 棒読みちゃん HTTP API アクセス用 URL（string、デフォルト値: `"http://localhost:50080/talk"`）。
 - **未存在キーの自動補完 (Auto-Injection)**:
-  - 既存の `Config/local_settings.json` に `"voice_silence_timeout_ms"` キーが存在しない場合、アプリケーションは読み込み時に自動検知し、コメント `# 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）` 付きでデフォルト項目をファイルへ追記保存する。
+  - 既存の `Config/local_settings.json` に `"bouyomichan_url"` または `"bouyomichan_enabled"` キーが存在しない場合、アプリケーション起動時に自動検知し、コメント `# 棒読みちゃん HTTP 読み上げ機能設定` および `# 棒読みちゃん HTTP API URL (例: http://localhost:50080/talk)` 付きでデフォルト項目を自動追記・補完保存する。同PC上の固定パス運用だけでなく、別PCへの展開時にも IP アドレスを変更するだけで対応可能とする。
 
 
