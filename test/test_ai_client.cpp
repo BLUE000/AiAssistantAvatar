@@ -2948,6 +2948,37 @@ TEST(BouyomiChanTest, VerifySaveSettingsPreservesDiskBouyomiEnabled) {
     EXPECT_EQ(savedObj.value("bouyomichan_url").toString(), "http://192.168.0.29:50080/talk");
 }
 
+// UT-BOUYOMI-04: 50001番ポート指定時の TCP パケット構造 (15バイトヘッダー + Little-Endian + UTF-8) 検証
+TEST(BouyomiChanTest, VerifyTcpSocketPacketStructure) {
+    QString testText = "テスト読み上げ";
+    QByteArray packet = BouyomiChanClient::createTcpPacket(testText);
+
+    QByteArray textBytes = testText.toUtf8();
+    ASSERT_EQ(packet.size(), 15 + textBytes.size());
+
+    QDataStream stream(packet);
+    stream.setByteOrder(QDataStream::LittleEndian);
+
+    quint16 command = 0;
+    qint16 speed = 0, tone = 0, volume = 0;
+    quint16 voice = 0;
+    quint8 encoding = 0;
+    quint32 length = 0;
+
+    stream >> command >> speed >> tone >> volume >> voice >> encoding >> length;
+
+    EXPECT_EQ(command, 0x0001);
+    EXPECT_EQ(speed, -1);
+    EXPECT_EQ(tone, -1);
+    EXPECT_EQ(volume, -1);
+    EXPECT_EQ(voice, 0);
+    EXPECT_EQ(encoding, 0);
+    EXPECT_EQ(length, static_cast<quint32>(textBytes.size()));
+
+    QByteArray payload = packet.mid(15);
+    EXPECT_EQ(payload, textBytes);
+}
+
 
 
 

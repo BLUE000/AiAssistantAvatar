@@ -1590,6 +1590,7 @@ void AvatarWindow::loadSettingsToUI() {
 
             m_bouyomiChanEnabled = obj.value("bouyomichan_enabled").toBool(false);
             m_bouyomiChanUrl = obj.value("bouyomichan_url").toString(ConfigDefaults::BOUYOMI_URL);
+            qDebug() << "AvatarWindow: Loaded Bouyomi-chan settings -> enabled:" << m_bouyomiChanEnabled << "url:" << m_bouyomiChanUrl;
 
             m_bubbleDisplayShortSec = obj.value("bubble_display_short_sec").toInt(5);
             m_bubbleDisplayLongSec = obj.value("bubble_display_long_sec").toInt(10);
@@ -1800,6 +1801,7 @@ void AvatarWindow::saveSettingsFromUI() {
     }
     obj["bouyomichan_enabled"] = m_bouyomiChanEnabled;
     obj["bouyomichan_url"] = m_bouyomiChanUrl;
+    qDebug() << "AvatarWindow: Preserved Bouyomi-chan settings from disk -> enabled:" << m_bouyomiChanEnabled << "url:" << m_bouyomiChanUrl;
 
     m_avatarName = m_avatarNameEdit->text().trimmed();
     if (obj.contains("name_reaction_enabled")) {
