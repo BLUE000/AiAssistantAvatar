@@ -1438,7 +1438,8 @@ void AvatarWindow::ensureBouyomiChanSettingsExist() {
     QString content = QString::fromUtf8(file.readAll());
     file.close();
 
-    if (!content.contains("bouyomichan_url") && !content.contains("bouyomichan_enabled")) {
+    if (!content.contains("bouyomichan_url") || !content.contains("bouyomichan_enabled")) {
+        content.replace("\r\n", "\n").replace("\r", "\n");
         int lastBrace = content.lastIndexOf('}');
         if (lastBrace != -1) {
             QString headerText = content.left(lastBrace);
@@ -1454,14 +1455,9 @@ void AvatarWindow::ensureBouyomiChanSettingsExist() {
             }
 
             if (targetLineIdx != -1) {
-                QString line = lines[targetLineIdx];
-                int lastCharPos = line.length() - 1;
-                while (lastCharPos >= 0 && line[lastCharPos].isSpace()) {
-                    lastCharPos--;
-                }
-                if (lastCharPos >= 0 && line[lastCharPos] != ',' && line[lastCharPos] != '{') {
-                    line.insert(lastCharPos + 1, ",");
-                    lines[targetLineIdx] = line;
+                QString trimmedLine = lines[targetLineIdx].trimmed();
+                if (!trimmedLine.endsWith(',') && !trimmedLine.endsWith('{')) {
+                    lines[targetLineIdx] = lines[targetLineIdx].trimmed() + ",";
                 }
             }
 
@@ -1471,10 +1467,13 @@ void AvatarWindow::ensureBouyomiChanSettingsExist() {
 
             QString updatedContent = lines.join('\n') + "\n}\n";
 
-            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
                 file.write(updatedContent.toUtf8());
+                file.flush();
                 file.close();
                 qDebug() << "AvatarWindow: Auto-injected bouyomichan settings into" << configPath;
+            } else {
+                qWarning() << "AvatarWindow: Failed to open file for writing:" << configPath << "Error:" << file.errorString();
             }
         }
     }
@@ -1792,12 +1791,11 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
 
-    if (!obj.contains("bouyomichan_enabled")) {
-        obj["bouyomichan_enabled"] = false;
+    obj["bouyomichan_enabled"] = m_bouyomiChanEnabled;
+    if (m_bouyomiChanUrl.isEmpty()) {
+        m_bouyomiChanUrl = ConfigDefaults::BOUYOMI_URL;
     }
-    if (!obj.contains("bouyomichan_url")) {
-        obj["bouyomichan_url"] = ConfigDefaults::BOUYOMI_URL;
-    }
+    obj["bouyomichan_url"] = m_bouyomiChanUrl;
 
     m_avatarName = m_avatarNameEdit->text().trimmed();
     if (obj.contains("name_reaction_enabled")) {

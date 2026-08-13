@@ -8,7 +8,9 @@ QByteArray JsonCommentRemover::stripHashComments(const QByteArray &jsonBytes) {
 }
 
 QString JsonCommentRemover::stripHashComments(const QString &jsonText) {
-    QStringList lines = jsonText.split('\n');
+    QString normalizedText = jsonText;
+    normalizedText.replace("\r\n", "\n").replace("\r", "\n");
+    QStringList lines = normalizedText.split('\n');
     QStringList resultLines;
 
     for (const QString &line : lines) {
@@ -90,7 +92,9 @@ QString JsonCommentRemover::updateExistingJsonText(const QString &existingText, 
         return QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
     }
 
-    QStringList lines = existingText.split('\n');
+    QString normalizedText = existingText;
+    normalizedText.replace("\r\n", "\n").replace("\r", "\n");
+    QStringList lines = normalizedText.split('\n');
     QSet<QString> processedKeys;
     QStringList resultLines;
 
@@ -188,7 +192,7 @@ QString JsonCommentRemover::updateExistingJsonText(const QString &existingText, 
         if (lastBraceIdx >= 0) {
             // 前の行にカンマがなければ補完
             if (lastBraceIdx > 0 && !resultLines.at(lastBraceIdx - 1).trimmed().endsWith(',') && !resultLines.at(lastBraceIdx - 1).trimmed().endsWith('{')) {
-                resultLines[lastBraceIdx - 1] += ",";
+                resultLines[lastBraceIdx - 1] = resultLines.at(lastBraceIdx - 1).trimmed() + ",";
             }
             for (int i = 0; i < addedLines.size(); ++i) {
                 resultLines.insert(lastBraceIdx + i, addedLines.at(i));

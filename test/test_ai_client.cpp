@@ -1625,8 +1625,9 @@ TEST_F(AIClientTest, AvatarWindowTwitchGreetingTest) {
         window.saveSettingsFromUI();
 
         QFile file(targetPath);
-        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
-        QJsonObject savedObj = QJsonDocument::fromJson(file.readAll()).object();
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text));
+        QByteArray cleanData = JsonCommentRemover::stripHashComments(file.readAll());
+        QJsonObject savedObj = QJsonDocument::fromJson(cleanData).object();
         file.close();
 
         EXPECT_TRUE(savedObj.contains("twitch_greeting_enabled"));
@@ -2872,13 +2873,16 @@ TEST(BouyomiChanTest, VerifySendTextURLGeneration) {
     SUCCEED();
 }
 
-// UT-BOUYOMI-02: 棒読みちゃん未設定キーの自動補完 (Auto-Injection) テスト
+// UT-BOUYOMI-02: 棒読みちゃん未設定キーの自動補完 (Auto-Injection & CRLF 端末対応) テスト
 TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
-    QString originalJson = "{\n  \"ai_provider\": \"mistral\"\n}";
-    int lastBrace = originalJson.lastIndexOf('}');
+    QString originalJson = "{\r\n  \"ai_provider\": \"mistral\"\r\n}";
+    QString normalized = originalJson;
+    normalized.replace("\r\n", "\n").replace("\r", "\n");
+
+    int lastBrace = normalized.lastIndexOf('}');
     ASSERT_NE(lastBrace, -1);
 
-    QString headerText = originalJson.left(lastBrace);
+    QString headerText = normalized.left(lastBrace);
     QStringList lines = headerText.split('\n');
 
     int targetLineIdx = -1;
@@ -2891,14 +2895,9 @@ TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
     }
 
     if (targetLineIdx != -1) {
-        QString line = lines[targetLineIdx];
-        int lastCharPos = line.length() - 1;
-        while (lastCharPos >= 0 && line[lastCharPos].isSpace()) {
-            lastCharPos--;
-        }
-        if (lastCharPos >= 0 && line[lastCharPos] != ',' && line[lastCharPos] != '{') {
-            line.insert(lastCharPos + 1, ",");
-            lines[targetLineIdx] = line;
+        QString trimmedLine = lines[targetLineIdx].trimmed();
+        if (!trimmedLine.endsWith(',') && !trimmedLine.endsWith('{')) {
+            lines[targetLineIdx] = lines[targetLineIdx].trimmed() + ",";
         }
     }
 
@@ -2911,6 +2910,13 @@ TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
     EXPECT_TRUE(updatedJson.contains("# 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定"));
     EXPECT_TRUE(updatedJson.contains("\"bouyomichan_enabled\": false"));
     EXPECT_TRUE(updatedJson.contains("\"bouyomichan_url\": \"http://localhost:50080/talk\""));
+
+    // JSONParse で構文エラーにならないことを確認
+    QByteArray cleanData = JsonCommentRemover::stripHashComments(updatedJson.toUtf8());
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(cleanData, &err);
+    EXPECT_EQ(err.error, QJsonParseError::NoError);
+    EXPECT_FALSE(doc.object().value("bouyomichan_enabled").toBool());
 }
 
 
