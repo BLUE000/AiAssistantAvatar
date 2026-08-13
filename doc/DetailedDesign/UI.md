@@ -326,3 +326,6 @@ private:
 3. **非同期 HTTP リクエスト発行**:
    - `QNetworkAccessManager::get(QNetworkRequest(url))` を使用して非同期送信し、メインスレッドをブロックしない構造とする。
 
+### 13.3 起動時設定自動補完処理 (`ensureBouyomiChanSettingsExist`)
+- アプリケーション起動時（`loadSettingsToUI` 内）に `local_settings.json` のテキストを直接確認し、`"bouyomichan_url"` または `"bouyomichan_enabled"` が未定義の場合、日本語説明コメント付きで該当キーをファイル末尾に自動追記・補完保存する。
+

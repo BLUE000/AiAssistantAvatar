@@ -304,6 +304,7 @@ private:
     bool m_schedulerPaused = false;   // AI 応答中は一時停止
     QTimer *m_resumeTimer = nullptr;  // Speaking 後に自動再開するタイマー
     void loadSettings();
+    void ensureBouyomiChanSettingsExist();
     void processAndCacheImages();
     QPixmap applyTransparency(const QString &filePath, int tx, int ty);
     void updateAvatarDisplay(const QString &state);

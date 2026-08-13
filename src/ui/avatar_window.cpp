@@ -1429,7 +1429,59 @@ namespace {
     }
 }
 
+void AvatarWindow::ensureBouyomiChanSettingsExist() {
+    QString configPath = resolveExistingFilePath("local_settings.json");
+    if (configPath.isEmpty()) return;
+
+    QFile file(configPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    if (!content.contains("bouyomichan_url") && !content.contains("bouyomichan_enabled")) {
+        int lastBrace = content.lastIndexOf('}');
+        if (lastBrace != -1) {
+            QString headerText = content.left(lastBrace);
+            QStringList lines = headerText.split('\n');
+
+            int targetLineIdx = -1;
+            for (int i = lines.size() - 1; i >= 0; --i) {
+                QString trimmed = lines[i].trimmed();
+                if (!trimmed.isEmpty() && !trimmed.startsWith('#') && !trimmed.startsWith("//")) {
+                    targetLineIdx = i;
+                    break;
+                }
+            }
+
+            if (targetLineIdx != -1) {
+                QString line = lines[targetLineIdx];
+                int lastCharPos = line.length() - 1;
+                while (lastCharPos >= 0 && line[lastCharPos].isSpace()) {
+                    lastCharPos--;
+                }
+                if (lastCharPos >= 0 && line[lastCharPos] != ',' && line[lastCharPos] != '{') {
+                    line.insert(lastCharPos + 1, ",");
+                    lines[targetLineIdx] = line;
+                }
+            }
+
+            lines.append("  # 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定");
+            lines.append("  \"bouyomichan_enabled\": false,");
+            lines.append(QString("  \"bouyomichan_url\": \"%1\"").arg(ConfigDefaults::BOUYOMI_URL));
+
+            QString updatedContent = lines.join('\n') + "\n}\n";
+
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                file.write(updatedContent.toUtf8());
+                file.close();
+                qDebug() << "AvatarWindow: Auto-injected bouyomichan settings into" << configPath;
+            }
+        }
+    }
+}
+
 void AvatarWindow::loadSettingsToUI() {
+    ensureBouyomiChanSettingsExist();
     QString configPath = resolveExistingFilePath("local_settings.json");
 
     if (configPath.isEmpty()) {

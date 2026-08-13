@@ -2874,17 +2874,43 @@ TEST(BouyomiChanTest, VerifySendTextURLGeneration) {
 
 // UT-BOUYOMI-02: 棒読みちゃん未設定キーの自動補完 (Auto-Injection) テスト
 TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
-    QJsonObject obj;
-    // オブジェクトに bouyomichan キーが存在しない場合にデフォルト値が設定されるか検証
-    if (!obj.contains("bouyomichan_enabled")) {
-        obj["bouyomichan_enabled"] = false;
-    }
-    if (!obj.contains("bouyomichan_url")) {
-        obj["bouyomichan_url"] = ConfigDefaults::BOUYOMI_URL;
+    QString originalJson = "{\n  \"ai_provider\": \"mistral\"\n}";
+    int lastBrace = originalJson.lastIndexOf('}');
+    ASSERT_NE(lastBrace, -1);
+
+    QString headerText = originalJson.left(lastBrace);
+    QStringList lines = headerText.split('\n');
+
+    int targetLineIdx = -1;
+    for (int i = lines.size() - 1; i >= 0; --i) {
+        QString trimmed = lines[i].trimmed();
+        if (!trimmed.isEmpty() && !trimmed.startsWith('#') && !trimmed.startsWith("//")) {
+            targetLineIdx = i;
+            break;
+        }
     }
 
-    EXPECT_FALSE(obj["bouyomichan_enabled"].toBool());
-    EXPECT_EQ(obj["bouyomichan_url"].toString(), "http://localhost:50080/talk");
+    if (targetLineIdx != -1) {
+        QString line = lines[targetLineIdx];
+        int lastCharPos = line.length() - 1;
+        while (lastCharPos >= 0 && line[lastCharPos].isSpace()) {
+            lastCharPos--;
+        }
+        if (lastCharPos >= 0 && line[lastCharPos] != ',' && line[lastCharPos] != '{') {
+            line.insert(lastCharPos + 1, ",");
+            lines[targetLineIdx] = line;
+        }
+    }
+
+    lines.append("  # 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定");
+    lines.append("  \"bouyomichan_enabled\": false,");
+    lines.append("  \"bouyomichan_url\": \"http://localhost:50080/talk\"");
+
+    QString updatedJson = lines.join('\n') + "\n}\n";
+
+    EXPECT_TRUE(updatedJson.contains("# 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定"));
+    EXPECT_TRUE(updatedJson.contains("\"bouyomichan_enabled\": false"));
+    EXPECT_TRUE(updatedJson.contains("\"bouyomichan_url\": \"http://localhost:50080/talk\""));
 }
 
 
