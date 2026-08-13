@@ -236,3 +236,18 @@ struct ProviderConfigSpec {
   - `source == "Twitch"` の場合のみ `sendTwitchChatMessage(...)` を呼び出す。
   - `source == "Discord"` の場合のみ `sendDiscordMessage(...)` を呼び出す。
   - `source == "UI"` の場合は外部プラットフォームへの送信処理（Twitch / Discord）を一切呼び出さず、UI のみへイベントを発火する。
+
+---
+
+## 11. UI応答専用Webテキスト表示詳細設計 (F-31)
+
+### 11.1 HTTP エンドポイントハンドラ (`ObsHttpServer::handleRequest`)
+- `/ui_text` および `/text_overlay.html` リクエスト受信時、アバター画像を含まず応答テキストのみを表示する軽量なWebページ (HTML/JS) を返却する。
+- 同一LAN内の端末からのアクセスに対応し、レスポンシブな暗色（ダークモード）テキストカード UI を構築する。
+
+### 11.2 WebSocket メッセージ形式 ＆ 出力制御 (`AvatarWindow::broadcastToOBS`)
+- `AvatarWindow::onEventReceived` (`EventType::AIResponseReceived`) において：
+  - `event.source == "UI"` (音声入力・UI入力) の場合、`{"type": "UIResponse", "text": event.text, "source": "UI"}` オブジェクトを構築し、`broadcastToOBS(json)` 経由で WebSocket クライアントへ配信する。
+- **Webクライアント側のフィルタリング ＆ 独立表示仕様**:
+  - `avatar_obs.html` (Twitch配信アバター画面): `type == "UIResponse"` メッセージをドロップ（表示スキップ）し、Twitchチャット応答専用のアバター画面として動作する。
+  - `/ui_text` (UIテキスト専用Web画面): `type == "UIResponse"`（または `type == "AIResponse"`）を受信し、画面中央のカード領域にテキスト本文のみを拡大・自動スクロール描画する。外部ブラウザ（サブPC・タブレット・スマホ等）での閲覧のほか、配信主が意図する場合は本URLをOBSのブラウザソースとして個別に指定・表示させることも可能とする。
