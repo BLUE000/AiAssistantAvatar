@@ -39,6 +39,8 @@ set(SOURCES
     src/ui/avatar_skin_builder_dialog.cpp
     src/ui/history_viewer_dialog.cpp
     src/utils/json_comment_remover.cpp
+    src/utils/wakeword_matcher.cpp
+    src/stt/stt_text_normalizer.cpp
 
     src/ui/history_viewer_dialog.h
     src/ui/rate_limit_tab_widget.cpp

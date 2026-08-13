@@ -20,10 +20,21 @@ enum class EventType {
     ShoutoutSuccessReceived   // /shoutout コマンド成功通知受信
 };
 
+enum class ReplyTarget : uint32_t {
+    None        = 0,
+    UI          = 1 << 0,  // 本体アプリUI表示
+    WebText     = 1 << 1,  // /ui_text 専用Webテキスト
+    OBSOverlay  = 1 << 2,  // avatar_obs.html アバター画面
+    TwitchChat  = 1 << 3,  // Twitchチャット返信
+    DiscordChat = 1 << 4,  // Discordメッセージ返信
+    TTSVoice    = 1 << 5   // 音声読み上げ Engine
+};
+
 struct AppEvent {
     EventType type;
     QString text;
     QString source;
+    uint32_t replyTarget = 0;
     QVariantMap extraData;
 };
 

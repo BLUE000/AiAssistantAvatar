@@ -31,6 +31,8 @@ set(TEST_SOURCES
     ../src/core_module.cpp
     ../src/ai/ai_client_manager.cpp
     ../src/utils/json_comment_remover.cpp
+    ../src/utils/wakeword_matcher.cpp
+    ../src/stt/stt_text_normalizer.cpp
 
 
     ../src/ai/twitch_helix_client.cpp

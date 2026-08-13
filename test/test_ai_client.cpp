@@ -14,6 +14,8 @@
 #include "ai/mistral_ai_client.h"
 #include "utils/json_comment_remover.h"
 #include "utils/config_utils.h"
+#include "utils/wakeword_matcher.h"
+#include "stt/stt_text_normalizer.h"
 
 
 #include "ai/system_response_manager.h"
@@ -2827,6 +2829,38 @@ TEST(UIRoutingTest, VerifyUITextWebBroadcast) {
     window.on_notify_events(event);
 
     SUCCEED();
+}
+
+// UT-WM-01: WakewordMatcher 共通ウェイクワード照合 ＆ 表記ゆれ・音素類似テスト
+TEST(WakewordMatcherTest, VerifyMatchAndStrip) {
+    QString outText;
+    QStringList aliases;
+    aliases << "AIアシスタント" << "ブルタロー";
+
+    // 1. 基本パターン
+    bool res1 = WakewordMatcher::matchAndStrip("ぶるたろう、こんにちは", "ぶるたろう", aliases, outText);
+    EXPECT_TRUE(res1);
+    EXPECT_EQ(outText, "こんにちは");
+
+    // 2. ブルタロー パターン
+    bool res2 = WakewordMatcher::matchAndStrip("ブルタロー 攻略法を教えて", "ぶるたろう", aliases, outText);
+    EXPECT_TRUE(res2);
+    EXPECT_EQ(outText, "攻略法を教えて");
+
+    // 3. プルタロー パターン
+    bool res3 = WakewordMatcher::matchAndStrip("プルタロー テストです", "ぶるたろう", aliases, outText);
+    EXPECT_TRUE(res3);
+    EXPECT_EQ(outText, "テストです");
+}
+
+// UT-STT-NORM-01: STTTextNormalizer 四つ仮名 ＆ 日本語音素正規化テスト
+TEST(STTNormalizerTest, VerifyPhoneticNormalization) {
+    // 四つ仮名 ぢ -> ジ, づ -> ズ の自動統一
+    QString res1 = STTTextNormalizer::normalizePhonetics("ぶぢたろう");
+    EXPECT_EQ(res1, "ブジタロウ");
+
+    QString res2 = STTTextNormalizer::normalizePhonetics("みづ");
+    EXPECT_EQ(res2, "ミズ");
 }
 
 
