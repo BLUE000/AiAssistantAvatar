@@ -2,8 +2,8 @@
 """
 AiAssistantAvatar Automated Full Unit Test Runner & Reporter
 Runs all Google Test suites (AiAssistantAvatarTest.exe), measures total execution time,
-keeps console output minimal for fast execution, and writes JSON result summary file
-(build/test_summary.json) which acts as a completion marker for automated background task monitoring.
+suppresses stdout by default, logs complete raw test output to TestLog/YYYY-MM-DD_HH-MM-SS_TestLog.log,
+and writes structured JSON result summary file (build/test_summary.json & test_summary.json).
 """
 
 import os
@@ -14,23 +14,45 @@ import re
 import json
 from datetime import datetime
 
-# Windows コンソールでの UTF-8 文字出力（\ufffd 等）時の UnicodeEncodeError 回避
+# Windows コンソールでの UTF-8 文字出力時の UnicodeEncodeError 回避
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
+def parse_failed_tests(output_text):
+    """
+    Google Test の標準出力テキストから失敗したテストケース名（例: SuiteName.TestName）を抽出する
+    """
+    failed_tests = []
+    if not output_text:
+        return failed_tests
+
+    # "[  FAILED  ] SuiteName.TestName" のパターンを検索
+    pattern = re.compile(r"\[\s*FAILED\s*\]\s+([A-Za-z0-9_]+\.[A-Za-z0-9_]+)")
+    for line in output_text.splitlines():
+        match = pattern.search(line)
+        if match:
+            test_name = match.group(1)
+            if test_name not in failed_tests:
+                failed_tests.append(test_name)
+    return failed_tests
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_dir = script_dir
     build_dir = os.path.join(project_dir, "build")
-    
+    test_logs_dir = os.path.join(project_dir, "TestLog")
+
+    os.makedirs(test_logs_dir, exist_ok=True)
+    os.makedirs(build_dir, exist_ok=True)
+
     # 完了マーカーファイルパス (build/test_summary.json & ルート)
     json_summary_path = os.path.join(build_dir, "test_summary.json")
     json_summary_root = os.path.join(project_dir, "test_summary.json")
 
-    # オプション解析 (--verbose が指定されない限り標準出力は最低限に抑えて高速化)
+    # オプション解析 (--verbose / -v が指定されない限り標準出力は非表示)
     verbose = "--verbose" in sys.argv or "-v" in sys.argv
     do_build = "--build" in sys.argv
 
@@ -47,7 +69,7 @@ def main():
         os.path.join(build_dir, "AiAssistantAvatarTest.exe"),
         os.path.join(build_dir, "Release", "AiAssistantAvatarTest.exe")
     ]
-    
+
     test_exe = None
     for candidate in test_exe_candidates:
         if os.path.exists(candidate):
@@ -72,7 +94,8 @@ def main():
                 check=True
             )
         except subprocess.CalledProcessError as e:
-            print(f"[Error] Build failed with code {e.returncode}")
+            if verbose:
+                print(f"[Error] Build failed with code {e.returncode}")
             sys.exit(1)
 
         for candidate in test_exe_candidates:
@@ -81,7 +104,8 @@ def main():
                 break
 
     if not test_exe or not os.path.exists(test_exe):
-        print(f"[Error] Test executable not found. Tried paths: {test_exe_candidates}")
+        if verbose:
+            print(f"[Error] Test executable not found. Tried paths: {test_exe_candidates}")
         sys.exit(1)
 
     # 4. Qt6 ライブラリパスを PATH に追加
@@ -90,14 +114,8 @@ def main():
     if os.path.exists(qt_bin) and qt_bin not in env.get("PATH", ""):
         env["PATH"] = qt_bin + os.pathsep + env.get("PATH", "")
 
-    print("============================================================")
-    print("      Starting AiAssistantAvatar Full Unit Test Suite       ")
-    print(f" Executable: {test_exe}")
-    print("============================================================\n")
-
-    # 5. テスト実行と所要時間の計測
+    # 5. テスト実行とログ収集・所要時間計測
     start_time = time.perf_counter()
-    print("Running Google Test suites...", end="", flush=True)
 
     process = subprocess.Popen(
         [test_exe],
@@ -122,11 +140,9 @@ def main():
 
     process.wait()
     elapsed_seconds = round(time.perf_counter() - start_time, 2)
-    print(" [DONE]")
-
-    # 6. テスト結果の解析
     output_text = "".join(stdout_lines)
-    
+
+    # 6. テスト結果の解析 ＆ 失敗テスト抽出
     passed_count = 0
     failed_count = 0
     total_count = 0
@@ -145,50 +161,57 @@ def main():
     if match_failed:
         failed_count = int(match_failed.group(1))
 
+    failed_test_list = parse_failed_tests(output_text)
     passed_all = (process.returncode == 0 and failed_count == 0 and total_count > 0)
     status_str = "SUCCESS" if passed_all else "FAILURE"
+    pass_rate_percent = round((passed_count / total_count * 100.0), 2) if total_count > 0 else 0.0
 
-    # 時間のフォーマット
-    if elapsed_seconds >= 60:
-        minutes = int(elapsed_seconds // 60)
-        seconds = elapsed_seconds % 60
-        time_str = f"{minutes}m {seconds:.2f}s ({elapsed_seconds:.2f}s)"
-    else:
-        time_str = f"{elapsed_seconds:.2f} seconds"
+    # 7. テスト出力ログのファイル保存 (TestLog/YYYY-MM-DD_HH-MM-SS_TestLog.log ＆ build/test.log)
+    timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    test_log_filename = f"{timestamp_str}_TestLog.log"
+    test_log_filepath = os.path.join(test_logs_dir, test_log_filename)
+    build_test_log_filepath = os.path.join(build_dir, "test.log")
 
-    # 7. まとめ結果のコンソール表示
-    print("\n============================================================")
-    print("         AiAssistantAvatar Unit Test Execution Summary      ")
-    print("============================================================")
-    print(f" Total Test Suites : {suites_count}")
-    print(f" Total Tests Ran   : {total_count}")
-    print(f" Passed Tests      : {passed_count}")
-    print(f" Failed Tests      : {failed_count}")
-    print(f" Execution Time    : {time_str}")
-    print(f" Result Status     : [ {status_str} ] {'All tests passed cleanly!' if passed_all else f'{failed_count} test(s) failed!'}")
-    print("============================================================\n")
+    log_content = (
+        f"============================================================\n"
+        f"  AiAssistantAvatar Test Log - {datetime.now().isoformat()}\n"
+        f"  Executable: {test_exe}\n"
+        f"  Status: {status_str} | Ran: {total_count} | Passed: {passed_count} | Failed: {failed_count} ({pass_rate_percent}%)\n"
+        f"  Elapsed: {elapsed_seconds}s\n"
+        f"============================================================\n\n"
+        f"{output_text}\n"
+    )
 
-    # 8. 完了判定用サマリ JSON ファイルの書き出し
+    with open(test_log_filepath, "w", encoding="utf-8") as f:
+        f.write(log_content)
+
+    with open(build_test_log_filepath, "w", encoding="utf-8") as f:
+        f.write(log_content)
+
+    # 8. サマリ JSON ファイルの出力
     summary_data = {
         "timestamp": datetime.now().isoformat(),
-        "passed_all": passed_all,
+        "success": passed_all,
         "status": status_str,
         "total_count": total_count,
         "passed_count": passed_count,
         "failed_count": failed_count,
         "suites_count": suites_count,
+        "pass_rate_percent": pass_rate_percent,
         "elapsed_seconds": elapsed_seconds,
+        "failed_tests": failed_test_list,
+        "test_log_file": test_log_filepath,
         "test_exe": test_exe
     }
 
-    os.makedirs(build_dir, exist_ok=True)
     with open(json_summary_path, "w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
 
     with open(json_summary_root, "w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
 
-    print(f"[Report] Test summary saved to {json_summary_path}")
+    if verbose:
+        print(f"[Report] Test summary saved to {json_summary_path}")
 
     sys.exit(0 if passed_all else 1)
 

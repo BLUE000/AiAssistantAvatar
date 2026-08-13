@@ -849,8 +849,7 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
             break;
 
         case EventType::VoiceInputCompleted:
-            statusBar()->showMessage("音声認識完了: キューに追加されました");
-            enqueueRequest(event.text, "", "UI");
+            statusBar()->showMessage("音声認識完了");
             break;
 
         case EventType::TwitchCommentReceived:

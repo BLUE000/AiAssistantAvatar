@@ -39,3 +39,8 @@ WIP_STATE.md
 /log/build_logs/
 /BuildLog/
 *_BuildLog.log
+
+# Accumulated Test logs (Git ignored)
+/log/test_logs/
+/TestLog/
+*_TestLog.log
