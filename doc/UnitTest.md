@@ -475,6 +475,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RLT-16** | `RateLimitTracker::recordLocalConsumption` | `rpmMax = 30` (Mistral) のプロバイダに対し 1 回 `recordLocalConsumption` を呼び出す。 | `rpmRemaining` が 29 に減算され、`nextResetAt` が 60 秒後に設定され、`available == true`（🟢 利用可能）が維持されること。 |
 | **UT-RLT-17** | `RateLimitTabWidget::updateProviderCard` | 残り枠 30% 未満（例: `rpmRemaining = 3 / 30`）および 0 回（`0 / 30`）のステータスを渡してカード描画を行う。 | 前者では `🟡 もうすぐ上限 (残り 3 回)` (オレンジ色), 後者では `🔴 レートリミット到達中` (赤色) に描画されること。 |
 | **UT-RLT-18** | `RateLimitTracker::updateAvailable` | `tpmMax = 100000`, `tpmRemaining = -1` (HuggingFace/Sakura等初期状態) のプロバイダの `isAvailable` を呼び出す。 | `tpmOk == true` に評価され、`available == true`（🟢 利用可能）が得られること。 |
+| **UT-WM-01** | `WakewordMatcher::matchAndStrip` | "ブルタロー 攻略法を教えて" や "プルタロー テスト" 等の長音・表記ゆれテキストを投入する。 | `match == true` と判定され、アバター名が除去された本文 ("攻略法を教えて", "テスト") が正しく抽出されること。 |
+| **UT-STT-NORM-01** | `STTTextNormalizer::normalizePhonetics` | 四つ仮名 ("ぶぢたろう", "みづ"), 音素類似子音 ("ぶちたろう", "ぶすたろう") を含む認識テキストを投入する。 | 1. 四つ仮名が `じ`/`ず` へ自動統一されること。<br>2. 編集距離類似度判定により類似度 75% 以上でウェイクワードおよび発話本文として補正評価できること。 |
+| **UT-ROUTER-01** | `ResponseRouter::dispatchResponse` | `ReplyTarget::WebText | ReplyTarget::DiscordChat` を指定した AI 応答イベントを渡す。 | `/ui_text` Web表示および Discord メッセージ送信処理へ非同期でそれぞれ正しくルーティング配信されること。 |
+
 
 
 

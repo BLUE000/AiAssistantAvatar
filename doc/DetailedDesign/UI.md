@@ -251,3 +251,48 @@ struct ProviderConfigSpec {
 - **Webクライアント側のフィルタリング ＆ 独立表示仕様**:
   - `avatar_obs.html` (Twitch配信アバター画面): `type == "UIResponse"` メッセージをドロップ（表示スキップ）し、Twitchチャット応答専用のアバター画面として動作する。
   - `/ui_text` (UIテキスト専用Web画面): `type == "UIResponse"`（または `type == "AIResponse"`）を受信し、画面中央のカード領域にテキスト本文のみを拡大・自動スクロール描画する。外部ブラウザ（サブPC・タブレット・スマホ等）での閲覧のほか、配信主が意図する場合は本URLをOBSのブラウザソースとして個別に指定・表示させることも可能とする。
+
+---
+
+## 12. ウェイクワード共通判定 ＆ 動的応答ルーティング詳細設計 (F-32)
+
+### 12.1 共通ウェイクワード照合 ＆ 日本語音素正規化エンジン (`WakewordMatcher` / `STTTextNormalizer`)
+- **共通インターフェース設計**:
+  `src/utils/wakeword_matcher.h` / `.cpp` および `src/stt/stt_text_normalizer.h` を定義し、以下の静的共通メソッドを提供する。
+  - `WakewordMatcher::matchAndStrip(const QString &inputText, const QString &targetKeyword, const QStringList &aliases)`
+  - `STTTextNormalizer::normalizePhonetics(const QString &inputText)`
+- **段階的音素正規化・曖昧照合アルゴリズム**:
+  1. **かな一括変換 (`toKatakana`)**: ひらがな ↔ カタカナを相互変換。
+  2. **四つ仮名 ＆ 濁音/半濁音マッピング (`normalizePhonetics`)**:
+     - 四つ仮名統一: `ぢ` ➔ `じ`, `づ` ➔ `ず`
+     - 半濁音/濁音統一: `プ` ➔ `ブ`, `ペ` ➔ `ベ`, `パ` ➔ `バ`, `ピ` ➔ `ビ`, `ポ` ➔ `ボ`
+  3. **同音・母音融合・長音マッピング**:
+     - 長音・母音融合同音化: `太郎` / `タロー` / `たろー` ➔ `タロウ`, `ロー` ➔ `ロウ`
+     - 長音符 `ー`・記号除去
+  4. **エイリアス辞書照合 (Alias Matching)**:
+     - ユーザー指定のアバター名別名パターン（例: `"ぶちたろう"`, `"ぶすたろう"`, `"プルタロー"`）と事前マッチング。
+  5. **音素編集距離 (Levenshtein Distance) 曖昧照合 (Fuzzy Matching)**:
+     - 「し/ち」「す/つ」「ら行」「ん」などの子音・摩擦音類似による1〜2文字の誤認識が発生した場合、音素文字列に対する編集距離（Levenshtein Distance）を計算し、類似度スコアが閾値（例: 75% 以上）を満たしていれば同義発言・ウェイクワードとして合格判定する。
+
+### 12.2 メタデータ駆動マルチターゲット応答ルーティング (`ReplyTarget` / `ResponseRouter`)
+- **`ReplyTarget` フラグ構成 ([src/app_event.h](file:///d:/prog/C++/AiAssistantAvatar/src/app_event.h))**:
+  ```cpp
+  enum class ReplyTarget : uint32_t {
+      None        = 0,
+      UI          = 1 << 0,  // 本体アプリUI表示
+      WebText     = 1 << 1,  // /ui_text 専用Webテキスト
+      OBSOverlay  = 1 << 2,  // avatar_obs.html アバター画面
+      TwitchChat  = 1 << 3,  // Twitchチャット返信
+      DiscordChat = 1 << 4,  // Discordメッセージ返信
+      TTSVoice    = 1 << 5   // 音声読み上げ Engine
+  };
+  ```
+- **入力ソース別デフォルト応答ターゲットマッピング**:
+  - `VoiceInputCompleted` (STT音声入力): `ReplyTarget::UI | ReplyTarget::WebText`
+  - `DirectInputSubmitted` (UI直接入力): `ReplyTarget::UI | ReplyTarget::WebText`
+  - `TwitchCommentReceived` (Twitchチャット): `ReplyTarget::UI | ReplyTarget::OBSOverlay | ReplyTarget::TwitchChat`
+  - `DiscordMessageReceived` (Discordメッセージ): `ReplyTarget::UI | ReplyTarget::DiscordChat`
+- **動的ルーティング処理フロー**:
+  - イベント生成時またはハンドラにおいて `replyTarget`（または `extraData["reply_target"]`）を設定・上書き可能とする。
+  - AIからの回答受信時 (`AIResponseReceived`)、ルーティングエンジンがフラグ判定を行い、設定されたすべてのターゲットへ一斉・非同期で応答を分散配信する。
+
