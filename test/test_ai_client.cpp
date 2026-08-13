@@ -2919,6 +2919,35 @@ TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
     EXPECT_FALSE(doc.object().value("bouyomichan_enabled").toBool());
 }
 
+// UT-BOUYOMI-03: saveSettingsFromUI 実行時にファイル上の bouyomichan_enabled (true) を維持・即時同期する検証
+TEST(BouyomiChanTest, VerifySaveSettingsPreservesDiskBouyomiEnabled) {
+    AvatarWindow window;
+    QString targetPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    if (targetPath.isEmpty()) {
+        targetPath = QCoreApplication::applicationDirPath() + "/Config/local_settings.json";
+    }
+
+    QJsonObject obj;
+    obj["bouyomichan_enabled"] = true;
+    obj["bouyomichan_url"] = "http://192.168.0.29:50080/talk";
+    
+    QFile file(targetPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+    }
+
+    window.saveSettingsFromUI();
+
+    QFile checkFile(targetPath);
+    ASSERT_TRUE(checkFile.open(QIODevice::ReadOnly | QIODevice::Text));
+    QJsonObject savedObj = QJsonDocument::fromJson(checkFile.readAll()).object();
+    checkFile.close();
+
+    EXPECT_TRUE(savedObj.value("bouyomichan_enabled").toBool());
+    EXPECT_EQ(savedObj.value("bouyomichan_url").toString(), "http://192.168.0.29:50080/talk");
+}
+
 
 
 

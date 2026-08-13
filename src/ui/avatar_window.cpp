@@ -1791,10 +1791,14 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
 
-    obj["bouyomichan_enabled"] = m_bouyomiChanEnabled;
-    if (m_bouyomiChanUrl.isEmpty()) {
+    // 画面にコントロールを持たない設定項目（bouyomichan_enabled / bouyomichan_url）はファイル側の最新値を優先ロードして保持
+    m_bouyomiChanEnabled = obj.value("bouyomichan_enabled").toBool(m_bouyomiChanEnabled);
+    if (obj.contains("bouyomichan_url") && !obj.value("bouyomichan_url").toString().isEmpty()) {
+        m_bouyomiChanUrl = obj.value("bouyomichan_url").toString();
+    } else if (m_bouyomiChanUrl.isEmpty()) {
         m_bouyomiChanUrl = ConfigDefaults::BOUYOMI_URL;
     }
+    obj["bouyomichan_enabled"] = m_bouyomiChanEnabled;
     obj["bouyomichan_url"] = m_bouyomiChanUrl;
 
     m_avatarName = m_avatarNameEdit->text().trimmed();
