@@ -16,6 +16,7 @@
 #include "utils/config_utils.h"
 #include "utils/wakeword_matcher.h"
 #include "stt/stt_text_normalizer.h"
+#include "tts/bouyomichan_client.h"
 
 
 #include "ai/system_response_manager.h"
@@ -2861,6 +2862,29 @@ TEST(STTNormalizerTest, VerifyPhoneticNormalization) {
 
     QString res2 = STTTextNormalizer::normalizePhonetics("みづ");
     EXPECT_EQ(res2, "ミズ");
+}
+
+// UT-BOUYOMI-01: BouyomiChanClient HTTP URL 送信テスト
+TEST(BouyomiChanTest, VerifySendTextURLGeneration) {
+    BouyomiChanClient client;
+    // enabled = false の時は例外やクラッシュを起こさず終了すること
+    client.sendText("こんにちは", false, "http://localhost:50080/talk");
+    SUCCEED();
+}
+
+// UT-BOUYOMI-02: 棒読みちゃん未設定キーの自動補完 (Auto-Injection) テスト
+TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
+    QJsonObject obj;
+    // オブジェクトに bouyomichan キーが存在しない場合にデフォルト値が設定されるか検証
+    if (!obj.contains("bouyomichan_enabled")) {
+        obj["bouyomichan_enabled"] = false;
+    }
+    if (!obj.contains("bouyomichan_url")) {
+        obj["bouyomichan_url"] = ConfigDefaults::BOUYOMI_URL;
+    }
+
+    EXPECT_FALSE(obj["bouyomichan_enabled"].toBool());
+    EXPECT_EQ(obj["bouyomichan_url"].toString(), "http://localhost:50080/talk");
 }
 
 

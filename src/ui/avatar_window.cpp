@@ -892,6 +892,12 @@ void AvatarWindow::on_notify_events(const AppEvent &event) {
                 broadcastToOBS(uiObj);
             }
 
+            // 棒読みちゃん (Bouyomi-chan) 音声読み上げ連携（※ 音声/UI入力に対するAI応答のみ送信）
+            bool isVoiceOrUIResponse = (event.source == "UI" || event.source == "Streamer (Voice)" || (event.replyTarget & static_cast<uint32_t>(ReplyTarget::TTSVoice)) != 0);
+            if (isVoiceOrUIResponse && !isTwitchSource) {
+                m_bouyomiChanClient.sendText(event.text, m_bouyomiChanEnabled, m_bouyomiChanUrl);
+            }
+
             // WebHookへの通知
             if (m_webhookEnabled && !m_webhookUrl.isEmpty()) {
                 QJsonObject whObj;
@@ -1531,6 +1537,9 @@ void AvatarWindow::loadSettingsToUI() {
             if (m_webhookEnabledCheckbox) m_webhookEnabledCheckbox->setChecked(whEnabled);
             m_webhookEnabled = whEnabled;
 
+            m_bouyomiChanEnabled = obj.value("bouyomichan_enabled").toBool(false);
+            m_bouyomiChanUrl = obj.value("bouyomichan_url").toString(ConfigDefaults::BOUYOMI_URL);
+
             m_bubbleDisplayShortSec = obj.value("bubble_display_short_sec").toInt(5);
             m_bubbleDisplayLongSec = obj.value("bubble_display_long_sec").toInt(10);
             if (m_bubbleShortEdit) m_bubbleShortEdit->setText(QString::number(m_bubbleDisplayShortSec));
@@ -1730,6 +1739,13 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["webhook_url"] = m_webhookUrl;
     obj["webhook_enabled"] = m_webhookEnabled;
     obj["trans_cipher_key"] = obj.value("trans_cipher_key").toString("DefaultCipherKey123");
+
+    if (!obj.contains("bouyomichan_enabled")) {
+        obj["bouyomichan_enabled"] = false;
+    }
+    if (!obj.contains("bouyomichan_url")) {
+        obj["bouyomichan_url"] = ConfigDefaults::BOUYOMI_URL;
+    }
 
     m_avatarName = m_avatarNameEdit->text().trimmed();
     if (obj.contains("name_reaction_enabled")) {

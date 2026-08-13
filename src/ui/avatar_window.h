@@ -12,6 +12,7 @@
 #include <QVBoxLayout>
 #include "../app_event.h"
 #include "../ai/provider_status.h"
+#include "../tts/bouyomichan_client.h"
 
 struct ImageSetting {
     QString filePath;
@@ -379,6 +380,9 @@ public:
 
 private:
     class AIClientManager *m_aiClientManager = nullptr;
+    BouyomiChanClient m_bouyomiChanClient;
+    bool m_bouyomiChanEnabled = false;
+    QString m_bouyomiChanUrl = ConfigDefaults::BOUYOMI_URL;
 
 signals:
     // コアスレッドへの要求シグナル

@@ -41,6 +41,7 @@ set(SOURCES
     src/utils/json_comment_remover.cpp
     src/utils/wakeword_matcher.cpp
     src/stt/stt_text_normalizer.cpp
+    src/tts/bouyomichan_client.cpp
 
     src/ui/history_viewer_dialog.h
     src/ui/rate_limit_tab_widget.cpp
