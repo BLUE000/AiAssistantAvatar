@@ -2406,6 +2406,38 @@ TEST(STTFeatureTest, VerifyVoiceInputAIRouting) {
     QList<QVariant> arguments2 = spyAI.takeFirst();
     EXPECT_EQ(arguments2.at(0).toString(), "テスト");
     EXPECT_EQ(arguments2.at(1).toString(), "Streamer (Voice)");
+
+    // タイマー満了で待機状態に復帰
+    QTest::qWait(1100);
+
+    // 3. 音声認識（STT）特有の長音表記ゆれ（ブルタロー / プルタロー）補正パターン
+    AppEvent voiceEvent3;
+    voiceEvent3.type = EventType::VoiceInputCompleted;
+    voiceEvent3.source = "STTManager";
+    voiceEvent3.text = "ブルタロー 攻略法を教えて";
+
+    core.on_notify_events(voiceEvent3);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    QList<QVariant> arguments3 = spyAI.takeFirst();
+    EXPECT_EQ(arguments3.at(0).toString(), "攻略法を教えて");
+    EXPECT_EQ(arguments3.at(1).toString(), "Streamer (Voice)");
+
+    // タイマー満了で待機状態に復帰
+    QTest::qWait(1100);
+
+    // 4. プルタロー パターン
+    AppEvent voiceEvent4;
+    voiceEvent4.type = EventType::VoiceInputCompleted;
+    voiceEvent4.source = "STTManager";
+    voiceEvent4.text = "プルタロー テスト";
+
+    core.on_notify_events(voiceEvent4);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    QList<QVariant> arguments4 = spyAI.takeFirst();
+    EXPECT_EQ(arguments4.at(0).toString(), "テスト");
+    EXPECT_EQ(arguments4.at(1).toString(), "Streamer (Voice)");
 }
 
 // UT-STT-07: CoreModule 待機状態非ウェイクワード無視テスト

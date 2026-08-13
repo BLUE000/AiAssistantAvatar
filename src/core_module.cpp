@@ -142,8 +142,11 @@ void CoreModule::on_notify_events(const AppEvent &event) {
                     s.replace(QChar(0x30D1), QChar(0x30D0)); // パ -> バ
                     s.replace(QChar(0x30D4), QChar(0x30D3)); // ピ -> ビ
                     s.replace(QChar(0x30D9), QChar(0x30D6)); // ポ -> ボ
-                    // 名前の定番漢字表記ゆれ（例: 太郎 -> タロウ）
+                    // 名前の定番漢字・長音表記ゆれ（例: 太郎 / タロー / たろー -> タロウ）
                     s.replace("太郎", "タロウ");
+                    s.replace("タロー", "タロウ");
+                    s.replace("たろー", "タロウ");
+                    s.replace("ロー", "ロウ");
                     // 空白・記号の除去
                     s.remove(QChar(0x3000));
                     s.remove(' ');
@@ -165,7 +168,7 @@ void CoreModule::on_notify_events(const AppEvent &event) {
                     prefixList << "ぶる" << "ブル" << "プル" << "ぶ" << "ブ" << "プ";
 
                     QStringList suffixList;
-                    suffixList << "たろう" << "タロウ" << "太郎";
+                    suffixList << "たろう" << "タロウ" << "太郎" << "タロー" << "たろー";
 
                     QSet<QString> variantSet;
                     variantSet.insert(keyword);

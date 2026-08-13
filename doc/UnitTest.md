@@ -75,7 +75,7 @@ classDiagram
 | **UT-STT-02** | `STTManager` (エンジン切り替え) | `setEngine("sapi")` を実行後、`on_startListening()` を呼ぶ。 | `SAPIEngine` の `startListening()` が呼ばれること。 |
 | **UT-STT-03** | `STTManager` & `MockSTTEngine` | `MockSTTEngine` に `"音声入力テキスト"` をセットし、`on_startListening()` を実行する。 | `STTManager::notifyEvent` シグナルが `EventType::VoiceInputCompleted` (text: `"音声入力テキスト"`) で発火すること。 |
 | **UT-STT-04** | `AvatarWindow` PTT (長押し/離す) | `m_sttButton` に対して `pressed` シグナルおよび `released` シグナルを直接・疑似発火する。 | 1. `pressed` 時に `startSTTRequested()` が発火し、ボタン表示が `🎤 録音中...` になること。<br>2. `released` 時に `stopSTTRequested()` が発火し、ボタン表示が `音声` に戻ること。 |
-| **UT-STT-05** | `CoreModule` 音声AI自動ルーティング (ウェイクワード検出・表記ゆれ補正) | 待機状態 (Idle) で `VoiceInputCompleted` (text: `"ぶるたろう、こんにちは"`) または同音異字表記ゆれ (text: `"プル太郎、こんにちは"`) を `CoreModule::on_notify_events` に投入する。 | 1. アバター名が除去された `requestAI` (text: `"こんにちは"`) が発火すること。<br>2. 会話状態が Active に遷移し、無音タイマーが開始されること。 |
+| **UT-STT-05** | `CoreModule` 音声AI自動ルーティング (ウェイクワード検出・表記ゆれ補正) | 待機状態 (Idle) で `VoiceInputCompleted` (text: `"ぶるたろう、こんにちは"`) または同音異字・長音表記ゆれ (text: `"プル太郎、こんにちは"`, `"ブルタロー テスト"`, `"プルタロー テスト"`) を `CoreModule::on_notify_events` に投入する。 | 1. アバター名が除去された `requestAI` (text: `"こんにちは"`, `"テスト"`) が発火すること。<br>2. 会話状態が Active に遷移し、無音タイマーが開始されること。 |
 | **UT-STT-06** | ネットワーク STT 注入 API | ローカル HTTP エンドポイント `/stt` に `{"text": "ぶるたろう、外部認識テキスト"}` を POST 送信する。 | `CoreModule` を経由して `requestAI` (text: `"外部認識テキスト"`) が自動発火すること。 |
 | **UT-STT-07** | `CoreModule` 待機状態非ウェイクワード無視 | 待機状態 (Idle) で `VoiceInputCompleted` (text: `"テスト発想です"`) を投入する。 | アバター名が含まれないため `requestAI` シグナルが発火せず、無視・破棄されること。 |
 | **UT-STT-08** | `CoreModule` 無音タイムアウト復帰 | Active 状態で 1000ms（設定値）経過させタイマーを満了させる。 | 状態が Idle に自動復帰し、続くアバター名なし発言が無視されること。 |
