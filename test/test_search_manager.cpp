@@ -249,7 +249,13 @@ TEST(SearchManagerTest, DailyMacroAndKnowledgeFoldersTest) {
     KnowledgeIndexEntry zodiacEntry = engine.resolveBestEntryForTrigger("星座占い");
     EXPECT_TRUE(zodiacEntry.isValid);
     EXPECT_EQ(zodiacEntry.group, "Zodiac");
+
+    // 各星座名単体でのトリガー解決テスト（山羊座）
+    KnowledgeIndexEntry capricornEntry = engine.resolveBestEntryForTrigger("山羊座の運勢教えて");
+    EXPECT_TRUE(capricornEntry.isValid);
+    EXPECT_EQ(capricornEntry.group, "Zodiac");
 }
+
 
 
 

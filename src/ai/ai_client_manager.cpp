@@ -1300,20 +1300,21 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
                 QString fileContent = QString::fromUtf8(file.readAll());
                 file.close();
                 QString evaluated = m_tableEngine.parseAndEvaluate(fileContent, user);
-                recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3")
+                recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3\n※ 上記の確定データが存在するため、Web検索を行わずに上記の確定データに基づいて回答してください。")
                                      .arg(bestEntry.title)
                                      .arg(bestEntry.priority)
                                      .arg(evaluated.trimmed());
             } else {
                 QString bestContext = m_tableEngine.selectRandomColumn(bestEntry.group, bestEntry.category, bestEntry.tableName, "");
                 if (!bestContext.isEmpty()) {
-                    recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3")
+                    recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3\n※ 上記の確定データが存在するため、Web検索を行わずに上記の確定データに基づいて回答してください。")
                                          .arg(bestEntry.title)
                                          .arg(bestEntry.priority)
                                          .arg(bestContext);
                 }
             }
         }
+
 
 
         if (recalledStatic.isEmpty()) {
