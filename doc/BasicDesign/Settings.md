@@ -26,4 +26,18 @@
 - **未存在キーの自動補完 (Auto-Injection)**:
   - 既存の `Config/local_settings.json` に `"bouyomichan_url"` または `"bouyomichan_enabled"` キーが存在しない場合、アプリケーション起動時に自動検知し、コメント `# 棒読みちゃん HTTP 読み上げ機能設定` および `# 棒読みちゃん HTTP API URL (例: http://localhost:50080/talk)` 付きでデフォルト項目を自動追記・補完保存する。同PC上の固定パス運用だけでなく、別PCへの展開時にも IP アドレスを変更するだけで対応可能とする。
 
+### 2.5 音声入力（STT）トリガー反応設定 ＆ 未存在キー自動補完 (`F-2`)
+- **音声トリガー反応設定項目**:
+  - `voice_name_reaction_enabled`: 音声入力待機時にアバター名（`avatar_name`）に反応するかどうかのフラグ（bool、デフォルト値: `true`）。
+  - `voice_wakeword_enabled`: 音声入力待機時にウェイクワードに反応するかどうかのフラグ（bool、デフォルト値: `true`）。
+  - `voice_wakeword`: 音声入力専用のウェイクワード文字列（string、デフォルト値: `"AIアシスタント"`。省略時は `twitch_wakeword` またはデフォルト値を流用）。
+- **未存在キーの自動補完 (Auto-Injection)**:
+  - 既存の `Config/local_settings.json` にこれらのキーが存在しない場合、アプリケーション起動時に自動検知し、コメント付きでデフォルト項目を自動追記・補完保存する。
+- **動作パターンの組み合わせ**:
+  - `voice_name_reaction_enabled: true` かつ `voice_wakeword_enabled: true` -> アバター名またはウェイクワードのどちらでも反応（両方有効 / OR条件）
+  - `voice_name_reaction_enabled: false` かつ `voice_wakeword_enabled: true` -> ウェイクワードのみ反応（アバター名単体では無視）
+  - `voice_name_reaction_enabled: true` かつ `voice_wakeword_enabled: false` -> アバター名のみ反応（ウェイクワード単体では無視）
+  - `voice_name_reaction_enabled: false` かつ `voice_wakeword_enabled: false` -> 常時待機での起動なし（ブラウザ側PTTボタンでの発話のみ受付）
+
+
 

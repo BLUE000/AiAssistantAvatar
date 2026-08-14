@@ -37,6 +37,7 @@ $configReleaseDir = "$releaseDir/Config"
 New-Item -ItemType Directory -Force -Path $configReleaseDir | Out-Null
 if (Test-Path "blacklist.txt") { Copy-Item "blacklist.txt" -Destination "$configReleaseDir/" -Force }
 if (Test-Path "whitelist.txt") { Copy-Item "whitelist.txt" -Destination "$configReleaseDir/" -Force }
+if (Test-Path "local_settings.json.sample") { Copy-Item "local_settings.json.sample" -Destination "$releaseDir/" -Force }
 Copy-Item "README.md" -Destination "$releaseDir/" -Force
 if (Test-Path "pic") {
     Copy-Item -Recurse -Force "pic" -Destination "$releaseDir/"
