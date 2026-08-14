@@ -483,6 +483,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-DAILY-MACRO-02** | `AIRandomUtils::getDailyRandom` | 同一のシード文字列（例: `"2026-08-15_Taro"`）で `getDailyRandom(1, 10, seed)` を複数回呼び出す。 | 常に同一の整数値が返却され、異なるシード文字列（別日・別ユーザー）では期待通り値が変動すること。 |
 | **UT-DAILY-MACRO-03** | `MarkdownTableEngine::selectDailyColumn` | `Omikuji/Ranks` テーブルから同一シードで `selectDailyColumn` を複数回呼び出す。 | 常に同一の運勢（行）が抽出され、異なるシードでは別行が決定論的に取得されること。 |
 | **UT-KNOWLEDGE-FOLDERS-01** | `MarkdownTableEngine::reload` | `knowledge/Omikuji/` および `knowledge/Zodiac/` が配置された状態で `reload()` を実行する。 | 各フォルダが独立グループとしてスキャンされ、トリガーおよびテーブル行数が正確にインデックスされること。 |
+| **UT-DETAIL-MODE-01** | `AIClientManager::determineResponseDetailMode` | 通常の質問「何で台風は不規則な動きをするの？」を渡す。 | デフォルトの `ResponseDetailMode::Short` が判定されること。 |
+| **UT-DETAIL-MODE-02** | `AIClientManager::determineResponseDetailMode` | 「何で台風は不規則な動きをするの？詳しく教えて」を渡す。 | `ResponseDetailMode::Detailed` が正しく判定されること。 |
+| **UT-DETAIL-MODE-03** | `AIClientManager::determineResponseDetailMode` | 「台風の仕組みを一言で教えて」を渡す。 | 簡潔指示語に基づき `ResponseDetailMode::Short` が正しく判定されること。 |
+| **UT-DETAIL-MODE-04** | `AIClientManager::formatResponseInstruction` | `Short` モード時のシステムプロンプト指示ブロックを生成する。 | 「1〜3文程度」「簡潔」の制約文言が含まれるプロンプト指示が生成されること。 |
+| **UT-DETAIL-MODE-05** | `AIClientManager::determineResponseDetailMode` | 「説明が細かすぎるよ」「詳しすぎてわかりにくい」などの指摘を渡す。 | 粒度縮小トリガーとして検知され、`ResponseDetailMode::Short` かつ言い直し指示が有効化されること。 |
+
+
 
 
 
