@@ -57,8 +57,13 @@ public:
     // 例: selectRandomColumn("Elin", "装備", "片手剣", "武器名")
     QString selectRandomColumn(const QString &group, const QString &category, const QString &table, const QString &targetColumn) const;
 
-    // テキスト内の "TableSearch(...)" や "TableSelectRandom(...)" マクロ式を自動パース・評価・置換
-    QString parseAndEvaluate(const QString &text) const;
+    // 指定テーブルからの決定論的日替わり1件抽出
+    // 例: selectDailyColumn("Omikuji", "", "Ranks", "運勢", "2026-08-15_Taro")
+    QString selectDailyColumn(const QString &group, const QString &category, const QString &table, const QString &targetColumn, const QString &seed) const;
+
+    // テキスト内の "{Date}", "{User}", "DailyTableSelect(...)", "TableSelectRandom(...)", "TableSearch(...)" マクロ式を自動パース・評価・置換
+    QString parseAndEvaluate(const QString &text, const QString &user = "") const;
+
 
     // 自然文クエリ（例: "鉄の剣の必要素材は？"）から関連するテーブルデータ行を検索し、AIシステムコンテキスト文字列を生成
     QString searchRelevantContext(const QString &query) const;

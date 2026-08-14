@@ -42,6 +42,10 @@ Copy-Item "README.md" -Destination "$releaseDir/" -Force
 if (Test-Path "pic") {
     Copy-Item -Recurse -Force "pic" -Destination "$releaseDir/"
 }
+if (Test-Path "knowledge") {
+    Copy-Item -Recurse -Force "knowledge" -Destination "$releaseDir/"
+}
+
 
 # 5. ZIP 圧縮パッケージの作成
 Compress-Archive -Path "$releaseDir\*" -DestinationPath $zipPath -Force

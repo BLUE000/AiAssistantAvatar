@@ -204,4 +204,52 @@ TEST(SearchManagerTest, KnowledgeIndexAndValidationTest) {
     EXPECT_TRUE(resolved.filePath.contains("fortune_high.md"));
 }
 
+#include "ai/ai_random_utils.h"
+#include <QDate>
+
+// UT-DAILY-MACRO-01 ~ UT-DAILY-MACRO-03 & UT-KNOWLEDGE-FOLDERS-01 単体テスト
+TEST(SearchManagerTest, DailyMacroAndKnowledgeFoldersTest) {
+    // UT-DAILY-MACRO-01: {Date} & {User} プレースホルダーの置換
+    MarkdownTableEngine engine("knowledge");
+    QString templateStr = "日付: {Date} / ユーザー: {User}";
+    QString parsed = engine.parseAndEvaluate(templateStr, "TestUser123");
+    QString todayStr = QDate::currentDate().toString("yyyy-MM-dd");
+    EXPECT_TRUE(parsed.contains("日付: " + todayStr));
+    EXPECT_TRUE(parsed.contains("ユーザー: TestUser123"));
+
+    // UT-DAILY-MACRO-02: AIRandomUtils::getDailyRandom 決定論的乱数
+    QString seedA = "2026-08-15_Alice";
+    QString seedB = "2026-08-15_Bob";
+    int valA1 = AIRandomUtils::getDailyRandom(1, 100, seedA);
+    int valA2 = AIRandomUtils::getDailyRandom(1, 100, seedA);
+    int valB = AIRandomUtils::getDailyRandom(1, 100, seedB);
+    EXPECT_EQ(valA1, valA2); // 同一シードなら常に同じ値
+    EXPECT_GE(valA1, 1);
+    EXPECT_LE(valA1, 100);
+
+    // UT-DAILY-MACRO-03: selectDailyColumn 決定論的行選択
+    QString rank1 = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", "2026-08-15_Alice");
+    QString rank2 = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", "2026-08-15_Alice");
+    EXPECT_FALSE(rank1.isEmpty());
+    EXPECT_EQ(rank1, rank2); // 同一シードなら常に同じ行が選ばれる
+
+    // DailyTableSelect マクロ評価のテスト
+    QString macroText = "今日の運勢: DailyTableSelect(\"Omikuji\", \"Ranks\", \"運勢\", \"{Date}_{User}\")";
+    QString macroEvaluated = engine.parseAndEvaluate(macroText, "Alice");
+    EXPECT_FALSE(macroEvaluated.contains("DailyTableSelect"));
+    EXPECT_TRUE(macroEvaluated.contains("今日の運勢: " + rank1));
+
+    // UT-KNOWLEDGE-FOLDERS-01: knowledge/Omikuji と knowledge/Zodiac のロード検証
+    engine.reload();
+    EXPECT_GE(engine.tableCount(), 2);
+    KnowledgeIndexEntry omikujiEntry = engine.resolveBestEntryForTrigger("おみくじ");
+    EXPECT_TRUE(omikujiEntry.isValid);
+    EXPECT_EQ(omikujiEntry.group, "Omikuji");
+
+    KnowledgeIndexEntry zodiacEntry = engine.resolveBestEntryForTrigger("星座占い");
+    EXPECT_TRUE(zodiacEntry.isValid);
+    EXPECT_EQ(zodiacEntry.group, "Zodiac");
+}
+
+
 

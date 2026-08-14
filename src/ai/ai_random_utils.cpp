@@ -15,6 +15,18 @@ int getRandom(int min, int max) {
     return QRandomGenerator::global()->bounded(min, max + 1);
 }
 
+int getDailyRandom(int min, int max, const QString &seed) {
+    if (min > max) {
+        std::swap(min, max);
+    }
+    if (min == max) {
+        return min;
+    }
+    quint32 hashVal = qHash(seed);
+    quint32 range = static_cast<quint32>(max - min + 1);
+    return min + static_cast<int>(hashVal % range);
+}
+
 QList<int> getRandomList(int max, int count) {
     if (max < 0 || count <= 0) {
         return QList<int>();
@@ -64,7 +76,21 @@ QString parseAndEvaluate(const QString &text) {
         result.replace(fullMatch, replacement);
     }
 
-    // 2. Random(min, max) のパース・評価
+    // 2. DailyRandom(min, max, "seed") または DailyRandom(min, max) のパース・評価
+    QRegularExpression dailyRandRegex("DailyRandom\\(\\s*(-?\\d+)\\s*,\\s*(-?\\d+)(?:\\s*,\\s*\"?([^\"]*)\"?)?\\s*\\)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator dailyRandIt = dailyRandRegex.globalMatch(result);
+    while (dailyRandIt.hasNext()) {
+        QRegularExpressionMatch match = dailyRandIt.next();
+        QString fullMatch = match.captured(0);
+        int min = match.captured(1).toInt();
+        int max = match.captured(2).toInt();
+        QString seed = match.captured(3);
+
+        int val = getDailyRandom(min, max, seed);
+        result.replace(fullMatch, QString::number(val));
+    }
+
+    // 3. Random(min, max) のパース・評価
     QRegularExpression randRegex("Random\\(\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*\\)", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator randIt = randRegex.globalMatch(result);
     while (randIt.hasNext()) {
@@ -79,5 +105,6 @@ QString parseAndEvaluate(const QString &text) {
 
     return result;
 }
+
 
 } // namespace AIRandomUtils

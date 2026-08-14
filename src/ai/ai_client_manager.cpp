@@ -981,9 +981,10 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
     // ニックネームファイルを再ロード
     loadUserNames();
 
-    // F-27 / F-29: マクロ式評価およびナレッジテーブルデータ自動検索
-    QString trimmedPrompt = m_tableEngine.parseAndEvaluate(AIRandomUtils::parseAndEvaluate(prompt)).trimmed();
+    // F-27 / F-29 / F-33: マクロ式評価およびナレッジテーブルデータ自動検索
+    QString trimmedPrompt = m_tableEngine.parseAndEvaluate(AIRandomUtils::parseAndEvaluate(prompt), user).trimmed();
     QString tableContext = m_tableEngine.searchRelevantContext(trimmedPrompt);
+
 
     bool isDirectInput = user.isEmpty();
 
@@ -1294,14 +1295,26 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         QString recalledStatic;
         KnowledgeIndexEntry bestEntry = m_tableEngine.resolveBestEntryForTrigger(filteredPrompt);
         if (bestEntry.isValid && !bestEntry.tableName.isEmpty()) {
-            QString bestContext = m_tableEngine.selectRandomColumn(bestEntry.group, bestEntry.category, bestEntry.tableName, "");
-            if (!bestContext.isEmpty()) {
+            QFile file(bestEntry.filePath);
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QString fileContent = QString::fromUtf8(file.readAll());
+                file.close();
+                QString evaluated = m_tableEngine.parseAndEvaluate(fileContent, user);
                 recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3")
                                      .arg(bestEntry.title)
                                      .arg(bestEntry.priority)
-                                     .arg(bestContext);
+                                     .arg(evaluated.trimmed());
+            } else {
+                QString bestContext = m_tableEngine.selectRandomColumn(bestEntry.group, bestEntry.category, bestEntry.tableName, "");
+                if (!bestContext.isEmpty()) {
+                    recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3")
+                                         .arg(bestEntry.title)
+                                         .arg(bestEntry.priority)
+                                         .arg(bestContext);
+                }
             }
         }
+
 
         if (recalledStatic.isEmpty()) {
             scanStaticKnowledge(filteredPrompt, recalledStatic);

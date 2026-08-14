@@ -5,6 +5,8 @@
 #include <QRegularExpression>
 #include <QRandomGenerator>
 #include <QCoreApplication>
+#include <QDate>
+
 
 MarkdownTableEngine::MarkdownTableEngine(const QString &rootDir)
     : m_rootDir(rootDir)
@@ -345,9 +347,50 @@ QString MarkdownTableEngine::selectRandomColumn(const QString &group, const QStr
     return candidates.at(idx);
 }
 
-QString MarkdownTableEngine::parseAndEvaluate(const QString &text) const {
+QString MarkdownTableEngine::selectDailyColumn(const QString &group, const QString &category, const QString &table, const QString &targetColumn, const QString &seed) const {
+    QList<QString> candidates;
+    for (const TableRecord &rec : m_tables) {
+        if (group.isEmpty() || rec.group.contains(group, Qt::CaseInsensitive)) {
+            if (category.isEmpty() || rec.category.contains(category, Qt::CaseInsensitive)) {
+                if (table.isEmpty() || rec.tableName.contains(table, Qt::CaseInsensitive)) {
+                    for (const QMap<QString, QString> &row : rec.rows) {
+                        if (targetColumn.isEmpty()) {
+                            // 全カラムを結合して返却対象にする
+                            QStringList vals;
+                            for (auto it = row.constBegin(); it != row.constEnd(); ++it) {
+                                vals.append(QString("%1: %2").arg(it.key(), it.value()));
+                            }
+                            candidates.append(vals.join(", "));
+                        } else if (row.contains(targetColumn)) {
+                            candidates.append(row.value(targetColumn));
+                        } else {
+                            for (auto it = row.constBegin(); it != row.constEnd(); ++it) {
+                                if (it.key().contains(targetColumn, Qt::CaseInsensitive)) {
+                                    candidates.append(it.value());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (candidates.isEmpty()) return "";
+    quint32 hashVal = qHash(seed);
+    int idx = static_cast<int>(hashVal % candidates.size());
+    return candidates.at(idx);
+}
+
+QString MarkdownTableEngine::parseAndEvaluate(const QString &text, const QString &user) const {
     if (text.isEmpty()) return text;
     QString result = text;
+
+    // 0. プレースホルダーの事前置換 ({Date}, {User})
+    QString todayStr = QDate::currentDate().toString("yyyy-MM-dd");
+    result.replace("{Date}", todayStr);
+    result.replace("{User}", user);
 
     // 1. TableSearch("グループ", "カテゴリ", "テーブル", "検索キー", "対象カラム") の置換
     QRegularExpression searchRegex("TableSearch\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\)", QRegularExpression::CaseInsensitiveOption);
@@ -365,11 +408,41 @@ QString MarkdownTableEngine::parseAndEvaluate(const QString &text) const {
         result.replace(fullMatch, val);
     }
 
-    // 2. TableSelectRandom("グループ", "カテゴリ", "テーブル", "対象カラム") の置換
-    QRegularExpression randRegex("TableSelectRandom\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\)", QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatchIterator rIt = randRegex.globalMatch(result);
-    while (rIt.hasNext()) {
-        QRegularExpressionMatch m = rIt.next();
+    // 2. DailyTableSelect の置換 (4引数: グループ, テーブル, カラム, シード または 5引数: グループ, カテゴリ, テーブル, カラム, シード)
+    QRegularExpression dailyTable5Regex("DailyTableSelect\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator d5It = dailyTable5Regex.globalMatch(result);
+    while (d5It.hasNext()) {
+        QRegularExpressionMatch m = d5It.next();
+        QString fullMatch = m.captured(0);
+        QString grp = m.captured(1);
+        QString cat = m.captured(2);
+        QString tbl = m.captured(3);
+        QString col = m.captured(4);
+        QString seed = m.captured(5);
+
+        QString val = selectDailyColumn(grp, cat, tbl, col, seed);
+        result.replace(fullMatch, val);
+    }
+
+    QRegularExpression dailyTable4Regex("DailyTableSelect\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator d4It = dailyTable4Regex.globalMatch(result);
+    while (d4It.hasNext()) {
+        QRegularExpressionMatch m = d4It.next();
+        QString fullMatch = m.captured(0);
+        QString grp = m.captured(1);
+        QString tbl = m.captured(2);
+        QString col = m.captured(3);
+        QString seed = m.captured(4);
+
+        QString val = selectDailyColumn(grp, "", tbl, col, seed);
+        result.replace(fullMatch, val);
+    }
+
+    // 3. TableSelectRandom の置換 (3引数: グループ, テーブル, カラム または 4引数: グループ, カテゴリ, テーブル, カラム)
+    QRegularExpression rand4Regex("TableSelectRandom\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator r4It = rand4Regex.globalMatch(result);
+    while (r4It.hasNext()) {
+        QRegularExpressionMatch m = r4It.next();
         QString fullMatch = m.captured(0);
         QString grp = m.captured(1);
         QString cat = m.captured(2);
@@ -380,8 +453,22 @@ QString MarkdownTableEngine::parseAndEvaluate(const QString &text) const {
         result.replace(fullMatch, val);
     }
 
+    QRegularExpression rand3Regex("TableSelectRandom\\(\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\"\\s*\\)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator r3It = rand3Regex.globalMatch(result);
+    while (r3It.hasNext()) {
+        QRegularExpressionMatch m = r3It.next();
+        QString fullMatch = m.captured(0);
+        QString grp = m.captured(1);
+        QString tbl = m.captured(2);
+        QString col = m.captured(3);
+
+        QString val = selectRandomColumn(grp, "", tbl, col);
+        result.replace(fullMatch, val);
+    }
+
     return result;
 }
+
 
 QString MarkdownTableEngine::searchRelevantContext(const QString &query) const {
     if (query.isEmpty() || m_tables.isEmpty()) return "";
