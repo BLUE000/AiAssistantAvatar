@@ -137,6 +137,16 @@ private:
     void scanStaticKnowledge(const QString &prompt, QString &recalledPrompt);
 
 public:
+    // --- F-34 回答情報量制御（3段階回答モード） ---
+    enum class ResponseDetailMode {
+        Short,
+        Normal,
+        Detailed
+    };
+
+    static ResponseDetailMode determineResponseDetailMode(const QString &prompt, bool *isGranularityReduction = nullptr);
+    static QString formatResponseDetailInstruction(ResponseDetailMode mode, bool isGranularityReduction = false);
+
     // --- 段階的タスク実行パイプライン ---
     enum class TaskType {
         KnowledgeSearch,
@@ -156,6 +166,7 @@ public:
     void validateAndInjectGuards(const QList<ExecutionTask> &tasks, const QString &originalPrompt, QString &additionalSystemPrompt);
     QString formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt);
     QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
+
 
 private:
 

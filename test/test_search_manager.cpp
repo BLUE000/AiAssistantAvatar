@@ -256,6 +256,48 @@ TEST(SearchManagerTest, DailyMacroAndKnowledgeFoldersTest) {
     EXPECT_EQ(capricornEntry.group, "Zodiac");
 }
 
+#include "ai/ai_client_manager.h"
+
+// UT-DETAIL-MODE-01 ~ UT-DETAIL-MODE-05 単体テスト
+TEST(AIClientManagerTest, ResponseDetailModeAndGranularityReductionTest) {
+    // UT-DETAIL-MODE-01: 通常質問（デフォルト Short）
+    bool isRed1 = false;
+    AIClientManager::ResponseDetailMode mode1 = AIClientManager::determineResponseDetailMode("何で台風は不規則な動きをするの？", &isRed1);
+    EXPECT_EQ(mode1, AIClientManager::ResponseDetailMode::Short);
+    EXPECT_FALSE(isRed1);
+
+    // UT-DETAIL-MODE-02: 詳細要求（Detailed）
+    bool isRed2 = false;
+    AIClientManager::ResponseDetailMode mode2 = AIClientManager::determineResponseDetailMode("何で台風は不規則な動きをするの？詳しく教えて", &isRed2);
+    EXPECT_EQ(mode2, AIClientManager::ResponseDetailMode::Detailed);
+    EXPECT_FALSE(isRed2);
+
+    // UT-DETAIL-MODE-03: 簡潔要求（Short）
+    bool isRed3 = false;
+    AIClientManager::ResponseDetailMode mode3 = AIClientManager::determineResponseDetailMode("台風の仕組みを一言で教えて", &isRed3);
+    EXPECT_EQ(mode3, AIClientManager::ResponseDetailMode::Short);
+    EXPECT_FALSE(isRed3);
+
+    // UT-DETAIL-MODE-04: プロンプト指示生成（Short / Detailed）
+    QString shortInstr = AIClientManager::formatResponseDetailInstruction(AIClientManager::ResponseDetailMode::Short, false);
+    EXPECT_TRUE(shortInstr.contains("1〜3文程度"));
+    EXPECT_TRUE(shortInstr.contains("簡潔"));
+
+    QString detailedInstr = AIClientManager::formatResponseDetailInstruction(AIClientManager::ResponseDetailMode::Detailed, false);
+    EXPECT_TRUE(detailedInstr.contains("詳しく包括的に解説"));
+
+    // UT-DETAIL-MODE-05: ユーザー指摘による粒度縮小・言い直し（Short + isReduction=true）
+    bool isRed5 = false;
+    AIClientManager::ResponseDetailMode mode5 = AIClientManager::determineResponseDetailMode("ちょっと説明が細かすぎるよ", &isRed5);
+    EXPECT_EQ(mode5, AIClientManager::ResponseDetailMode::Short);
+    EXPECT_TRUE(isRed5);
+
+    QString redInstr = AIClientManager::formatResponseDetailInstruction(mode5, isRed5);
+    EXPECT_TRUE(redInstr.contains("粒度修正指示"));
+    EXPECT_TRUE(redInstr.contains("1〜2 文程度にギュッと凝縮"));
+}
+
+
 
 
 

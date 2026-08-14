@@ -1391,8 +1391,21 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         }
     }
 
+    // 7. F-34 回答情報量制御（3段階回答モード: SHORT / NORMAL / DETAILED ＆ 粒度縮小）
+    bool isReduction = false;
+    ResponseDetailMode detailMode = determineResponseDetailMode(filteredPrompt, &isReduction);
+    QString detailInstruction = formatResponseDetailInstruction(detailMode, isReduction);
+    if (!detailInstruction.isEmpty()) {
+        if (!additionalSystemPrompt.isEmpty()) {
+            additionalSystemPrompt = detailInstruction + "\n\n" + additionalSystemPrompt;
+        } else {
+            additionalSystemPrompt = detailInstruction;
+        }
+    }
+
     m_lastFinalPrompt = finalPrompt;
     m_lastAdditionalSystemPrompt = additionalSystemPrompt;
+
 
     if (selectAndPrepareClient(filteredPrompt)) {
         // 稼働中 Worker AI / Manager AI のプロバイダ・モデル情報を additionalSystemPrompt へ自動注入
@@ -3535,6 +3548,72 @@ QString AIClientManager::formatSpeakerTaggedPrompt(const QString &prompt, const 
     tag += "]";
     return tag + " " + prompt;
 }
+
+AIClientManager::ResponseDetailMode AIClientManager::determineResponseDetailMode(const QString &prompt, bool *isGranularityReduction) {
+    if (isGranularityReduction) {
+        *isGranularityReduction = false;
+    }
+    QString lower = prompt.toLower();
+
+    // 1. ユーザー指摘による粒度縮小・言い直し要求
+    bool hasReduction = lower.contains("細かすぎる") || lower.contains("細かい") ||
+                        lower.contains("詳しすぎる") || lower.contains("長すぎる") ||
+                        lower.contains("長文すぎる") || lower.contains("もっと短く") ||
+                        lower.contains("要点だけでいい") || lower.contains("要点だけいい") ||
+                        lower.contains("短くして") || lower.contains("簡潔にして");
+    if (hasReduction) {
+        if (isGranularityReduction) {
+            *isGranularityReduction = true;
+        }
+        return ResponseDetailMode::Short;
+    }
+
+    // 2. 詳細化要求
+    bool hasDetailed = lower.contains("詳しく") || lower.contains("詳細に") ||
+                       lower.contains("もっと教えて") || lower.contains("仕組み") ||
+                       lower.contains("専門的に") || lower.contains("具体的に") ||
+                       lower.contains("原理") || lower.contains("深掘り") ||
+                       lower.contains("数字も") || lower.contains("数値も") ||
+                       lower.contains("なぜそうなるのか詳しく");
+    if (hasDetailed) {
+        return ResponseDetailMode::Detailed;
+    }
+
+    // 3. 簡潔化要求
+    bool hasShort = lower.contains("簡単に") || lower.contains("一言で") ||
+                    lower.contains("短く") || lower.contains("ざっくり") ||
+                    lower.contains("要点だけ") || lower.contains("結論だけ") ||
+                    lower.contains("手短に");
+    if (hasShort) {
+        return ResponseDetailMode::Short;
+    }
+
+    // 4. デフォルトは Short
+    return ResponseDetailMode::Short;
+}
+
+QString AIClientManager::formatResponseDetailInstruction(ResponseDetailMode mode, bool isGranularityReduction) {
+    if (isGranularityReduction) {
+        return "【回答の粒度修正指示】\n"
+               "- ユーザーから説明が細かすぎる・長すぎるとの指摘を受けました。直前の内容を反省し、最も伝えたい要点のみを 1〜2 文程度にギュッと凝縮して、平易な言葉で言い直してください。";
+    }
+
+    switch (mode) {
+    case ResponseDetailMode::Short:
+        return "【回答の情報量・長さの指示】\n"
+               "- 配信中の視聴者が素早く理解できるよう、1〜3文程度の簡潔な文章で回答してください。\n"
+               "- 最も重要な結論や理由を最優先で伝え、専門用語や細かい数値・不要な背景説明は極力省略してください。";
+    case ResponseDetailMode::Normal:
+        return "【回答の情報量・長さの指示】\n"
+               "- 数段落程度で、理由や背景を含めて分かりやすく説明してください。\n"
+               "- 専門用語を使用する場合は簡単な解説を添えてください。";
+    case ResponseDetailMode::Detailed:
+        return "【回答の情報量・長さの指示】\n"
+               "- ユーザーが詳細な説明を求めているため、背景、仕組み、専門用語、具体的な数値や条件を含めて詳しく包括的に解説してください。";
+    }
+    return QString();
+}
+
 
 
 
