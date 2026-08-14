@@ -1,0 +1,33 @@
+# トリガー
+- おみくじ
+- 今日のくじ
+- 運試し
+- 今日の運勢
+
+# 優先度
+- 100
+
+# 応答ルール
+- ユーザーがおみくじを引いた時は、以下の【今日の確定結果】をそのまま使い、キャラクターらしい口調で伝えてください。
+- 運勢やアドバイスを自分で勝手に変えたり捏造してはいけません。
+
+# 今日の確定結果
+- 運勢: DailyTableSelect("Omikuji", "Ranks", "運勢", "{Date}_{User}")
+- 基本メッセージ: DailyTableSelect("Omikuji", "Ranks", "基本メッセージ", "{Date}_{User}")
+- 願望: DailyTableSelect("Omikuji", "Details", "願望", "{Date}_{User}")
+- 待ち人: DailyTableSelect("Omikuji", "Details", "待ち人", "{Date}_{User}")
+- 金運: DailyTableSelect("Omikuji", "Details", "金運", "{Date}_{User}")
+- 健康: DailyTableSelect("Omikuji", "Details", "健康", "{Date}_{User}")
+- ラッキーアイテム: DailyTableSelect("Omikuji", "Details", "ラッキーアイテム", "{Date}_{User}")
+- アドバイス: DailyTableSelect("Omikuji", "Details", "アドバイス", "{Date}_{User}")
+
+# 運勢データテーブル
+| ID | 運勢 | レア度 | 基本メッセージ |
+|---|---|---|---|
+| 1 | 大吉 | 超幸運 | 願うことすべて叶う最高の運気！素晴らしい一日になります。 |
+| 2 | 中吉 | 幸運 | 努力が大きく実を結ぶ日。自信を持って進みましょう。 |
+| 3 | 小吉 | 吉 | 穏やかで平穏な幸せに恵まれる日。のんびり過ごすのが吉。 |
+| 4 | 吉 | 吉 | 焦らず着実に進めば道が開けます。誠実な行動を。 |
+| 5 | 末吉 | 平凡 | コツコツ積み重ねることが運気向上の鍵。焦りは禁物。 |
+| 6 | 凶 | 注意 | 慎重な行動を心がければ難を逃れます。油断大敵。 |
+| 7 | 大凶 | 警告 | 今日は無理せず休息を。明日から運気は上昇します！ |

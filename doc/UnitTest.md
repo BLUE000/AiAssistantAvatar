@@ -477,9 +477,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RLT-18** | `RateLimitTracker::updateAvailable` | `tpmMax = 100000`, `tpmRemaining = -1` (HuggingFace/Sakura等初期状態) のプロバイダの `isAvailable` を呼び出す。 | `tpmOk == true` に評価され、`available == true`（🟢 利用可能）が得られること。 |
 | **UT-WM-01** | `WakewordMatcher::matchAndStrip` | "ブルタロー 攻略法を教えて" や "プルタロー テスト" 等の長音・表記ゆれテキストを投入する。 | `match == true` と判定され、アバター名が除去された本文 ("攻略法を教えて", "テスト") が正しく抽出されること。 |
 | **UT-STT-NORM-01** | `STTTextNormalizer::normalizePhonetics` | 四つ仮名 ("ぶぢたろう", "みづ"), 音素類似子音 ("ぶちたろう", "ぶすたろう") を含む認識テキストを投入する。 | 1. 四つ仮名が `じ`/`ず` へ自動統一されること。<br>2. 編集距離類似度判定により類似度 75% 以上でウェイクワードおよび発話本文として補正評価できること。 |
-| **UT-ROUTER-01** | `ResponseRouter::dispatchResponse` | `ReplyTarget::WebText | ReplyTarget::DiscordChat` を指定した AI 応答イベントを渡す。 | `/ui_text` Web表示および Discord メッセージ送信処理へ非同期でそれぞれ正しくルーティング配信されること。 |
 | **UT-BOUYOMI-01** | `BouyomiChanClient::sendText` | `enabled = true`, `baseUrl = "http://localhost:50080/talk"` で日本語テキスト "こんにちは" を渡す。 | HTTP GET リクエスト URL が `"http://localhost:50080/talk?text=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF"` と正確にエンコード生成され非同期送信されること。 |
 | **UT-BOUYOMI-02** | `AvatarWindow::saveSettingsFromUI` | `"bouyomichan_url"` が含まれない設定 JSON をロードする。 | 自動補完処理によりコメント付きで `"bouyomichan_enabled": false`, `"bouyomichan_url": "http://localhost:50080/talk"` がファイルに追記・保存されること。 |
+| **UT-DAILY-MACRO-01** | `MarkdownTableEngine::parseAndEvaluate` | `{Date}` および `{User}` を含むテキストを渡す。 | `{Date}` が今日の日付（`YYYY-MM-DD`）、`{User}` が指定ユーザー名に正確に置換されること。 |
+| **UT-DAILY-MACRO-02** | `AIRandomUtils::getDailyRandom` | 同一のシード文字列（例: `"2026-08-15_Taro"`）で `getDailyRandom(1, 10, seed)` を複数回呼び出す。 | 常に同一の整数値が返却され、異なるシード文字列（別日・別ユーザー）では期待通り値が変動すること。 |
+| **UT-DAILY-MACRO-03** | `MarkdownTableEngine::selectDailyColumn` | `Omikuji/Ranks` テーブルから同一シードで `selectDailyColumn` を複数回呼び出す。 | 常に同一の運勢（行）が抽出され、異なるシードでは別行が決定論的に取得されること。 |
+| **UT-KNOWLEDGE-FOLDERS-01** | `MarkdownTableEngine::reload` | `knowledge/Omikuji/` および `knowledge/Zodiac/` が配置された状態で `reload()` を実行する。 | 各フォルダが独立グループとしてスキャンされ、トリガーおよびテーブル行数が正確にインデックスされること。 |
+
 
 
 

@@ -12,3 +12,6 @@
 
 ### 2.2 マークダウンナレッジエンジン (`MarkdownTableEngine`)
 - ローカル Markdown ファイル群から、ユーザーの入力キーワードに合致するトリガーテーブルデータを高速抽出し、RAG コンテキストへ注入する。
+- 独立フォルダ構造（`knowledge/Omikuji/`, `knowledge/Zodiac/` 等）を自動検出し、フォルダ単位での機能有効化・無効化をサポートする。
+- プロンプトや Markdown 内に埋め込まれたマクロ式（`DailyTableSelect`, `TableSelectRandom`, `TableSearch`, `DailyRandom`, `Random`）およびプレースホルダー（`{Date}`, `{User}`）を事前評価・置換する。
+

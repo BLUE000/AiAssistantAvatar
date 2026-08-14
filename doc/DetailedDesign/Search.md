@@ -54,3 +54,17 @@ sequenceDiagram
 ### 4.1 トリガー照合 ＆ テーブル抽出
 - ローカルの Markdown ファイル群から、ユーザー発言のキーワード（トリガー）に合致するテーブルデータおよびナレッジテキストを高速抽出する。
 - 抽出結果は `TaskType::KnowledgeSearch` としてタスクパイプラインへ統合される。
+- `knowledge/` ディレクトリ直下の第1階層ディレクトリ（例: `knowledge/Omikuji/`, `knowledge/Zodiac/`）をグループとして走査し、フォルダ退避・移動による機能ON/OFFに対応する。
+
+### 4.2 プレースホルダーおよび日替わりマクロ展開アルゴリズム
+1. **プレースホルダー置換**:
+   - `{Date}`: `QDate::currentDate().toString("yyyy-MM-dd")` により現在ローカル日付に置換。
+   - `{User}`: 発言元のユーザー名（Twitch ID、Discord ユーザー名等）に置換。
+2. **`DailyTableSelect` 決定論的行選択アルゴリズム**:
+   - 構文: `DailyTableSelect("グループ", "テーブル", "カラム", "シード")` または `DailyTableSelect("グループ", "カテゴリ", "テーブル", "カラム", "シード")`
+   - シード文字列 `seed` を `qHash(seed)` または `QCryptographicHash` により 32bit 符号なし整数へ変換。
+   - テーブル内の候補行数 $N$ に対し、選択インデックス $idx = \text{hash} \pmod N$ を算出して行を特定し、指定カラムのセル値を返す。
+   - これにより、同一日・同一シードであれば常に同一行（同一結果）が決定論的に取得される。
+3. **`DailyRandom(min, max, "seed")` 決定論的乱数アルゴリズム**:
+   - シード文字列のハッシュ値から、範囲 `[min, max]` 内の整数値を決定論的に算出する。
+
