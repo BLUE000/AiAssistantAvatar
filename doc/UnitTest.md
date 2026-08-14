@@ -488,6 +488,9 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-DETAIL-MODE-03** | `AIClientManager::determineResponseDetailMode` | 「台風の仕組みを一言で教えて」を渡す。 | 簡潔指示語に基づき `ResponseDetailMode::Short` が正しく判定されること。 |
 | **UT-DETAIL-MODE-04** | `AIClientManager::formatResponseInstruction` | `Short` モード時のシステムプロンプト指示ブロックを生成する。 | 「1〜3文程度」「簡潔」の制約文言が含まれるプロンプト指示が生成されること。 |
 | **UT-DETAIL-MODE-05** | `AIClientManager::determineResponseDetailMode` | 「説明が細かすぎるよ」「詳しすぎてわかりにくい」などの指摘を渡す。 | 粒度縮小トリガーとして検知され、`ResponseDetailMode::Short` かつ言い直し指示が有効化されること。 |
+| **UT-KNOWLEDGE-TRIGGER-SCORE-01** | `MarkdownTableEngine::resolveBestEntryForTrigger` | 「山羊座の今日の運勢は？」を入力してエントリ選定を実行する。 | 同一優先度（100）の `Omikuji/Ranks` ではなく、星座名「山羊座」にマッチした `Zodiac/Signs` が最良エントリとして正しく選定されること。 |
+| **UT-KNOWLEDGE-TRIGGER-SCORE-02** | `MarkdownTableEngine::resolveBestEntryForTrigger` | 「おみくじ引いて」を入力してエントリ選定を実行する。 | 「おみくじ」にマッチした `Omikuji/Ranks` が最良エントリとして正しく選定されること。 |
+
 
 
 

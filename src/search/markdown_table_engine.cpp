@@ -41,8 +41,10 @@ void MarkdownTableEngine::reload() {
 
     QString actualRoot = m_rootDir;
     if (!QDir(actualRoot).exists()) {
-        QDir cur;
-        if (cur.exists("knowledge")) {
+        QString appDirKnowledge = QCoreApplication::applicationDirPath() + "/knowledge";
+        if (QDir(appDirKnowledge).exists()) {
+            actualRoot = appDirKnowledge;
+        } else if (QDir("knowledge").exists()) {
             actualRoot = "knowledge";
         }
     }
@@ -113,17 +115,36 @@ bool MarkdownTableEngine::buildIndexAndValidate(QJsonObject &outIndexData, QList
 
 KnowledgeIndexEntry MarkdownTableEngine::resolveBestEntryForTrigger(const QString &triggerWord) const {
     KnowledgeIndexEntry bestEntry;
-    int highestPriority = -1;
+    int highestScore = -1;
 
     for (const KnowledgeIndexEntry &entry : m_indexEntries) {
         if (!entry.isValid) continue;
+        int entryScore = 0;
+        int maxTrigLen = 0;
+        int matchCount = 0;
+
         for (const QString &trig : entry.triggers) {
-            if (trig.compare(triggerWord, Qt::CaseInsensitive) == 0 ||
-                triggerWord.contains(trig, Qt::CaseInsensitive)) {
-                if (entry.priority > highestPriority) {
-                    highestPriority = entry.priority;
-                    bestEntry = entry;
-                }
+            if (trig.isEmpty()) continue;
+            if (trig.compare(triggerWord, Qt::CaseInsensitive) == 0) {
+                // 完全一致
+                entryScore += 1000;
+                matchCount++;
+                maxTrigLen = qMax(maxTrigLen, trig.length());
+            } else if (triggerWord.contains(trig, Qt::CaseInsensitive)) {
+                // 部分一致（文字数に応じた重み）
+                entryScore += trig.length() * 10;
+                matchCount++;
+                maxTrigLen = qMax(maxTrigLen, trig.length());
+            }
+        }
+
+        if (matchCount > 0) {
+            entryScore += (matchCount * 50); // マッチ件数ボーナス
+            entryScore += entry.priority;    // 優先度加算
+
+            if (entryScore > highestScore) {
+                highestScore = entryScore;
+                bestEntry = entry;
             }
         }
     }

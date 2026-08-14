@@ -297,7 +297,21 @@ TEST(AIClientManagerTest, ResponseDetailModeAndGranularityReductionTest) {
     EXPECT_TRUE(redInstr.contains("1〜2 文程度にギュッと凝縮"));
 }
 
+// UT-KNOWLEDGE-TRIGGER-SCORE-01 ~ UT-KNOWLEDGE-TRIGGER-SCORE-02 単体テスト
+TEST(MarkdownTableEngineTest, TriggerMatchingScoringAndResolutionTest) {
 
+    MarkdownTableEngine engine("knowledge");
+    
+    // UT-KNOWLEDGE-TRIGGER-SCORE-01: 「山羊座の今日の運勢は？」で Zodiac/Signs が正しく選定される
+    KnowledgeIndexEntry entryZodiac = engine.resolveBestEntryForTrigger("山羊座の今日の運勢は？");
+    EXPECT_TRUE(entryZodiac.isValid);
+    EXPECT_EQ(entryZodiac.group, "Zodiac");
+    EXPECT_EQ(entryZodiac.tableName, "Signs");
 
-
+    // UT-KNOWLEDGE-TRIGGER-SCORE-02: 「おみくじ引いて」で Omikuji/Ranks が正しく選定される
+    KnowledgeIndexEntry entryOmikuji = engine.resolveBestEntryForTrigger("おみくじ引いて");
+    EXPECT_TRUE(entryOmikuji.isValid);
+    EXPECT_EQ(entryOmikuji.group, "Omikuji");
+    EXPECT_EQ(entryOmikuji.tableName, "Ranks");
+}
 

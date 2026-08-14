@@ -982,8 +982,9 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
     loadUserNames();
 
     // F-27 / F-29 / F-33: マクロ式評価およびナレッジテーブルデータ自動検索
-    QString trimmedPrompt = m_tableEngine.parseAndEvaluate(AIRandomUtils::parseAndEvaluate(prompt), user).trimmed();
+    QString trimmedPrompt = m_tableEngine.parseAndEvaluate(AIRandomUtils::parseAndEvaluate(prompt), cleanUser).trimmed();
     QString tableContext = m_tableEngine.searchRelevantContext(trimmedPrompt);
+
 
 
     bool isDirectInput = user.isEmpty();
@@ -1299,7 +1300,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
             if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 QString fileContent = QString::fromUtf8(file.readAll());
                 file.close();
-                QString evaluated = m_tableEngine.parseAndEvaluate(fileContent, user);
+                QString evaluated = m_tableEngine.parseAndEvaluate(fileContent, cleanUser);
                 recalledStatic = QString("【ナレッジ「%1」 (優先度 %2) からの抽出結果】\n%3\n※ 上記の確定データが存在するため、Web検索を行わずに上記の確定データに基づいて回答してください。")
                                      .arg(bestEntry.title)
                                      .arg(bestEntry.priority)
@@ -3568,7 +3569,16 @@ AIClientManager::ResponseDetailMode AIClientManager::determineResponseDetailMode
         return ResponseDetailMode::Short;
     }
 
-    // 2. 詳細化要求
+    // 2. 簡潔化要求（「仕組みを一言で」のように詳細語と共存する場合も短縮指定を最優先）
+    bool hasShort = lower.contains("簡単に") || lower.contains("一言で") ||
+                    lower.contains("短く") || lower.contains("ざっくり") ||
+                    lower.contains("要点だけ") || lower.contains("結論だけ") ||
+                    lower.contains("手短に");
+    if (hasShort) {
+        return ResponseDetailMode::Short;
+    }
+
+    // 3. 詳細化要求
     bool hasDetailed = lower.contains("詳しく") || lower.contains("詳細に") ||
                        lower.contains("もっと教えて") || lower.contains("仕組み") ||
                        lower.contains("専門的に") || lower.contains("具体的に") ||
@@ -3579,17 +3589,9 @@ AIClientManager::ResponseDetailMode AIClientManager::determineResponseDetailMode
         return ResponseDetailMode::Detailed;
     }
 
-    // 3. 簡潔化要求
-    bool hasShort = lower.contains("簡単に") || lower.contains("一言で") ||
-                    lower.contains("短く") || lower.contains("ざっくり") ||
-                    lower.contains("要点だけ") || lower.contains("結論だけ") ||
-                    lower.contains("手短に");
-    if (hasShort) {
-        return ResponseDetailMode::Short;
-    }
-
     // 4. デフォルトは Short
     return ResponseDetailMode::Short;
+
 }
 
 QString AIClientManager::formatResponseDetailInstruction(ResponseDetailMode mode, bool isGranularityReduction) {
