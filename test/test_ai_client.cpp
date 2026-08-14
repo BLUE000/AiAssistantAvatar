@@ -2901,15 +2901,15 @@ TEST(BouyomiChanTest, VerifyAutoInjectionDefaultConfig) {
         }
     }
 
-    lines.append("  # 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定");
+    lines.append("  # 棒読みちゃん (Bouyomi-chan) 音声読み上げ連携設定 (50001番ポート: TCPソケット通信, 50080番ポート: HTTP GET)");
     lines.append("  \"bouyomichan_enabled\": false,");
-    lines.append("  \"bouyomichan_url\": \"http://localhost:50080/talk\"");
+    lines.append("  \"bouyomichan_url\": \"http://localhost:50001\"");
 
     QString updatedJson = lines.join('\n') + "\n}\n";
 
-    EXPECT_TRUE(updatedJson.contains("# 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定"));
+    EXPECT_TRUE(updatedJson.contains("# 棒読みちゃん (Bouyomi-chan) 音声読み上げ連携設定"));
     EXPECT_TRUE(updatedJson.contains("\"bouyomichan_enabled\": false"));
-    EXPECT_TRUE(updatedJson.contains("\"bouyomichan_url\": \"http://localhost:50080/talk\""));
+    EXPECT_TRUE(updatedJson.contains("\"bouyomichan_url\": \"http://localhost:50001\""));
 
     // JSONParse で構文エラーにならないことを確認
     QByteArray cleanData = JsonCommentRemover::stripHashComments(updatedJson.toUtf8());
@@ -2977,6 +2977,227 @@ TEST(BouyomiChanTest, VerifyTcpSocketPacketStructure) {
 
     QByteArray payload = packet.mid(15);
     EXPECT_EQ(payload, textBytes);
+}
+
+// UT-STT-10: 音声入力トリガー設定 - 両方有効 (voice_name_reaction_enabled: true, voice_wakeword_enabled: true)
+TEST(STTFeatureTest, VerifyTriggerModeBoth) {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    QJsonObject originalObj;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        originalObj = QJsonDocument::fromJson(JsonCommentRemover::stripHashComments(file.readAll())).object();
+        file.close();
+    }
+
+    QJsonObject testObj = originalObj;
+    testObj["avatar_name"] = "ぶるたろう";
+    testObj["voice_wakeword"] = "AIアシスタント";
+    testObj["voice_name_reaction_enabled"] = true;
+    testObj["voice_wakeword_enabled"] = true;
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    // 1. アバター名呼びかけで反応
+    AppEvent event1;
+    event1.type = EventType::VoiceInputCompleted;
+    event1.source = "STTManager";
+    event1.text = "ぶるたろう、こんにちは";
+    core.on_notify_events(event1);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "こんにちは");
+
+    // タイマー完了待ち (待機状態復帰)
+    QTest::qWait(1100);
+
+    // 2. ウェイクワード呼びかけで反応
+    AppEvent event2;
+    event2.type = EventType::VoiceInputCompleted;
+    event2.source = "STTManager";
+    event2.text = "AIアシスタント、こんにちは";
+    core.on_notify_events(event2);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "こんにちは");
+
+    // 設定を元に戻す
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(originalObj).toJson());
+        file.close();
+    }
+}
+
+// UT-STT-11: 音声入力トリガー設定 - ウェイクワードのみ有効 (voice_name_reaction_enabled: false, voice_wakeword_enabled: true)
+TEST(STTFeatureTest, VerifyTriggerModeWakewordOnly) {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    QJsonObject originalObj;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        originalObj = QJsonDocument::fromJson(JsonCommentRemover::stripHashComments(file.readAll())).object();
+        file.close();
+    }
+
+    QJsonObject testObj = originalObj;
+    testObj["avatar_name"] = "ぶるたろう";
+    testObj["voice_wakeword"] = "AIアシスタント";
+    testObj["voice_name_reaction_enabled"] = false;
+    testObj["voice_wakeword_enabled"] = true;
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    // 1. アバター名呼びかけは無視される
+    AppEvent event1;
+    event1.type = EventType::VoiceInputCompleted;
+    event1.source = "STTManager";
+    event1.text = "ぶるたろう、こんにちは";
+    core.on_notify_events(event1);
+
+    EXPECT_EQ(spyAI.count(), 0);
+
+    // 2. ウェイクワード呼びかけで反応する
+    AppEvent event2;
+    event2.type = EventType::VoiceInputCompleted;
+    event2.source = "STTManager";
+    event2.text = "AIアシスタント、こんにちは";
+    core.on_notify_events(event2);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "こんにちは");
+
+    // 設定を元に戻す
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(originalObj).toJson());
+        file.close();
+    }
+}
+
+// UT-STT-12: 音声入力トリガー設定 - アバター名のみ有効 (voice_name_reaction_enabled: true, voice_wakeword_enabled: false)
+TEST(STTFeatureTest, VerifyTriggerModeAvatarNameOnly) {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    QJsonObject originalObj;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        originalObj = QJsonDocument::fromJson(JsonCommentRemover::stripHashComments(file.readAll())).object();
+        file.close();
+    }
+
+    QJsonObject testObj = originalObj;
+    testObj["avatar_name"] = "ぶるたろう";
+    testObj["voice_wakeword"] = "AIアシスタント";
+    testObj["voice_name_reaction_enabled"] = true;
+    testObj["voice_wakeword_enabled"] = false;
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    // 1. ウェイクワード呼びかけは無視される
+    AppEvent event1;
+    event1.type = EventType::VoiceInputCompleted;
+    event1.source = "STTManager";
+    event1.text = "AIアシスタント、こんにちは";
+    core.on_notify_events(event1);
+
+    EXPECT_EQ(spyAI.count(), 0);
+
+    // 2. アバター名呼びかけで反応する
+    AppEvent event2;
+    event2.type = EventType::VoiceInputCompleted;
+    event2.source = "STTManager";
+    event2.text = "ぶるたろう、こんにちは";
+    core.on_notify_events(event2);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "こんにちは");
+
+    // 設定を元に戻す
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(originalObj).toJson());
+        file.close();
+    }
+}
+
+// UT-STT-13: 音声入力トリガー設定 - 両方無効 (voice_name_reaction_enabled: false, voice_wakeword_enabled: false, PTTのみ受付)
+TEST(STTFeatureTest, VerifyTriggerModeNoneAndPttOnly) {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    QJsonObject originalObj;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        originalObj = QJsonDocument::fromJson(JsonCommentRemover::stripHashComments(file.readAll())).object();
+        file.close();
+    }
+
+    QJsonObject testObj = originalObj;
+    testObj["avatar_name"] = "ぶるたろう";
+    testObj["voice_wakeword"] = "AIアシスタント";
+    testObj["voice_name_reaction_enabled"] = false;
+    testObj["voice_wakeword_enabled"] = false;
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(testObj).toJson());
+        file.close();
+    }
+
+    CoreModule core;
+    QSignalSpy spyAI(&core, &CoreModule::requestAI);
+
+    // 1. 通常発話（名前・ウェイクワード含む）は全て無視される
+    AppEvent event1;
+    event1.type = EventType::VoiceInputCompleted;
+    event1.source = "STTManager";
+    event1.text = "ぶるたろう、AIアシスタント、こんにちは";
+    core.on_notify_events(event1);
+
+    EXPECT_EQ(spyAI.count(), 0);
+
+    // 2. PTT フラグ付き音声入力は無条件でAIへ送信される
+    AppEvent eventPtt;
+    eventPtt.type = EventType::VoiceInputCompleted;
+    eventPtt.source = "STTManager";
+    eventPtt.text = "PTTで送信された音声です";
+    eventPtt.extraData["is_ptt"] = true;
+    core.on_notify_events(eventPtt);
+
+    EXPECT_EQ(spyAI.count(), 1);
+    EXPECT_EQ(spyAI.takeFirst().at(0).toString(), "PTTで送信された音声です");
+
+    // 設定を元に戻す
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(QJsonDocument(originalObj).toJson());
+        file.close();
+    }
+}
+
+// UT-STT-14: 設定ファイル自動補完 (voice_name_reaction_enabled / voice_wakeword_enabled / voice_wakeword)
+TEST(STTFeatureTest, VerifyVoiceTriggerSettingsAutoInjection) {
+    QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray rawData = file.readAll();
+        file.close();
+
+        QByteArray strippedData = JsonCommentRemover::stripHashComments(rawData);
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(strippedData, &parseError);
+
+        EXPECT_EQ(parseError.error, QJsonParseError::NoError);
+        EXPECT_TRUE(doc.isObject());
+        EXPECT_TRUE(doc.object().contains("voice_name_reaction_enabled"));
+        EXPECT_TRUE(doc.object().contains("voice_wakeword_enabled"));
+        EXPECT_TRUE(doc.object().contains("voice_wakeword"));
+    }
 }
 
 

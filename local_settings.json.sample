@@ -32,7 +32,16 @@
   # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）
   "voice_silence_timeout_ms": 1000,
 
-  # 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定
+  # 音声入力時にアバター名（ぶるたろう 等）に反応するかどうか (true: 反応する, false: 反応しない)
+  "voice_name_reaction_enabled": true,
+
+  # 音声入力時にウェイクワード（AIアシスタント 等）に反応するかどうか (true: 反応する, false: 反応しない)
+  "voice_wakeword_enabled": true,
+
+  # 音声入力用ウェイクワード（省略時は twitch_wakeword の設定値を自動流用）
+  "voice_wakeword": "AIアシスタント",
+
+  # 棒読みちゃん (Bouyomi-chan) 音声読み上げ連携設定 (50001番ポート: TCPソケット通信, 50080番ポート: HTTP GET)
   "bouyomichan_enabled": false,
-  "bouyomichan_url": "http://localhost:50080/talk"
+  "bouyomichan_url": "http://localhost:50001"
 }

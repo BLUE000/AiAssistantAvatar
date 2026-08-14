@@ -51,6 +51,9 @@ namespace ConfigDefaults {
     inline const QString DEFAULT_HUGGINGFACE_MODEL = QStringLiteral("meta-llama/Llama-3.1-8B-Instruct");
     inline const QString DEFAULT_OPENROUTER_MODEL = QStringLiteral("google/gemma-4-31b-it:free");
     inline const QString DEFAULT_SAKURA_MODEL = QStringLiteral("llm-jp-3.1-8x13b-instruct4");
-    inline const QString BOUYOMI_URL = QStringLiteral("http://localhost:50080/talk");
+    inline const QString BOUYOMI_URL = QStringLiteral("http://localhost:50001");
+    inline const bool VOICE_NAME_REACTION_ENABLED = true;
+    inline const bool VOICE_WAKEWORD_ENABLED = true;
+    inline const QString VOICE_WAKE_WORD = QStringLiteral("AIアシスタント");
 }
 

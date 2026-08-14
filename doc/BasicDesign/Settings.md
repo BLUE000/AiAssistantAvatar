@@ -19,12 +19,12 @@
 - **無音タイムアウト設定項目 (`voice_silence_timeout_ms`)**:
   - 音声入力における無音判定時間をミリ秒（ms）単位で定義する（デフォルト値: `1000`）。
   - 設定ファイル `Config/local_settings.json` 内に保存・管理され、アプリケーション起動時および設定更新時に動的にロードされる。
-### 2.4 棒読みちゃん (Bouyomi-chan) HTTP連携設定 ＆ 未存在キー自動補完 (`F-33`)
+### 2.4 棒読みちゃん (Bouyomi-chan) 連携設定 ＆ 未存在キー自動補完 (`F-33`)
 - **棒読みちゃん設定項目 (`bouyomichan_enabled`, `bouyomichan_url`)**:
   - `bouyomichan_enabled`: 棒読みちゃん音声読み上げ機能の有効化フラグ（bool、デフォルト値: `false`）。
-  - `bouyomichan_url`: 棒読みちゃん HTTP API アクセス用 URL（string、デフォルト値: `"http://localhost:50080/talk"`）。
+  - `bouyomichan_url`: 棒読みちゃんアクセス用 URL（string、デフォルト値: `"http://localhost:50001"`。ポート 50001 は TCP ソケット、50080 は HTTP GET 自動対応）。
 - **未存在キーの自動補完 (Auto-Injection)**:
-  - 既存の `Config/local_settings.json` に `"bouyomichan_url"` または `"bouyomichan_enabled"` キーが存在しない場合、アプリケーション起動時に自動検知し、コメント `# 棒読みちゃん HTTP 読み上げ機能設定` および `# 棒読みちゃん HTTP API URL (例: http://localhost:50080/talk)` 付きでデフォルト項目を自動追記・補完保存する。同PC上の固定パス運用だけでなく、別PCへの展開時にも IP アドレスを変更するだけで対応可能とする。
+  - 既存の `Config/local_settings.json` に `"bouyomichan_url"` または `"bouyomichan_enabled"` キーが存在しない場合、アプリケーション起動時に自動検知し、コメント `# 棒読みちゃん (Bouyomi-chan) 音声読み上げ連携設定 (50001番ポート: TCPソケット通信, 50080番ポート: HTTP GET)` 付きでデフォルト項目を自動追記・補完保存する。同PC上の固定パス運用だけでなく、別PCへの展開時にも IP アドレスを変更するだけで対応可能とする。
 
 ### 2.5 音声入力（STT）トリガー反応設定 ＆ 未存在キー自動補完 (`F-2`)
 - **音声トリガー反応設定項目**:

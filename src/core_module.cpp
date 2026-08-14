@@ -111,10 +111,9 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             loadVoiceSettings();
 
             if (!m_isVoiceActive) {
-                // 待機状態 (Idle): アバター名またはウェイクワードが含まれているか確認
+                // 待機状態 (Idle): 設定（アバター名有効/ウェイクワード有効）に応じて照合
                 QString configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
                 QString avatarName = "ぶるたろう";
-                QString wakeword = "AIアシスタント";
                 
                 QFile file(configPath);
                 if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -122,23 +121,38 @@ void CoreModule::on_notify_events(const AppEvent &event) {
                     file.close();
                     QJsonObject obj = QJsonDocument::fromJson(data).object();
                     if (obj.contains("avatar_name")) avatarName = obj.value("avatar_name").toString("ぶるたろう");
-                    if (obj.contains("twitch_wakeword")) wakeword = obj.value("twitch_wakeword").toString("AIアシスタント");
                 }
 
                 QString cleanText;
-                QStringList aliases;
-                if (!wakeword.isEmpty()) aliases << wakeword;
+                bool matched = false;
+                QString effectiveWakeword = m_voiceWakeword.trimmed();
 
-                bool matched = WakewordMatcher::matchAndStrip(trimmedText, avatarName, aliases, cleanText);
+                if (m_voiceNameReactionEnabled && m_voiceWakewordEnabled) {
+                    // 両方有効 (OR条件): アバター名またはウェイクワードのいずれかで反応
+                    QStringList aliases;
+                    if (!effectiveWakeword.isEmpty()) aliases << effectiveWakeword;
+                    matched = WakewordMatcher::matchAndStrip(trimmedText, avatarName, aliases, cleanText);
+                } else if (m_voiceNameReactionEnabled && !m_voiceWakewordEnabled) {
+                    // アバター名のみ有効: ウェイクワード単体は無視
+                    QStringList aliases;
+                    matched = WakewordMatcher::matchAndStrip(trimmedText, avatarName, aliases, cleanText);
+                } else if (!m_voiceNameReactionEnabled && m_voiceWakewordEnabled) {
+                    // ウェイクワードのみ有効: アバター名単体は無視
+                    QStringList aliases;
+                    matched = WakewordMatcher::matchAndStrip(trimmedText, effectiveWakeword, aliases, cleanText);
+                } else {
+                    // 両方無効: 常時待機での起動は無効（PTTでのみ発話可能）
+                    matched = false;
+                }
 
                 if (matched) {
                     m_isVoiceActive = true;
                     if (m_voiceSilenceTimer) m_voiceSilenceTimer->start(m_voiceSilenceTimeoutMs);
                     if (cleanText.isEmpty()) cleanText = trimmedText;
-                    qDebug() << "CoreModule: Wakeword matched via WakewordMatcher. State -> Active. Routing to AI:" << cleanText;
+                    qDebug() << "CoreModule: Wakeword/Name matched via WakewordMatcher. State -> Active. Routing to AI:" << cleanText;
                     emit requestAI(cleanText, "Streamer (Voice)", "UI");
                 } else {
-                    qDebug() << "CoreModule: No wakeword/avatar_name match while Idle. Dropping text:" << trimmedText;
+                    qDebug() << "CoreModule: No wakeword/avatar_name match while Idle (nameReaction:" << m_voiceNameReactionEnabled << ", wakewordReaction:" << m_voiceWakewordEnabled << "). Dropping text:" << trimmedText;
                 }
             } else {
                 // アクティブ状態 (Active): そのままAIに送信し、タイマー再スタート
@@ -332,6 +346,19 @@ void CoreModule::loadVoiceSettings() {
         if (obj.contains("voice_silence_timeout_ms")) {
             m_voiceSilenceTimeoutMs = obj.value("voice_silence_timeout_ms").toInt(1000);
         }
+        m_voiceNameReactionEnabled = obj.value("voice_name_reaction_enabled").toBool(ConfigDefaults::VOICE_NAME_REACTION_ENABLED);
+        m_voiceWakewordEnabled = obj.value("voice_wakeword_enabled").toBool(ConfigDefaults::VOICE_WAKEWORD_ENABLED);
+        if (obj.contains("voice_wakeword")) {
+            m_voiceWakeword = obj.value("voice_wakeword").toString(ConfigDefaults::VOICE_WAKE_WORD);
+        } else if (obj.contains("twitch_wakeword")) {
+            m_voiceWakeword = obj.value("twitch_wakeword").toString(ConfigDefaults::VOICE_WAKE_WORD);
+        } else {
+            m_voiceWakeword = ConfigDefaults::VOICE_WAKE_WORD;
+        }
+        qDebug() << "CoreModule: Loaded voice settings -> silenceTimeout:" << m_voiceSilenceTimeoutMs
+                 << "nameReaction:" << m_voiceNameReactionEnabled
+                 << "wakewordReaction:" << m_voiceWakewordEnabled
+                 << "wakeword:" << m_voiceWakeword;
     }
 }
 
@@ -342,7 +369,12 @@ void CoreModule::ensureVoiceSilenceTimeoutSettingExists() {
     QString content = QString::fromUtf8(file.readAll());
     file.close();
 
-    if (!content.contains("voice_silence_timeout_ms")) {
+    bool needSilenceTimeout = !content.contains("voice_silence_timeout_ms");
+    bool needNameReaction = !content.contains("voice_name_reaction_enabled");
+    bool needWakewordReaction = !content.contains("voice_wakeword_enabled");
+    bool needWakeword = !content.contains("voice_wakeword");
+
+    if (needSilenceTimeout || needNameReaction || needWakewordReaction || needWakeword) {
         int lastBrace = content.lastIndexOf('}');
         if (lastBrace != -1) {
             // lastBrace より前のテキストを行単位に分割
@@ -372,16 +404,33 @@ void CoreModule::ensureVoiceSilenceTimeoutSettingExists() {
                 }
             }
 
-            // 新項目（ファイル末尾になるため項目末尾にカンマなし）を挿入
-            lines.append("  # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）");
-            lines.append("  \"voice_silence_timeout_ms\": 1000");
+            // 未存在の音声設定項目を自動挿入
+            if (needSilenceTimeout) {
+                lines.append("  # 音声入力の無音タイムアウト時間（ミリ秒指定。指定時間を経過するとウェイクワード待機へ復帰）");
+                lines.append(QString("  \"voice_silence_timeout_ms\": 1000%1").arg(
+                    (needNameReaction || needWakewordReaction || needWakeword) ? "," : ""));
+            }
+            if (needNameReaction) {
+                lines.append("  # 音声入力時にアバター名（ぶるたろう 等）に反応するかどうか (true: 反応する, false: 反応しない)");
+                lines.append(QString("  \"voice_name_reaction_enabled\": true%1").arg(
+                    (needWakewordReaction || needWakeword) ? "," : ""));
+            }
+            if (needWakewordReaction) {
+                lines.append("  # 音声入力時にウェイクワード（AIアシスタント 等）に反応するかどうか (true: 反応する, false: 反応しない)");
+                lines.append(QString("  \"voice_wakeword_enabled\": true%1").arg(
+                    needWakeword ? "," : ""));
+            }
+            if (needWakeword) {
+                lines.append("  # 音声入力用ウェイクワード（省略時は twitch_wakeword の設定値を自動流用）");
+                lines.append("  \"voice_wakeword\": \"AIアシスタント\"");
+            }
 
             QString updatedContent = lines.join('\n') + "\n}\n";
 
             if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 file.write(updatedContent.toUtf8());
                 file.close();
-                qDebug() << "CoreModule: Auto-injected voice_silence_timeout_ms setting into" << configPath;
+                qDebug() << "CoreModule: Auto-injected voice trigger settings into" << configPath;
             }
         }
     }

@@ -1461,7 +1461,7 @@ void AvatarWindow::ensureBouyomiChanSettingsExist() {
                 }
             }
 
-            lines.append("  # 棒読みちゃん (Bouyomi-chan) HTTP 音声読み上げ連携設定");
+            lines.append("  # 棒読みちゃん (Bouyomi-chan) 音声読み上げ連携設定 (50001番ポート: TCPソケット通信, 50080番ポート: HTTP GET)");
             lines.append("  \"bouyomichan_enabled\": false,");
             lines.append(QString("  \"bouyomichan_url\": \"%1\"").arg(ConfigDefaults::BOUYOMI_URL));
 
@@ -1802,6 +1802,16 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["bouyomichan_enabled"] = m_bouyomiChanEnabled;
     obj["bouyomichan_url"] = m_bouyomiChanUrl;
     qDebug() << "AvatarWindow: Preserved Bouyomi-chan settings from disk -> enabled:" << m_bouyomiChanEnabled << "url:" << m_bouyomiChanUrl;
+
+    if (!obj.contains("voice_name_reaction_enabled")) {
+        obj["voice_name_reaction_enabled"] = ConfigDefaults::VOICE_NAME_REACTION_ENABLED;
+    }
+    if (!obj.contains("voice_wakeword_enabled")) {
+        obj["voice_wakeword_enabled"] = ConfigDefaults::VOICE_WAKEWORD_ENABLED;
+    }
+    if (!obj.contains("voice_wakeword")) {
+        obj["voice_wakeword"] = ConfigDefaults::VOICE_WAKE_WORD;
+    }
 
     m_avatarName = m_avatarNameEdit->text().trimmed();
     if (obj.contains("name_reaction_enabled")) {

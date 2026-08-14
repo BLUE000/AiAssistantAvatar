@@ -68,6 +68,9 @@ private:
     bool m_isVoiceActive = false;
     class QTimer *m_voiceSilenceTimer = nullptr;
     int m_voiceSilenceTimeoutMs = 1000;
+    bool m_voiceNameReactionEnabled = true;
+    bool m_voiceWakewordEnabled = true;
+    QString m_voiceWakeword = "AIアシスタント";
 
     void loadVoiceSettings();
     void ensureVoiceSilenceTimeoutSettingExists();
