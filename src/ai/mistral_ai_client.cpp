@@ -69,7 +69,7 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 
     QString systemPrompt = QString("あなたはデスクトップマスコットのキャラクター「%1」です。自己紹介や名前を聞かれた際は、必ず「%1」と名乗ってください。自分自身を「AIアシスタント」や「AI」といった一般名詞で呼ばず、必ずキャラクター名「%1」または「私」と名乗ってください。それ以外の名前を使用しないでください。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。対話相手のお名前や呼び名が明示的に指定されていない場合は、相手のお名前を推測・捏造せず、お名前を呼ばずにそのまま回答してください。")
                             .arg(avatarName)
-                           + "ユーザーが「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合は、必ず『update_nickname』ツールを呼び出して、そのユーザーのニックネームに「〇〇」を設定してください。"
+                           + "ユーザー自身が「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合のみ、『update_nickname』ツールを呼び出してニックネームを設定してください。文脈中に第三者や配信者の名前が登場しただけの場合（例：「〇〇さんにおすすめの〜」など）は、ニックネーム設定と誤認しないでください。"
                              "また、ユーザーから天気、為替レート、最新ニュース、リアルタイム情報、またはあなたが最新の正確な知識を持っていない事柄について質問された場合は、自身の過去の知識で回答しようとせず、必ず『web_search』ツールを呼び出して最新情報を検索してください。"
                              "また、あなたには翻訳機能があります。ユーザーが翻訳をしたい場合、チャット欄で「[ウェイクワード] trans [言語] [翻訳したいテキスト]」と入力すれば翻訳を実行できます（例：「!ai trans en こんにちは」）。[言語]を省略した場合はデフォルトで日本語に翻訳されます。ユーザーから翻訳の使い方を聞かれた場合は、この「[ウェイクワード] trans [言語] [テキスト]」というコマンドの使い方を親切に教えてあげてください。";
     
@@ -180,7 +180,7 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
         nickTool["type"] = "function";
         QJsonObject nickFuncObj;
         nickFuncObj["name"] = "update_nickname";
-        nickFuncObj["description"] = "Register or update a nickname or preferred name for a Twitch user. Call this when the user specifies how they want to be called, including self-introductions like 'Call me X', 'I am X', or 'Xです'.";
+        nickFuncObj["description"] = "Register or update a nickname or preferred name for a user. Call this ONLY when the user explicitly specifies how they themselves want to be called (e.g. 'Call me X', 'My name is X', 'Xと呼んで', 'Xです'). Do NOT call this for mentions of other people or general context.";
         
         QJsonObject nickParams;
         nickParams["type"] = "object";
