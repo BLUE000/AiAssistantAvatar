@@ -73,6 +73,7 @@ set(SOURCES
     src/discord/discord_reader.cpp
     src/obs/obs_http_server.cpp
     src/moderation/score_moderation_engine.cpp
+    src/observer/community_observer_engine.cpp
 )
 
 add_executable(AiAssistantAvatar WIN32 ${SOURCES})
@@ -119,6 +120,16 @@ add_executable(AvatarSkinBuilder WIN32 ${SKIN_BUILDER_SOURCES})
 target_include_directories(AvatarSkinBuilder PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AvatarSkinBuilder PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 
+# 独立CLIツール: CommunityObserver
+set(OBSERVER_SOURCES
+    src/observer/main.cpp
+    src/observer/community_observer_engine.cpp
+)
+add_executable(CommunityObserver ${OBSERVER_SOURCES})
+target_include_directories(CommunityObserver PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(CommunityObserver PRIVATE Qt6::Core)
+
 # テストビルドの有効化
 enable_testing()
 add_subdirectory(test)
+

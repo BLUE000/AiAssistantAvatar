@@ -44,3 +44,7 @@ WIP_STATE.md
 /log/test_logs/
 /TestLog/
 *_TestLog.log
+
+# Observer logs (Local data)
+/Config/observer_logs/
+

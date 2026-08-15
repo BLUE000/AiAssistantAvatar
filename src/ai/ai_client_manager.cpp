@@ -14,9 +14,11 @@
 #include "dummy_ai_client.h"
 #include "system_response_manager.h"
 #include "../moderation/score_moderation_engine.h"
+#include "../observer/community_observer_engine.h"
 #include "../search/search_manager.h"
 #include "cipher_engine.h" // TransCipher
 #include <QFile>
+#include <QProcess>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -1258,6 +1260,19 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         "[システム機能知識: 本アプリには各AIプロバイダ（Groq, Mistral, Cerebras, さくらAI, Hugging Face, OpenRouter）の"
         "レートリミット（1分間/1日の利用枠・残量・解除カウントダウン）をリアルタイムに確認・更新表示する『レートリミット』タブ機能が実装されています。"
         "ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。]";
+
+    // F-35 CommunityObserver (文脈違和感・傾聴対話誘導)
+    if (!cleanUser.isEmpty() && !isSystemGreeting) {
+        QString platformName = m_currentDiscordChannelId.isEmpty() ? "twitch" : "discord";
+        QString observerDirective = evaluateWithObserver(platformName, cleanUser, filteredPrompt);
+        if (!observerDirective.isEmpty()) {
+            if (!additionalSystemPrompt.isEmpty()) {
+                additionalSystemPrompt += "\n\n" + observerDirective;
+            } else {
+                additionalSystemPrompt = observerDirective;
+            }
+        }
+    }
 
     if (!additionalSystemPrompt.isEmpty()) {
         additionalSystemPrompt += "\n\n" + rateLimitCapabilityKnowledge;
@@ -3615,6 +3630,56 @@ QString AIClientManager::formatResponseDetailInstruction(ResponseDetailMode mode
     }
     return QString();
 }
+
+QString AIClientManager::evaluateWithObserver(const QString &platform, const QString &user, const QString &text) {
+    if (user.trimmed().isEmpty() || text.trimmed().isEmpty()) {
+        return QString();
+    }
+
+    // 1. 独立EXE (CommunityObserver.exe) の存在確認
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString observerExe = appDir + "/CommunityObserver.exe";
+    if (!QFile::exists(observerExe)) {
+        observerExe = "CommunityObserver.exe";
+    }
+
+    if (QFile::exists(observerExe)) {
+        QProcess process;
+        QStringList args;
+        args << "--record" << "--eval"
+             << "--platform" << platform
+             << "--user" << user
+             << "--text" << text;
+
+        process.start(observerExe, args);
+        // 50ms タイムアウトで安全待機
+        if (process.waitForFinished(50)) {
+            QByteArray output = process.readAllStandardOutput();
+            QJsonDocument doc = QJsonDocument::fromJson(output);
+            if (doc.isObject()) {
+                QString directive = doc.object().value("directive").toString();
+                if (!directive.isEmpty()) {
+                    qDebug() << "AIClientManager: CommunityObserver detected concern. Injected directive for user:" << user;
+                    return directive;
+                }
+            }
+        } else {
+            qWarning() << "AIClientManager: CommunityObserver process timed out (50ms). Fallback to normal flow.";
+            process.kill();
+        }
+    } else {
+        // 2. 単体テスト環境等のフォールバック: エンジンクラスを直接利用
+        static CommunityObserverEngine fallbackEngine("Config/observer_logs");
+        ObserverEvaluationResult res = fallbackEngine.recordAndEvaluate(platform, user, text);
+        if (!res.directive.isEmpty()) {
+            qDebug() << "AIClientManager: Direct CommunityObserverEngine detected concern for user:" << user;
+            return res.directive;
+        }
+    }
+
+    return QString();
+}
+
 
 
 

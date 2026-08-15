@@ -167,6 +167,8 @@ public:
     QString formatCombinedPrompt(const QList<ExecutionTask> &tasks, const QString &originalPrompt);
     QString fetchSchedules(const QString &category, const class QDate &startDate, int days);
 
+    // --- F-35 CommunityObserver 連携 ---
+    QString evaluateWithObserver(const QString &platform, const QString &user, const QString &text);
 
 private:
 

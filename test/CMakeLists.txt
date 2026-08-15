@@ -62,6 +62,8 @@ set(TEST_SOURCES
     ../src/obs/obs_http_server.cpp
     test_score_moderation.cpp
     ../src/moderation/score_moderation_engine.cpp
+    test_community_observer.cpp
+    ../src/observer/community_observer_engine.cpp
 )
 
 add_executable(AiAssistantAvatarTest ${TEST_SOURCES})
