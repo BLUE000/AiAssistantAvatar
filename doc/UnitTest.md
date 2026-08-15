@@ -490,6 +490,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-DETAIL-MODE-05** | `AIClientManager::determineResponseDetailMode` | 「説明が細かすぎるよ」「詳しすぎてわかりにくい」などの指摘を渡す。 | 粒度縮小トリガーとして検知され、`ResponseDetailMode::Short` かつ言い直し指示が有効化されること。 |
 | **UT-KNOWLEDGE-TRIGGER-SCORE-01** | `MarkdownTableEngine::resolveBestEntryForTrigger` | 「山羊座の今日の運勢は？」を入力してエントリ選定を実行する。 | 同一優先度（100）の `Omikuji/Ranks` ではなく、星座名「山羊座」にマッチした `Zodiac/Signs` が最良エントリとして正しく選定されること。 |
 | **UT-KNOWLEDGE-TRIGGER-SCORE-02** | `MarkdownTableEngine::resolveBestEntryForTrigger` | 「おみくじ引いて」を入力してエントリ選定を実行する。 | 「おみくじ」にマッチした `Omikuji/Ranks` が最良エントリとして正しく選定されること。 |
+| **UT-OBS-01** | `CommunityObserver` (ログ記録・追記) | `--record --user "userA" --text "こんにちは"` を実行する。 | `Config/observer_logs/twitch_userA.json` に発言レコードが追加され、件数が正確にカウントアップされること。 |
+| **UT-OBS-02** | `CommunityObserver` (通常判定 `Normal`) | 普段から雑談中心のユーザーが「このゲーム面白いね」と発言し `--eval` を実行する。 | JSON 出力の `status` が `"Normal"` であり、`directive` が空文字であること。 |
+| **UT-OBS-03** | `CommunityObserver` (乖離判定 `DrasticChange`) | 普段はポジティブなユーザーが「〇〇さん本当に苦手で無理」と発言し `--eval` を実行する。 | `status` が `"DrasticChange"` となり、「何かあった？」と優しく話を聞き出す傾聴ディレクティブが返却されること。 |
+| **UT-OBS-04** | `CommunityObserver` (継続性判定 `PersistentConcern`) | 過去ログに同一対象への不満が複数回記録されている状態で再度不満発言を渡し `--eval` を実行する。 | `status` が `"PersistentConcern"` となり、「前にも気にしてたみたいだけど」と状況説明を促すディレクティブが返却されること。 |
+| **UT-OBS-05** | `CommunityObserver` (ログローテーション) | 100件を超えるレコードを蓄積、または60日以前の古いログが存在する状態で `--vacuum` を実行する。 | 最大保持件数（100件以内）に古いログが破棄され、人物ラベリング等の不当な属性情報が存在しないこと。 |
+| **UT-OBS-06** | `AIClientManager` (Observer プロセス連携 ＆ タイムアウト) | `AIClientManager::evaluateWithObserver` を実行する。 | 正常時はディレクティブがシステムプロンプトに注入され、CLIプロセス障害・タイムアウト時（50ms超過）は安全に通常応答へフォールバックすること。 |
+
 
 
 

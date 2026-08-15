@@ -17,3 +17,5 @@
 | **Twitch モジュール** | [Twitch.md](Twitch.md) | `TwitchReader` (IRC 通信), Twitch Watchdog (サイレント切断探知), Twitch OAuth 認証, `TwitchHelixClient`, レイドシャウトアウトハイブリッド送信 (`F-22-1`) |
 | **Discord モジュール** | [Discord.md](Discord.md) | `DiscordReader` (Gateway WebSocket 通信, Heartbeat), メッセージ受信, チャンネルレスポンスルーティング |
 | **UI ＆ 表示** | [UI.md](UI.md) | `AvatarWindow` (ウィンドウ透過・ドロップドラッグ), `HistoryViewerDialog` (会話履歴ビューア), `RateLimitTabWidget` (レートリミット管理専用タブ・動的項目カード描画), TrustChain |
+| **見守り・対話促進** | [CommunityObserver.md](CommunityObserver.md) | 独立C++コンソールアプリ `CommunityObserver.exe` (ログ収集・過去ログ解析・違和感判定), 3段階ステータス評価, 傾聴ディレクティブ生成, `QProcess` 連携 |
+
