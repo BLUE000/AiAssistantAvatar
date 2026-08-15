@@ -496,6 +496,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-OBS-04** | `CommunityObserver` (継続性判定 `PersistentConcern`) | 過去ログに同一対象への不満が複数回記録されている状態で再度不満発言を渡し `--eval` を実行する。 | `status` が `"PersistentConcern"` となり、「前にも気にしてたみたいだけど」と状況説明を促すディレクティブが返却されること。 |
 | **UT-OBS-05** | `CommunityObserver` (ログローテーション) | 100件を超えるレコードを蓄積、または60日以前の古いログが存在する状態で `--vacuum` を実行する。 | 最大保持件数（100件以内）に古いログが破棄され、人物ラベリング等の不当な属性情報が存在しないこと。 |
 | **UT-OBS-06** | `AIClientManager` (Observer プロセス連携 ＆ タイムアウト) | `AIClientManager::evaluateWithObserver` を実行する。 | 正常時はディレクティブがシステムプロンプトに注入され、CLIプロセス障害・タイムアウト時（50ms超過）は安全に通常応答へフォールバックすること。 |
+| **UT-RAID-ROUTING-01** | `AIClientManager::handleRaidShoutout` | レイド受信イベントが発生しシャウトアウト応答が生成される。 | 応答イベントの `source` が `"Twitch"` となり、`extraData["twitch_channel"]` がセットされて Twitch チャットへ中継されること。 |
+| **UT-RAID-PROMPT-01** | `AIClientManager::handleRaidShoutout` | レイド紹介文生成プロンプトを構築する。 | 「相手が当配信へレイドして来てくれた」「リスナーの皆さんを歓迎」「相手の配信を見に行くような逆転誤認表現の禁止」の文脈指示が含まれていること。 |
+| **UT-RAID-LOGIN-PARSE-01** | `TwitchReader::onTextMessageReceived` | `USERNOTICE` で `msg-param-login=ferrely_leo;msg-param-displayName=フェレリーレオ` を受信する。 | `login` と `displayName` が分離抽出され、Helix API 用に英数字ログイン名が渡されること。 |
+
 
 
 

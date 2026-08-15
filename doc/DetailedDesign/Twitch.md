@@ -88,3 +88,20 @@ sequenceDiagram
     end
 ```
 
+---
+
+## 5. レイド受信パースおよび ID / 表示名分離・チャット送信ルーティング仕様
+
+### 5.1 USERNOTICE (raid) パースと引数分離
+Twitch IRC から受信する `USERNOTICE` タグ付きメッセージから、英数字ログインIDと日本語表示名を分離して抽出する。
+- **`msg-param-login`**: 英数字の Twitch ユーザーID（Helix API の `login` 引数用）。
+- **`msg-param-displayName`**: ユーザーの表示名（日本語・多言語対応、プロンプト・UI表示用）。
+- **`msg-param-viewerCount`**: レイド視聴者数。
+
+`TwitchReader` はこれらを `TwitchRaidReceived` イベントの `extraData`（`login`, `displayName`, `viewerCount`, `channel`）として `CoreModule` 経由で `AIClientManager` へ送出する。
+
+### 5.2 送信元ソース (`m_currentSource = "Twitch"`) の明示設定
+レイド受信時、`AIClientManager` は `m_currentSource = "Twitch"` および `m_currentTwitchChannel = m_twitchChannel` を明示的に設定する。
+これにより、AI応答生成完了時の `event.source` が `"Twitch"` となり、`event.extraData["twitch_channel"]` が確実にセットされ、`CoreModule` の `enqueueCommentSend` を通じて Twitch チャット欄へお礼メッセージが 100% 確実に投稿される。
+
+
