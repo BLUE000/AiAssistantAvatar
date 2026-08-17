@@ -227,17 +227,21 @@ TEST(SearchManagerTest, DailyMacroAndKnowledgeFoldersTest) {
     EXPECT_GE(valA1, 1);
     EXPECT_LE(valA1, 100);
 
-    // UT-DAILY-MACRO-03: selectDailyColumn 決定論的行選択
-    QString rank1 = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", "2026-08-15_Alice");
-    QString rank2 = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", "2026-08-15_Alice");
+    // UT-DAILY-MACRO-03: selectDailyColumn 決定論的行選択（固定シード）
+    QString fixedSeed = "2026-08-15_Alice";
+    QString rank1 = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", fixedSeed);
+    QString rank2 = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", fixedSeed);
     EXPECT_FALSE(rank1.isEmpty());
     EXPECT_EQ(rank1, rank2); // 同一シードなら常に同じ行が選ばれる
 
     // DailyTableSelect マクロ評価のテスト
+    // parseAndEvaluate は {Date} を今日の日付で展開するため、今日のシードで期待値を算出する
+    QString todaySeed = QDate::currentDate().toString("yyyy-MM-dd") + "_Alice";
+    QString rankToday = engine.selectDailyColumn("Omikuji", "", "Ranks", "運勢", todaySeed);
     QString macroText = "今日の運勢: DailyTableSelect(\"Omikuji\", \"Ranks\", \"運勢\", \"{Date}_{User}\")";
     QString macroEvaluated = engine.parseAndEvaluate(macroText, "Alice");
     EXPECT_FALSE(macroEvaluated.contains("DailyTableSelect"));
-    EXPECT_TRUE(macroEvaluated.contains("今日の運勢: " + rank1));
+    EXPECT_TRUE(macroEvaluated.contains("今日の運勢: " + rankToday));
 
     // UT-KNOWLEDGE-FOLDERS-01: knowledge/Omikuji と knowledge/Zodiac のロード検証
     engine.reload();

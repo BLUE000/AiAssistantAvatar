@@ -16,7 +16,13 @@ QString TwitchHelixClient::extractSnsInfo(const QString &bio) const {
     if (bio.isEmpty()) return "";
     
     QStringList foundUrls;
-    QRegularExpression regex(QStringLiteral("https?:\\/\\/(www\\.)?(twitter\\.com|x\\.com|youtube\\.com|youtu\\.be)\\/[a-zA-Z0-9_.-]+"));
+    // Twitter(X) / YouTube / TikTok / Instagram / Discord / Linktree
+    QRegularExpression regex(QStringLiteral(
+        "https?:\\/\\/(www\\.)?"
+        "(twitter\\.com|x\\.com|youtube\\.com|youtu\\.be"
+        "|tiktok\\.com|instagram\\.com|discord\\.gg|linktr\\.ee)"
+        "\/[a-zA-Z0-9_@.\\-]+"
+    ));
     QRegularExpressionMatchIterator i = regex.globalMatch(bio);
     while (i.hasNext()) {
         QRegularExpressionMatch match = i.next();
@@ -92,10 +98,42 @@ void TwitchHelixClient::fetchCreatorInfo(const QString &username, std::function<
                 if (!cData.isEmpty()) {
                     QJsonObject cObj = cData.at(0).toObject();
                     info.gameName = cObj["game_name"].toString();
-                    info.title = cObj["title"].toString();
+                    info.title    = cObj["title"].toString();
                 }
             }
-            if (callback) callback(info, true);
+
+            // 3. GET /helix/videos?user_id=...&type=archive (最近の配信ゲーム履歴取得)
+            QUrl videoUrl("https://api.twitch.tv/helix/videos");
+            QUrlQuery videoQuery;
+            videoQuery.addQueryItem("user_id", info.userId);
+            videoQuery.addQueryItem("type", "archive");
+            videoQuery.addQueryItem("first", "20"); // 重複除去後5件を確保するため多めに取得
+            videoUrl.setQuery(videoQuery);
+
+            QNetworkRequest videoReq(videoUrl);
+            videoReq.setRawHeader("Client-ID", m_clientId.toUtf8());
+            if (!m_oauthToken.isEmpty()) {
+                videoReq.setRawHeader("Authorization", ("Bearer " + m_oauthToken).toUtf8());
+            }
+
+            QNetworkReply *videoReply = m_networkManager->get(videoReq);
+            connect(videoReply, &QNetworkReply::finished, this, [videoReply, info, callback]() mutable {
+                videoReply->deleteLater();
+                if (videoReply->error() == QNetworkReply::NoError) {
+                    QJsonDocument vDoc = QJsonDocument::fromJson(videoReply->readAll());
+                    QJsonArray vData = vDoc.object()["data"].toArray();
+                    QStringList games;
+                    for (const QJsonValue &v : vData) {
+                        QString g = v.toObject()["game_name"].toString().trimmed();
+                        if (!g.isEmpty() && !games.contains(g)) {
+                            games.append(g);
+                            if (games.size() >= 5) break;
+                        }
+                    }
+                    info.recentGames = games;
+                }
+                if (callback) callback(info, true);
+            });
         });
     });
 }

@@ -12,9 +12,10 @@ struct CreatorHelixInfo {
     QString login;
     QString displayName;
     QString description; // Bio
-    QString gameName;    // 配信カテゴリ
+    QString gameName;    // 配信カテゴリ（現在）
     QString title;       // 配信タイトル
-    QString snsInfo;     // 抽出された公式Twitter/YouTube URL
+    QString snsInfo;     // 抽出された公式Twitter/YouTube/TikTok等のURL
+    QStringList recentGames; // 最近の配信ゲーム履歴（重複除去・最大5件）
 };
 
 class TwitchHelixClient : public QObject {

@@ -212,6 +212,8 @@ public:
     ~AIClientManager();
     void loadSettingsFromJsonObject(const QJsonObject &obj);
     void handleRaidShoutout(const QString &username, const QVariantMap &meta = {});
+    // 会話トリガーからのクリエイター紹介（呼び出し元ソースを引き継ぎ、レイド文脈と分離）
+    void handleConversationShoutout(const QString &username, const QString &source, const QString &twitchChannel = {});
     void setAIProvider(const QString &provider, bool forceRefresh = false);
 
     // 履歴データ取得/設定用のI/F
@@ -246,7 +248,16 @@ public:
     static QString buildRaidShoutoutPrompt(
         const QString &login, const QString &displayName,
         const QString &bio, const QString &game,
-        const QString &title, const QString &sns,
+        const QStringList &recentGames, const QString &title,
+        const QString &sns,
+        const QString &lengthHint = "2〜3文", const QString &tone = "明るく親しみやすい");
+
+    // 会話トリガー向け中立クリエイター紹介プロンプトの構築（テスト可能な純粋関数）
+    static QString buildConversationShoutoutPrompt(
+        const QString &login, const QString &displayName,
+        const QString &bio, const QString &game,
+        const QStringList &recentGames, const QString &title,
+        const QString &sns,
         const QString &lengthHint = "2〜3文", const QString &tone = "明るく親しみやすい");
 
 signals:

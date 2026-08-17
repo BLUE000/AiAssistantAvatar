@@ -3228,16 +3228,60 @@ TEST_F(AIClientTest, RaidResponseRoutesToTwitchChannel) {
 // UT-RAID-PROMPT-01: レイド歓迎プロンプトの文脈指示検証
 // (buildRaidShoutoutPrompt は純粋 static 関数なので helixClient 不要で直接テスト可能)
 TEST_F(AIClientTest, RaidPromptContainsWelcomeAndNoReverseRoleInstructions) {
+    QStringList recentGames = {"アクション", "RPG"};
     QString prompt = AIClientManager::buildRaidShoutoutPrompt(
         "ryu_no123", "リューノ",
-        "", "アクション", "夜の配信", "");
+        "", "アクション", recentGames, "夜の配信", "");
 
     EXPECT_TRUE(prompt.contains("遊びに来てくれました（レイドしてくれました）"));
     EXPECT_TRUE(prompt.contains("リスナーの皆さんを温かく歓迎"));
     EXPECT_TRUE(prompt.contains("逆の立場（今から相手の配信を見に行こう等）と絶対に誤認しないでください"));
+    // 最近のゲーム履歴が含まれること
+    EXPECT_TRUE(prompt.contains("アクション"));
+    EXPECT_TRUE(prompt.contains("RPG"));
     // 逆転誤認につながるキーワードが含まれないこと
     EXPECT_FALSE(prompt.contains("見に行きたくなるような"));
 }
+
+// UT-CONV-SHOUTOUT-ROUTING-01: 会話トリガーの紹介がソースを引き継ぐこと
+TEST_F(AIClientTest, ConversationShoutoutRoutingInheritsSource) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_channel";
+    manager.loadSettingsFromJsonObject(settings);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // UI ソースからリクエスト → 応答が UI に返ること
+    manager.on_requestAI("ferrely_leoさんを紹介して", "", "UI");
+    manager.on_clientRequestFinished("フェレリーレオさんの紹介コメントです！", true, 200);
+
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent resEvent = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(resEvent.type, EventType::AIResponseReceived);
+    EXPECT_EQ(resEvent.source, "UI");
+}
+
+// UT-CONV-SHOUTOUT-PROMPT-01: 会話紹介プロンプトがレイド文脈を含まないこと
+TEST_F(AIClientTest, ConversationShoutoutPromptHasNoRaidContext) {
+    QStringList recentGames = {"格闘ゲーム", "シューター"};
+    QString prompt = AIClientManager::buildConversationShoutoutPrompt(
+        "ferrely_leo", "フェレリーレオ",
+        "ゲームが好きです", "格闘ゲーム", recentGames, "夕方の配信", "https://twitter.com/ferrely");
+
+    // 紹介文脈が含まれること
+    EXPECT_TRUE(prompt.contains("紹介して"));
+    EXPECT_TRUE(prompt.contains("フォロー"));
+    // 最近のゲーム履歴が含まれること
+    EXPECT_TRUE(prompt.contains("格闘ゲーム"));
+    EXPECT_TRUE(prompt.contains("シューター"));
+    // レイド文脈が含まれないこと
+    EXPECT_FALSE(prompt.contains("レイドして来てくれた"));
+    EXPECT_FALSE(prompt.contains("リスナーの皆さんを引き連れて"));
+}
+
 
 
 

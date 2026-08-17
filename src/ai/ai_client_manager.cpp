@@ -1014,8 +1014,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         if (targetShoutoutUser.startsWith("@")) {
             targetShoutoutUser = targetShoutoutUser.mid(1).trimmed();
         }
-        qDebug() << "AIClientManager: Manual shoutout requested for user:" << targetShoutoutUser;
-        handleRaidShoutout(targetShoutoutUser);
+        qDebug() << "AIClientManager: Manual shoutout (conversation) requested for user:" << targetShoutoutUser;
+        handleConversationShoutout(targetShoutoutUser, m_currentSource, m_currentTwitchChannel);
         return;
     }
 
@@ -3182,17 +3182,102 @@ QString AIClientManager::getTaskFlowSchedulesContext() {
     return context;
 }
 
+// static: 会話トリガー向け中立クリエイター紹介プロンプト（レイド文脈なし）
+QString AIClientManager::buildConversationShoutoutPrompt(
+    const QString &login, const QString &displayName,
+    const QString &bio, const QString &game,
+    const QStringList &recentGames, const QString &title,
+    const QString &sns,
+    const QString &lengthHint, const QString &tone)
+{
+    QString nameStr = displayName.trimmed().isEmpty() ? login : displayName.trimmed();
+    QString bios   = bio.trimmed().isEmpty()   ? "情報なし" : bio.trimmed();
+    QString games  = game.trimmed().isEmpty()  ? "ゲーム・カテゴリ情報なし" : game.trimmed();
+    QString titles = title.trimmed().isEmpty() ? "配信タイトルなし" : title.trimmed();
+    QString snss   = sns.trimmed().isEmpty()   ? "なし" : sns.trimmed();
+
+    // 最近プレイしたゲーム履歴（重複除去済み最大5件）
+    QString recentStr = recentGames.isEmpty()
+        ? "情報なし"
+        : recentGames.join(" / ");
+
+    return QString(
+        "あなたは配信アバターです。視聴者またはオペレーターから「%1さんを紹介して」と依頼されました。\n"
+        "以下のクリエイター情報をもとに、視聴者に向けて%1さんの魅力・活動内容・おすすめポイントを紹介するコメントを作成してください。\n\n"
+        "【クリエイター情報】\n"
+        "- Twitch ID / 表示名: %2 / %1\n"
+        "- 自己紹介 (Bio): %3\n"
+        "- 現在の配信カテゴリ: %4\n"
+        "- 最近プレイしたゲーム履歴: %5\n"
+        "- 配信タイトル: %6\n"
+        "- 公式SNS/外部リンク: %7\n\n"
+        "【重要・出力条件】\n"
+        "- これはシャウトアウト（紹介）コメントです。レイドの有無は関係ありません。\n"
+        "- 相手の魅力・ゲームの面白さ・チャンネルの特色をわかりやすく紹介し、フォローをおすすめしてください。\n"
+        "- 長さ: %8\n"
+        "- トーン・口調: %9"
+    ).arg(nameStr)
+     .arg(login)
+     .arg(bios)
+     .arg(games)
+     .arg(recentStr)
+     .arg(titles)
+     .arg(snss)
+     .arg(lengthHint)
+     .arg(tone);
+}
+
+// 会話・手動コマンドからのクリエイター紹介（呼び出し元ソースを引き継ぐ）
+void AIClientManager::handleConversationShoutout(const QString &username, const QString &source, const QString &twitchChannel) {
+    if (username.isEmpty()) return;
+    if (!m_helixClient) return;
+
+    QString login = username.trimmed();
+
+    qDebug() << "AIClientManager: Conversation shoutout requested for" << login << "source:" << source << "channel:" << twitchChannel;
+
+    // 呼び出し元ソースをそのまま引き継ぐ（Twitch固定しない）
+    m_currentSource = source.isEmpty() ? "UI" : source;
+    if (m_currentSource == "Twitch" && !twitchChannel.isEmpty()) {
+        m_currentTwitchChannel = twitchChannel;
+    }
+    m_currentRequester = login;
+    m_isShoutoutRequest = true;
+
+    m_helixClient->fetchCreatorInfo(login, [this, login](const CreatorHelixInfo &info, bool success) {
+        QString displayName = success && !info.displayName.trimmed().isEmpty() ? info.displayName : login;
+        QString bio         = success ? info.description : "";
+        QString game        = success ? info.gameName : "";
+        QStringList recent  = success ? info.recentGames : QStringList{};
+        QString title       = success ? info.title : "";
+        QString sns         = success ? info.snsInfo : "";
+
+        // 中立紹介文脈のプロンプト
+        QString prompt = AIClientManager::buildConversationShoutoutPrompt(
+            login, displayName, bio, game, recent, title, sns,
+            m_shoutoutLength, m_shoutoutTone);
+
+        if (m_currentClient) {
+            m_currentClient->sendRequest(prompt, {}, "", "クリエイター紹介コメントを生成してください。");
+        } else if (m_dummyClient) {
+            m_dummyClient->sendRequest(prompt, {}, "", "クリエイター紹介コメントを生成してください。");
+        }
+    });
+}
+
 // static: helixClientなし・テスト可能なプロンプトビルダー
 QString AIClientManager::buildRaidShoutoutPrompt(
     const QString &login, const QString &displayName,
     const QString &bio, const QString &game,
-    const QString &title, const QString &sns,
+    const QStringList &recentGames, const QString &title,
+    const QString &sns,
     const QString &lengthHint, const QString &tone)
 {
-    QString bios  = bio.trimmed().isEmpty()   ? "情報なし" : bio.trimmed();
-    QString games = game.trimmed().isEmpty()  ? "ゲーム・カテゴリ情報なし" : game.trimmed();
-    QString titles= title.trimmed().isEmpty() ? "配信タイトルなし" : title.trimmed();
-    QString snss  = sns.trimmed().isEmpty()   ? "なし" : sns.trimmed();
+    QString bios      = bio.trimmed().isEmpty()   ? "情報なし" : bio.trimmed();
+    QString games     = game.trimmed().isEmpty()  ? "ゲーム・カテゴリ情報なし" : game.trimmed();
+    QString titles    = title.trimmed().isEmpty() ? "配信タイトルなし" : title.trimmed();
+    QString snss      = sns.trimmed().isEmpty()   ? "なし" : sns.trimmed();
+    QString recentStr = recentGames.isEmpty()     ? "情報なし" : recentGames.join(" / ");
 
     return QString(
         "あなたは配信アバターです。相手クリエイター「%1」さんが、ご自身の配信を終えてリスナーの皆さんを引き連れて私たちの配信へ遊びに来てくれました（レイドしてくれました）。\n"
@@ -3200,18 +3285,20 @@ QString AIClientManager::buildRaidShoutoutPrompt(
         "【クリエイター情報】\n"
         "- Twitch ID / 表示名: %2 / %1\n"
         "- 自己紹介 (Bio): %3\n"
-        "- 直近の配信ゲーム/カテゴリ: %4\n"
-        "- 配信タイトル: %5\n"
-        "- 公式SNS/外部情報: %6\n\n"
+        "- 現在の配信カテゴリ: %4\n"
+        "- 最近プレイしたゲーム履歴: %5\n"
+        "- 配信タイトル: %6\n"
+        "- 公式SNS/外部情報: %7\n\n"
         "【重要・出力条件】\n"
         "- 私たちが相手の配信枠を見に行く（レイドする）のではなく、「相手が私たちの配信枠へレイドして来てくれた」という状況です。逆の立場（今から相手の配信を見に行こう等）と絶対に誤認しないでください。\n"
         "- レイドして来てくれたことへの温かい感謝と歓迎を述べ、相手のチャンネルの魅力紹介やフォロー推奨を行ってください。\n"
-        "- 長さ: %7\n"
-        "- トーン・口調: %8"
+        "- 長さ: %8\n"
+        "- トーン・口調: %9"
     ).arg(displayName.trimmed().isEmpty() ? login : displayName.trimmed())
      .arg(login)
      .arg(bios)
      .arg(games)
+     .arg(recentStr)
      .arg(titles)
      .arg(snss)
      .arg(lengthHint)
@@ -3247,14 +3334,15 @@ void AIClientManager::handleRaidShoutout(const QString &username, const QVariant
 
     m_helixClient->fetchCreatorInfo(login, [this, login, explicitDisplayName](const CreatorHelixInfo &info, bool success) {
         QString displayName = success && !info.displayName.trimmed().isEmpty() ? info.displayName : explicitDisplayName;
-        QString bio = success ? info.description : "";
-        QString game = success ? info.gameName : "";
-        QString title = success ? info.title : "";
-        QString sns = success ? info.snsInfo : "";
+        QString bio         = success ? info.description : "";
+        QString game        = success ? info.gameName : "";
+        QStringList recent  = success ? info.recentGames : QStringList{};
+        QString title       = success ? info.title : "";
+        QString sns         = success ? info.snsInfo : "";
 
         // 紹介文生成用プロンプト構築（迎え入れ側・歓迎の文脈を厳格に指定）
         QString prompt = AIClientManager::buildRaidShoutoutPrompt(
-            login, displayName, bio, game, title, sns,
+            login, displayName, bio, game, recent, title, sns,
             m_shoutoutLength, m_shoutoutTone);
 
         // クライアントで紹介文を生成
