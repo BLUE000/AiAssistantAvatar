@@ -829,6 +829,48 @@ sequenceDiagram
   3. **ローカル完結・プライバシー保護**:
      - 収集されたユーザー発言ログはローカル環境（`Config/observer_logs/` 等）にのみ保存され、外部サーバーへ無断送信されない。古いログの自動ローテーション・容量制限を備えるものとする。
 
+---
+
+## バックログ（未対応・今後実装予定）
+
+> 2026-08-18 調査にて、以下の機能が仕様として定義されていたが実装が欠落・乖離していることが判明。
+> 今後のフェーズで対応予定。
+
+### F-36: クリエイター紹介機能のルーティング分離
+
+- **背景**: `handleRaidShoutout()` がレイド受信・手動紹介の両方で呼ばれているため、
+  「〇〇さんを紹介して」という会話入力（UIソース）でも `m_currentSource = "Twitch"` に
+  強制固定され、AI応答がTwitchコメントとして送信されてしまう。
+- **要件**:
+  - レイド受信時の紹介（`handleRaidShoutout`）: ソースを Twitch に固定する（現行維持）
+  - 会話・手動入力からの紹介（`handleConversationShoutout` として分離）: 呼び出し元のソースを引き継ぐ
+  - それぞれ専用のプロンプトテンプレートを用意する（レイド歓迎文脈と中立紹介文脈）
+
+### F-37: クリエイター紹介時の最近プレイしたゲーム履歴取得
+
+- **背景**: `TwitchHelixClient::fetchCreatorInfo()` は `GET /helix/channels` から
+  「現在の配信カテゴリ（game_name）」を1件取得するのみ。仕様では「最近プレイしたゲーム」
+  を複数件取得して紹介文に含めることが求められていた。
+- **要件**:
+  - `GET /helix/videos?user_id=...&type=archive` または
+    `GET /helix/clips?broadcaster_id=...` を利用し、最近の配信から
+    ゲーム/カテゴリ履歴（最大3〜5件）を取得する
+  - `CreatorHelixInfo` 構造体に `recentGames: QStringList` フィールドを追加する
+  - 取得した複数ゲーム名をプロンプトの「直近の配信ゲーム/カテゴリ」に列挙する
+
+### F-38: クリエイター紹介時のSNS・リンク情報取得の拡充
+
+- **背景**: `extractSnsInfo()` は Bio テキストから Twitter(X) / YouTube URL のみ
+  regex で抽出しており、TikTok / Instagram / その他リンクは対象外。
+  Bio にリンクを記載していないユーザーは空文字になる。
+- **要件**:
+  - `extractSnsInfo()` の正規表現を拡張し、tiktok.com / instagram.com /
+    discord.gg / linktr.ee 等も対象に含める
+  - 将来的には Helix API の Social Links エンドポイント（提供された場合）への対応を検討する
+  - SNS情報が空の場合もプロンプトに「外部リンク情報なし」と明示する（現行維持）
+
+
+
 
 
 
