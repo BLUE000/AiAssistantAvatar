@@ -3182,54 +3182,82 @@ QString AIClientManager::getTaskFlowSchedulesContext() {
     return context;
 }
 
-void AIClientManager::on_twitchRaidReceived(const QString &username) {
-    qDebug() << "AIClientManager: Received Twitch Raid event for user:" << username;
+// static: helixClientなし・テスト可能なプロンプトビルダー
+QString AIClientManager::buildRaidShoutoutPrompt(
+    const QString &login, const QString &displayName,
+    const QString &bio, const QString &game,
+    const QString &title, const QString &sns,
+    const QString &lengthHint, const QString &tone)
+{
+    QString bios  = bio.trimmed().isEmpty()   ? "情報なし" : bio.trimmed();
+    QString games = game.trimmed().isEmpty()  ? "ゲーム・カテゴリ情報なし" : game.trimmed();
+    QString titles= title.trimmed().isEmpty() ? "配信タイトルなし" : title.trimmed();
+    QString snss  = sns.trimmed().isEmpty()   ? "なし" : sns.trimmed();
+
+    return QString(
+        "あなたは配信アバターです。相手クリエイター「%1」さんが、ご自身の配信を終えてリスナーの皆さんを引き連れて私たちの配信へ遊びに来てくれました（レイドしてくれました）。\n"
+        "相手クリエイター「%1」さんと一緒に来てくれたリスナーの皆さんを温かく歓迎し、レイドのお礼を伝えつつ、相手の魅力を私たちの視聴者に紹介するコメントを作成してください。\n\n"
+        "【クリエイター情報】\n"
+        "- Twitch ID / 表示名: %2 / %1\n"
+        "- 自己紹介 (Bio): %3\n"
+        "- 直近の配信ゲーム/カテゴリ: %4\n"
+        "- 配信タイトル: %5\n"
+        "- 公式SNS/外部情報: %6\n\n"
+        "【重要・出力条件】\n"
+        "- 私たちが相手の配信枠を見に行く（レイドする）のではなく、「相手が私たちの配信枠へレイドして来てくれた」という状況です。逆の立場（今から相手の配信を見に行こう等）と絶対に誤認しないでください。\n"
+        "- レイドして来てくれたことへの温かい感謝と歓迎を述べ、相手のチャンネルの魅力紹介やフォロー推奨を行ってください。\n"
+        "- 長さ: %7\n"
+        "- トーン・口調: %8"
+    ).arg(displayName.trimmed().isEmpty() ? login : displayName.trimmed())
+     .arg(login)
+     .arg(bios)
+     .arg(games)
+     .arg(titles)
+     .arg(snss)
+     .arg(lengthHint)
+     .arg(tone);
+}
+
+void AIClientManager::on_twitchRaidReceived(const QString &username, const QVariantMap &meta) {
+    qDebug() << "AIClientManager: Received Twitch Raid event for user:" << username << "meta:" << meta;
     if (m_raidAutoShoutoutEnabled) {
-        handleRaidShoutout(username);
+        handleRaidShoutout(username, meta);
     }
 }
 
-void AIClientManager::handleRaidShoutout(const QString &username) {
+void AIClientManager::handleRaidShoutout(const QString &username, const QVariantMap &meta) {
     if (username.isEmpty()) return;
 
-    qDebug() << "AIClientManager: Handling raid shoutout for" << username;
+    QString login = meta.value("login").toString().trimmed();
+    if (login.isEmpty()) login = username.trimmed();
+
+    QString explicitDisplayName = meta.value("displayName").toString().trimmed();
+    if (explicitDisplayName.isEmpty()) explicitDisplayName = login;
+
+    qDebug() << "AIClientManager: Handling raid shoutout. Login:" << login << "DisplayName:" << explicitDisplayName;
     if (!m_helixClient) return;
 
-    m_helixClient->fetchCreatorInfo(username, [this, username](const CreatorHelixInfo &info, bool success) {
-        QString displayName = success ? info.displayName : username;
+    // レイド受信時の返信先ソースおよびチャンネルを Twitch に確実に固定
+    m_currentSource = "Twitch";
+    if (m_currentTwitchChannel.isEmpty()) {
+        m_currentTwitchChannel = m_twitchChannel;
+    }
+    m_currentRequester = explicitDisplayName;
+    m_isShoutoutRequest = true;
+
+    m_helixClient->fetchCreatorInfo(login, [this, login, explicitDisplayName](const CreatorHelixInfo &info, bool success) {
+        QString displayName = success && !info.displayName.trimmed().isEmpty() ? info.displayName : explicitDisplayName;
         QString bio = success ? info.description : "";
         QString game = success ? info.gameName : "";
         QString title = success ? info.title : "";
         QString sns = success ? info.snsInfo : "";
 
-        // 紹介文生成用プロンプト構築
-        QString prompt = QString(
-            "あなたは配信アバターです。レイドしてくれたクリエイター「%1」さんの魅力を視聴者に紹介するコメントを作成してください。\n"
-            "【クリエイター情報】\n"
-            "- Twitch ID / 表示名: %2 / %1\n"
-            "- 自己紹介 (Bio): %3\n"
-            "- 直近の配信ゲーム/カテゴリ: %4\n"
-            "- 配信タイトル: %5\n"
-            "- 公式SNS/外部情報: %6\n\n"
-            "【出力条件】\n"
-            "- 長さ: %7\n"
-            "- トーン・口調: %8\n"
-            "- 感謝の気持ちを込めつつ、相手の配信を見に行きたくなるような明るい紹介文にしてください。"
-        ).arg(displayName)
-         .arg(username)
-         .arg(bio.isEmpty() ? "情報なし" : bio)
-         .arg(game.isEmpty() ? "ゲーム・カテゴリ情報なし" : game)
-         .arg(title.isEmpty() ? "配信タイトルなし" : title)
-         .arg(sns.isEmpty() ? "なし" : sns)
-         .arg(m_shoutoutLength)
-         .arg(m_shoutoutTone);
+        // 紹介文生成用プロンプト構築（迎え入れ側・歓迎の文脈を厳格に指定）
+        QString prompt = AIClientManager::buildRaidShoutoutPrompt(
+            login, displayName, bio, game, title, sns,
+            m_shoutoutLength, m_shoutoutTone);
 
         // クライアントで紹介文を生成
-        if (m_currentTwitchChannel.isEmpty()) {
-            m_currentTwitchChannel = m_twitchChannel;
-        }
-        m_isShoutoutRequest = true;
-
         if (m_currentClient) {
             m_currentClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
         } else if (m_dummyClient) {
@@ -3237,23 +3265,23 @@ void AIClientManager::handleRaidShoutout(const QString &username) {
         }
 
         // Twitch公式 /shoutout コマンド処理 (自分自身への /shoutout は Twitch 仕様上不可のためスキップ)
-        bool isSelf = (!m_twitchChannel.isEmpty() && username.toLower() == m_twitchChannel.toLower()) ||
-                     (!m_twitchUsername.isEmpty() && username.toLower() == m_twitchUsername.toLower());
+        bool isSelf = (!m_twitchChannel.isEmpty() && (login.toLower() == m_twitchChannel.toLower() || displayName.toLower() == m_twitchChannel.toLower())) ||
+                     (!m_twitchUsername.isEmpty() && (login.toLower() == m_twitchUsername.toLower() || displayName.toLower() == m_twitchUsername.toLower()));
         if (m_shoutoutUseCommand && !isSelf) {
             if (m_shoutoutCooldownTimer && m_shoutoutCooldownTimer->isActive()) {
                 // クールタイム中のため待機キューに追加
                 PendingShoutout ps;
-                ps.username = username;
+                ps.username = login;
                 ps.displayName = displayName;
                 ps.requestTime = QDateTime::currentDateTime();
                 m_shoutoutQueue.append(ps);
-                qDebug() << "AIClientManager: Added shoutout to queue for" << username << "Queue size:" << m_shoutoutQueue.size();
+                qDebug() << "AIClientManager: Added shoutout to queue for" << login << "Queue size:" << m_shoutoutQueue.size();
                 updateShoutoutUiStatus();
             } else {
                 // 即時送信
-                qDebug() << "AIClientManager: Sending immediate Twitch Helix Shoutout for" << username;
-                m_lastShoutoutUser = username;
-                triggerShoutout(username);
+                qDebug() << "AIClientManager: Sending immediate Twitch Helix Shoutout for" << login;
+                m_lastShoutoutUser = login;
+                triggerShoutout(login);
 
                 if (m_shoutoutCooldownTimer) {
                     m_shoutoutCooldownTimer->start(120000);

@@ -211,7 +211,7 @@ public:
     explicit AIClientManager(QObject *parent = nullptr);
     ~AIClientManager();
     void loadSettingsFromJsonObject(const QJsonObject &obj);
-    void handleRaidShoutout(const QString &username);
+    void handleRaidShoutout(const QString &username, const QVariantMap &meta = {});
     void setAIProvider(const QString &provider, bool forceRefresh = false);
 
     // 履歴データ取得/設定用のI/F
@@ -237,10 +237,17 @@ public:
     // 暗号化バックアップの復号・読み出し用I/F
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
 
-    // --- F-33: テストから呢び出し可能なヘルパー ---
+    // --- F-33: テストから呼び出し可能なヘルパー ---
     void buildFallbackProviderList(); // loadCredentials() 後に呼んでリストを構築する
     QString buildHumanReadableError(int httpCode, const QString &providerId,
                                     const QJsonObject &errorJson) const;
+
+    // レイド歓迎プロンプトの構築（helixClient不要・テスト可能な純粋関数）
+    static QString buildRaidShoutoutPrompt(
+        const QString &login, const QString &displayName,
+        const QString &bio, const QString &game,
+        const QString &title, const QString &sns,
+        const QString &lengthHint = "2〜3文", const QString &tone = "明るく親しみやすい");
 
 signals:
     void notifyEvent(const AppEvent &event);
@@ -257,7 +264,7 @@ public slots:
     void on_requestAI(const QString &prompt, const QString &user = "", const QString &source = "UI");
     static QString formatSpeakerTaggedPrompt(const QString &prompt, const QString &speaker, const QString &target = "", const QString &categoryStr = "");
 
-    void on_twitchRaidReceived(const QString &username);
+    void on_twitchRaidReceived(const QString &username, const QVariantMap &meta = {});
     void on_shoutoutSuccessReceived(const QString &username);
     void on_clientRequestFinished(const QString &responseText, bool success, int httpCode);
     void resetSession(bool isManual); // セッションリセット機能

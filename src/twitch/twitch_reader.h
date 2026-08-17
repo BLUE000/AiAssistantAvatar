@@ -67,6 +67,8 @@ public slots:
     
     // テスト用の擬似コメント注入用スロット
     void injectTestComment(const QString &user, const QString &message);
+    // テスト用のレイドイベント注入スロット
+    void injectTestRaid(const QString &login, const QString &displayName, int viewerCount = 0);
 
     // Twitchチャットへのメッセージ送信スロット
     void on_requestTwitchSend(const QString &channel, const QString &text);

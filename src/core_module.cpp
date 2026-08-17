@@ -80,8 +80,8 @@ void CoreModule::on_notify_events(const AppEvent &event) {
             break;
         }
         case EventType::TwitchRaidReceived: {
-            qDebug() << "CoreModule: Routing TwitchRaidReceived to AIClientManager. Raider:" << event.text;
-            emit requestTwitchRaid(event.text);
+            qDebug() << "CoreModule: Routing TwitchRaidReceived to AIClientManager. Raider:" << event.text << "Extra:" << event.extraData;
+            emit requestTwitchRaid(event.text, event.extraData);
             emit notifyEventToUI(event);
             break;
         }

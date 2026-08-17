@@ -328,20 +328,27 @@ void TwitchReader::onTextMessageReceived(const QString &message) {
 
         // USERNOTICE (raid) イベントパース
         if (line.contains("USERNOTICE") && line.contains("msg-id=raid")) {
-            QString raiderUser;
+            QString raiderLogin;
+            QString raiderDisplayName;
             int viewerCount = 0;
 
-            // msg-param-displayName または msg-param-login の抽出
+            QRegularExpression loginRegex("msg-param-login=([^; ]+)");
+            QRegularExpressionMatch loginMatch = loginRegex.match(line);
+            if (loginMatch.hasMatch()) {
+                raiderLogin = loginMatch.captured(1);
+            }
+
             QRegularExpression nameRegex("msg-param-displayName=([^; ]+)");
             QRegularExpressionMatch nameMatch = nameRegex.match(line);
             if (nameMatch.hasMatch()) {
-                raiderUser = nameMatch.captured(1);
-            } else {
-                QRegularExpression loginRegex("msg-param-login=([^; ]+)");
-                QRegularExpressionMatch loginMatch = loginRegex.match(line);
-                if (loginMatch.hasMatch()) {
-                    raiderUser = loginMatch.captured(1);
-                }
+                raiderDisplayName = nameMatch.captured(1);
+            }
+
+            if (raiderLogin.isEmpty() && !raiderDisplayName.isEmpty()) {
+                raiderLogin = raiderDisplayName;
+            }
+            if (raiderDisplayName.isEmpty() && !raiderLogin.isEmpty()) {
+                raiderDisplayName = raiderLogin;
             }
 
             QRegularExpression countRegex("msg-param-viewerCount=([0-9]+)");
@@ -350,13 +357,16 @@ void TwitchReader::onTextMessageReceived(const QString &message) {
                 viewerCount = countMatch.captured(1).toInt();
             }
 
-            if (!raiderUser.isEmpty()) {
-                qDebug() << "TwitchReader: Raid detected from user:" << raiderUser << "viewers:" << viewerCount;
+            if (!raiderLogin.isEmpty() || !raiderDisplayName.isEmpty()) {
+                qDebug() << "TwitchReader: Raid detected. Login:" << raiderLogin << "DisplayName:" << raiderDisplayName << "Viewers:" << viewerCount;
                 AppEvent raidEv;
                 raidEv.type = EventType::TwitchRaidReceived;
                 raidEv.source = "TwitchReader";
-                raidEv.text = raiderUser;
+                raidEv.text = raiderLogin; // 主キーは英数字 login
+                raidEv.extraData["login"] = raiderLogin;
+                raidEv.extraData["displayName"] = raiderDisplayName;
                 raidEv.extraData["viewerCount"] = viewerCount;
+                raidEv.extraData["channel"] = m_channel;
                 emit notifyEvent(raidEv);
             }
             continue;
@@ -479,6 +489,26 @@ void TwitchReader::checkWatchdog() {
         // 固まった古いソケットを全自動で破棄・自動再接続
         connectToTwitch();
     }
+}
+
+void TwitchReader::injectTestRaid(const QString &login, const QString &displayName, int viewerCount) {
+    QString resolvedLogin = login.trimmed();
+    QString resolvedName = displayName.trimmed();
+    if (resolvedLogin.isEmpty()) resolvedLogin = resolvedName;
+    if (resolvedName.isEmpty()) resolvedName = resolvedLogin;
+    if (resolvedLogin.isEmpty()) return;
+
+    qDebug() << "TwitchReader: Injected raid from" << resolvedLogin << "(" << resolvedName << ") viewers:" << viewerCount;
+
+    AppEvent raidEv;
+    raidEv.type = EventType::TwitchRaidReceived;
+    raidEv.source = "TwitchReader";
+    raidEv.text = resolvedLogin;
+    raidEv.extraData["login"] = resolvedLogin;
+    raidEv.extraData["displayName"] = resolvedName;
+    raidEv.extraData["viewerCount"] = viewerCount;
+    raidEv.extraData["channel"] = m_channel;
+    emit notifyEvent(raidEv);
 }
 
 void TwitchReader::injectTestComment(const QString &user, const QString &message) {

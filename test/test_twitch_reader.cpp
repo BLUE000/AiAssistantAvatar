@@ -103,4 +103,26 @@ TEST(TwitchReaderTest, WatchdogSilentDisconnectDetection) {
     SUCCEED();
 }
 
+// UT-RAID-LOGIN-PARSE-01: injectTestRaidで login と displayName が分離抽出されること
+TEST(TwitchReaderTest, RaidUserNoticeSeparatesLoginAndDisplayName) {
+    TwitchReader reader;
+    reader.setSettings("mifuchannel", "dummy_token", "dummy_client_id", "アバターさん");
+
+    QSignalSpy spy(&reader, &TwitchReader::notifyEvent);
+
+    // injectTestRaid を使い、レイドイベントを注入
+    reader.injectTestRaid("ferrely_leo", "フェレリーレオ", 5);
+
+    ASSERT_EQ(spy.count(), 1);
+    AppEvent event = spy.takeFirst().at(0).value<AppEvent>();
+    EXPECT_EQ(event.type, EventType::TwitchRaidReceived);
+    EXPECT_EQ(event.source, "TwitchReader");
+    EXPECT_EQ(event.text, "ferrely_leo");
+    EXPECT_EQ(event.extraData.value("login").toString(), "ferrely_leo");
+    EXPECT_EQ(event.extraData.value("displayName").toString(), "フェレリーレオ");
+    EXPECT_EQ(event.extraData.value("viewerCount").toInt(), 5);
+}
+
+
+
 

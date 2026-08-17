@@ -3200,6 +3200,48 @@ TEST(STTFeatureTest, VerifyVoiceTriggerSettingsAutoInjection) {
     }
 }
 
+// UT-RAID-ROUTING-01: Twitch ソース経由の AI 応答が Twitch チャンネル宛てにルーティングされること
+// (handleRaidShoutout は helixClient が null のためテスト不可なので、
+//  同一ルーティング機構を担う on_requestAI(source="Twitch") で検証する)
+TEST_F(AIClientTest, RaidResponseRoutesToTwitchChannel) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_channel";
+    manager.loadSettingsFromJsonObject(settings);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // Twitch ソースでリクエスト → 応答が Twitch チャンネルへルーティングされること
+    manager.on_requestAI("レイドありがとう！", "[Twitch:my_channel] ferrely_leo", "Twitch");
+    manager.on_clientRequestFinished("フェレリーレオさん、レイドありがとうございます！", true, 200);
+
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent resEvent = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(resEvent.type, EventType::AIResponseReceived);
+    EXPECT_EQ(resEvent.source, "Twitch");
+    EXPECT_TRUE(resEvent.extraData.contains("twitch_channel"));
+    EXPECT_EQ(resEvent.extraData.value("twitch_channel").toString(), "my_channel");
+}
+
+// UT-RAID-PROMPT-01: レイド歓迎プロンプトの文脈指示検証
+// (buildRaidShoutoutPrompt は純粋 static 関数なので helixClient 不要で直接テスト可能)
+TEST_F(AIClientTest, RaidPromptContainsWelcomeAndNoReverseRoleInstructions) {
+    QString prompt = AIClientManager::buildRaidShoutoutPrompt(
+        "ryu_no123", "リューノ",
+        "", "アクション", "夜の配信", "");
+
+    EXPECT_TRUE(prompt.contains("遊びに来てくれました（レイドしてくれました）"));
+    EXPECT_TRUE(prompt.contains("リスナーの皆さんを温かく歓迎"));
+    EXPECT_TRUE(prompt.contains("逆の立場（今から相手の配信を見に行こう等）と絶対に誤認しないでください"));
+    // 逆転誤認につながるキーワードが含まれないこと
+    EXPECT_FALSE(prompt.contains("見に行きたくなるような"));
+}
+
+
+
+
 
 
 
