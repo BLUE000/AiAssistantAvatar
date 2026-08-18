@@ -500,6 +500,110 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-RAID-PROMPT-01** | `AIClientManager::handleRaidShoutout` | レイド紹介文生成プロンプトを構築する。 | 「相手が当配信へレイドして来てくれた」「リスナーの皆さんを歓迎」「相手の配信を見に行くような逆転誤認表現の禁止」の文脈指示が含まれていること。 |
 | **UT-RAID-LOGIN-PARSE-01** | `TwitchReader::onTextMessageReceived` | `USERNOTICE` で `msg-param-login=ferrely_leo;msg-param-displayName=フェレリーレオ` を受信する。 | `login` と `displayName` が分離抽出され、Helix API 用に英数字ログイン名が渡されること。 |
 
+---
+
+## 4. Regression / Behavior Integrity テスト観点
+
+本セクションは、過去に発生した不具合や仕様乖離の再発防止、および機能間の振る舞い整合性を継続的に保証するための試験観点を定義する。
+新たな不具合修正・機能追加のたびに、関連する観点を本セクションへ追記すること。
+
+### 4.1 シャウトアウト・クリエイター紹介ルーティング整合性
+
+> **背景**: F-36 対応（2026-08-18）。`handleRaidShoutout` がレイド・会話の両方から呼ばれ、
+> 会話トリガー時もソースが Twitch 固定になる問題を修正。再発防止のため以下を継続検証する。
+
+| 試験ID | 観点 | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-REG-SHOUTOUT-01** | 会話紹介がソースを引き継ぐこと | UIソースから `on_requestAI("ferrely_leoさんを紹介して", "", "UI")` を実行する。 | AI応答イベントの `source` が `"UI"` であり `"Twitch"` に固定されないこと。 |
+| **UT-REG-SHOUTOUT-02** | レイド紹介がTwitchに固定されること | `handleRaidShoutout("ferrely_leo", {login: "ferrely_leo"})` を実行する。 | AI応答イベントの `source` が `"Twitch"` に固定されること。 |
+| **UT-REG-SHOUTOUT-03** | 会話紹介プロンプトがレイド文脈を含まないこと | `buildConversationShoutoutPrompt()` を任意のクリエイター情報で呼び出す。 | プロンプトに「レイドして来てくれた」「リスナーの皆さんを引き連れて」等のレイド固有文脈が含まれないこと。 |
+| **UT-REG-SHOUTOUT-04** | レイド紹介プロンプトが逆転誤認防止を含むこと | `buildRaidShoutoutPrompt()` を任意のクリエイター情報で呼び出す。 | プロンプトに「逆の立場と絶対に誤認しないでください」の禁止指示が含まれること。 |
+| **UT-REG-SHOUTOUT-05** | `/shoutout` コマンドが会話ルートを使うこと | UIから `/shoutout username` を送信する。 | `handleConversationShoutout` が呼ばれ、`handleRaidShoutout` は呼ばれないこと。 |
+
+---
+
+### 4.1.1 入力ソース → 応答出力先 ルーティング整合性
+
+> 入力ソースごとに、AI 応答が正しい出力先へルーティングされることを保証する。
+> 仕様として、応答は常に **UI（アバター画面）に表示** され、
+> かつ入力元が Twitch / Discord の場合は **それぞれのチャットへも中継** される。
+
+**ルーティング仕様早見表**
+
+| 入力元 (source) | `event.source` | `extraData["twitch_channel"]` | `extraData["channel_id"]` | 出力先 |
+|---|---|---|---|---|
+| Twitch | `"Twitch"` | ✅ セット | — | UI 表示 ＋ Twitch チャット送信 |
+| Discord | `"Discord"` | — | ✅ セット | UI 表示 ＋ Discord チャンネル送信 |
+| UI | `"UI"` | — | — | UI 表示のみ |
+
+**試験項目**
+
+| 試験ID | 観点 | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-REG-ROUTING-01** | Twitch 入力 → UI ＆ Twitch 出力 | `on_requestAI("こんにちは", "[Twitch:my_channel]viewer", "")` を実行し AI 応答を受け取る。 | `event.source == "Twitch"` かつ `extraData["twitch_channel"] == "my_channel"` が設定されること。`channel_id` は設定されないこと。 |
+| **UT-REG-ROUTING-02** | Discord 入力 → UI ＆ Discord 出力 | `on_requestAI("こんにちは", "[Discord:123456789]User#0001", "")` を実行し AI 応答を受け取る。 | `event.source == "Discord"` かつ `extraData["channel_id"] == "123456789"` が設定されること。`twitch_channel` は設定されないこと。 |
+| **UT-REG-ROUTING-03** | UI 入力 → UI のみ出力 | `on_requestAI("こんにちは", "", "UI")` を実行し AI 応答を受け取る。 | `event.source == "UI"` かつ `extraData` に `"twitch_channel"` も `"channel_id"` も含まれないこと。 |
+| **UT-REG-ROUTING-04** | ソース切り替え後の汚染がないこと | Twitch リクエスト後、続けて UI リクエストを実行して AI 応答を受け取る。 | 2件目の `event.source` が `"UI"` であり、`extraData["twitch_channel"]` が前回の値のまま残留しないこと。 |
+
+
+### 4.2 Helix API クリエイター情報取得整合性
+
+> **背景**: F-37 対応（2026-08-18）。`fetchCreatorInfo` が `/helix/users` → `/helix/channels` → `/helix/videos` の
+> 3段階連鎖非同期で実行されるようになった。チェーンが途中で切れると情報が欠落するリスクがある。
+
+| 試験ID | 観点 | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-REG-HELIX-01** | `recentGames` がプロンプトに反映されること | `buildRaidShoutoutPrompt()` に `recentGames = {"RPG", "アクション"}` を渡す。 | 生成プロンプトに「RPG」「アクション」の両文字列が含まれること。 |
+| **UT-REG-HELIX-02** | `recentGames` が空の場合のフォールバック | `buildRaidShoutoutPrompt()` に `recentGames = {}` を渡す。 | 「情報なし」と表示され、クラッシュや空欄がないこと。 |
+| **UT-REG-HELIX-03** | 会話紹介プロンプトにも `recentGames` が反映されること | `buildConversationShoutoutPrompt()` に `recentGames = {"格闘ゲーム"}` を渡す。 | 生成プロンプトに「格闘ゲーム」が含まれること。 |
+
+---
+
+### 4.3 SNS・リンク情報抽出整合性
+
+> **背景**: F-38 対応（2026-08-18）。`extractSnsInfo()` の正規表現を拡張。
+> 対象: Twitter(X) / YouTube / TikTok / Instagram / discord.gg / linktr.ee。
+
+| 試験ID | 観点 | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-REG-SNS-01** | Twitter / YouTube は引き続き抽出されること | Bio に `https://twitter.com/user` と `https://youtube.com/user` を含む文字列を渡す。 | 両 URL が抽出されること。 |
+| **UT-REG-SNS-02** | TikTok / Instagram が新たに抽出されること | Bio に `https://tiktok.com/@user` と `https://instagram.com/user` を含む文字列を渡す。 | 両 URL が抽出されること。 |
+| **UT-REG-SNS-03** | discord.gg / linktr.ee が抽出されること | Bio に `https://discord.gg/server` と `https://linktr.ee/user` を含む文字列を渡す。 | 両 URL が抽出されること。 |
+| **UT-REG-SNS-04** | 無関係 URL が誤抽出されないこと | Bio に `https://example.com/user` を含む文字列を渡す。 | `extractSnsInfo()` の結果が空文字であること。 |
+| **UT-REG-SNS-05** | Bio が空の場合のフォールバック | Bio に空文字を渡す。 | `extractSnsInfo()` が空文字を返しクラッシュしないこと。 |
+
+---
+
+### 4.4 日付依存マクロの決定論的整合性
+
+> **背景**: `SearchManagerTest.DailyMacroAndKnowledgeFoldersTest` にて、固定シード日付と
+> `parseAndEvaluate` の `{Date}` 展開（実行日）が乖離し、日付をまたぐとテストが失敗する
+> 既存バグを修正（2026-08-18）。再発防止のため以下を継続検証する。
+
+| 試験ID | 観点 | 試験条件 | 期待される結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-REG-DAILY-01** | 同一シードで同一結果が返ること | `selectDailyColumn()` を同一シード `"2026-08-15_Alice"` で2回呼ぶ。 | 両結果が完全に一致すること。 |
+| **UT-REG-DAILY-02** | マクロ評価の期待値を実行日シードで算出すること | `DailyTableSelect` マクロを `parseAndEvaluate()` で評価する際、期待値を今日の日付シードで事前算出して比較する。 | `DailyTableSelect` が展開され、今日のシードによる行選択結果と一致すること。 |
+| **UT-REG-DAILY-03** | 異なるシードで異なる（または同一の）結果が許容されること | 異なるユーザー名シード `"Alice"` / `"Bob"` で `getDailyRandom()` を実行する。 | どちらも `[1, 100]` の範囲内に収まること（値の一致は問わない）。 |
+
+---
+
+### 4.5 汎用リグレッション観点チェックリスト
+
+新機能追加・バグ修正の際に、以下の観点を必ずレビューすること。
+
+| # | 観点 | 確認内容 |
+|---|---|---|
+| 1 | **ソースルーティング不変性** | AI応答の `source` が呼び出し元に正しく対応しているか。Twitch / Discord / UI の混在がないか。 |
+| 2 | **プロンプト文脈分離** | レイド・会話・コマンドそれぞれで異なる意図のプロンプトが混在していないか。 |
+| 3 | **非同期チェーン完結** | 非同期 API 呼び出し（Helix, AI API 等）の全チェーンが完結し、途中失敗時にフォールバックがあるか。 |
+| 4 | **日付・時刻依存テスト** | テストが特定の日付に依存していないか。固定シードと実行日シードを使い分けているか。 |
+| 5 | **空値・null ガード** | QString / QStringList の `.isEmpty()` チェック、空コールバック、空メタデータを安全に処理しているか。 |
+| 6 | **自己シャウトアウト禁止** | Twitch 仕様上、自分自身への `/shoutout` が誤って送信されないか。 |
+| 7 | **クールタイム・キュー整合性** | シャウトアウトのクールタイム中に追加リクエストが来た場合にキューが正しく機能するか。 |
+
+
+
 
 
 
