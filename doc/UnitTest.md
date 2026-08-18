@@ -2,7 +2,11 @@
 
 ## 1. 概要
 本仕様書は、詳細設計書（`DetailedDesign.md`）で定義された各クラスのメソッドの単体機能、およびスレッドをまたぐ直前のロジックを検証するための自動試験項目を定義する。
-本試験は、Google Test (GTest) または Qt Test (QTest) を用いて自動実行する。画面操作を伴うGUIそのものの検証は手動とし、GUIのアクションスロットから呼び出されるビジネスロジックの開始点から、外部送信の直前までを自動テストのスコープとする。
+本試験は、Google Test (GTest) または Qt Test (QTest) を用いて自動実行（`python run_full_tests.py`）する。画面操作を伴うGUIそのものの検証は手動とし、GUIのアクションスロットから呼び出されるビジネスロジックの開始点から、外部送信の直前までを自動テストのスコープとする。
+
+### 1.1 全件リグレッションテスト実施原則
+- **網羅的回帰検証の義務付け**: 修正や機能追加の対象外である既存モジュールであっても、過去に合格したすべての単体試験スイート（全29スイート・148項目以上）を毎回全件自動実行し、テスト成功率 100.0%（0件失敗）であることを確認しなければならない。
+- **サイドエフェクト検知**: 検索エンジンのコンソールアプリ化等による修正が、他のAIプロバイダ、レートリミット監視、ナレッジエンジン、音声・翻訳処理等に影響を与えていないことを保証する。
 
 ---
 
@@ -150,13 +154,14 @@ classDiagram
 
 ---
 
-### 3.6 Web検索モジュールおよび Function Calling の単体試験
+### 3.6 Web検索モジュール (`WebSearcher.exe` / `SearchManager`) の単体試験
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-SEARCH-01** | `DuckDuckGoSearchProvider` | DuckDuckGo HTML版のダミー結果HTMLを入力とする。 | HTMLタグやエンティティ（`&amp;`等）が正しくデコードされ、上位3〜5件のタイトルとスニペットが整形テキストとしてパースされること。 |
-| **UT-SEARCH-02** | `SearchManager` (フォールバック) | Tavily検索実行時に接続エラーまたはHTTPエラーをモックする。 | 自動的かつサイレントに `DuckDuckGoSearchProvider` が起動し、DDGの検索結果が得られること。 |
-| **UT-SEARCH-03** | `MistralAIClient` (Function Calling) | API応答JSONとして `tool_calls` (web_search) を含むレスポンスを入力する。 | `web_search` ツール呼び出しを検出し、引数 `query` を抽出して `SearchManager::executeSearch` を呼び出すこと。 |
+| **UT-SEARCH-01** | `DuckDuckGoSearchEngine` | DuckDuckGo HTML版のダミー結果HTMLを入力とする。 | HTMLタグやエンティティ（`&amp;`等）が正しくデコードされ、上位のタイトルとスニペットからノイズが除去された整形テキストとしてパースされること。 |
+| **UT-SEARCH-02** | `SearchManager` (フォールバック) | Tavily検索実行時に接続エラー、HTTP 401/429/500、またはタイムアウトを発生させる。 | 自動的かつサイレントに `DuckDuckGoSearchEngine` が起動し、DDGの検索結果が得られること。 |
+| **UT-SEARCH-03** | `SearchManager` (全系失敗) | Tavily および DuckDuckGo の双方でエラー・通信失敗を発生させる。 | 「Web検索不可: 検索結果を取得できませんでした。」が返却され、終了コード 1 で終了すること。 |
+| **UT-SEARCH-04** | `SearchClientWrapper` (CLI連携) | メインアプリから `WebSearcher.exe` を `QProcess` でサブプロセス起動する。 | 標準出力からクレンジング済み検索テキストが正常に取得され、タイムアウト時にも安全にプロセスが終了すること。 |
 
 ---
 
