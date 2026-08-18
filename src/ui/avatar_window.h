@@ -103,8 +103,8 @@ class QNetworkAccessManager;
 class QNetworkReply;
 
 struct ProviderConfigSpec {
-    QString id;                 // "mistral", "cerebras", "groq", "huggingface", "openrouter", "sakura"
-    QString displayName;        // "Mistral AI", "Cerebras AI", "Groq AI" 等
+    QString id;                 // "mistral", "groq", "huggingface", "openrouter", "sakura"
+    QString displayName;        // "Mistral AI", "Groq AI" 等
     QString keyPlaceholder;     // APIキー入力欄プレースホルダー
     bool hasModelCombo = false;
     QStringList defaultModels;
@@ -162,14 +162,11 @@ private:
 
 
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
-    QCheckBox *m_aiProviderCerebrasCheckbox = nullptr;
     QCheckBox *m_aiProviderGroqCheckbox = nullptr; // Groq
     QCheckBox *m_aiProviderHuggingFaceCheckbox = nullptr; // HuggingFace
     QCheckBox *m_aiProviderOpenRouterCheckbox = nullptr; // OpenRouter
     QCheckBox *m_aiProviderSakuraCheckbox = nullptr; // さくらAI
     QLineEdit *m_aiApiKeyEdit = nullptr;
-    QLineEdit *m_aiCerebrasApiKeyEdit = nullptr;
-    QComboBox *m_aiCerebrasModelCombo = nullptr;
     QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
     QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
     QLineEdit *m_aiHuggingFaceApiKeyEdit = nullptr;

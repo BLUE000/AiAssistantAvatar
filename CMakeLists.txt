@@ -55,7 +55,6 @@ set(SOURCES
     src/ai/twitch_helix_client.cpp
     src/ai/iai_client.cpp
     src/ai/mistral_ai_client.cpp
-    src/ai/cerebras_ai_client.cpp
     src/ai/groq_ai_client.cpp
     src/ai/huggingface_ai_client.cpp
     src/ai/openrouter_ai_client.cpp

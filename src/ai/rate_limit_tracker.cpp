@@ -237,7 +237,6 @@ QString RateLimitTracker::formatWaitMessage(const ResetInfo &info) const {
 
     QString providerDisplay = info.clientId;
     if (providerDisplay == "groq")     providerDisplay = "Groq";
-    else if (providerDisplay == "cerebras") providerDisplay = "Cerebras";
     else if (providerDisplay == "mistral")  providerDisplay = "Mistral";
 
     return QString("現在すべてのAIクライアントがレート制限に達しています。"

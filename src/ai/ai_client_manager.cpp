@@ -6,7 +6,6 @@
 
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
-#include "cerebras_ai_client.h"
 #include "groq_ai_client.h"
 #include "huggingface_ai_client.h"
 #include "openrouter_ai_client.h"
@@ -62,7 +61,6 @@ AIClientManager::AIClientManager(QObject *parent)
 
     // AI クライアントの全インスタンス化
     m_mistralClient = new MistralAIClient(this);
-    m_cerebrasClient = new CerebrasAIClient(this);
     m_groqClient = new GroqAIClient(this);
     m_huggingfaceClient = new HuggingFaceAIClient(this);
     m_openrouterClient = new OpenRouterAIClient(this);
@@ -70,7 +68,6 @@ AIClientManager::AIClientManager(QObject *parent)
     m_dummyClient = new DummyAIClient(this);
 
     m_clientMap["mistral"] = m_mistralClient;
-    m_clientMap["cerebras"] = m_cerebrasClient;
     m_clientMap["groq"] = m_groqClient;
     m_clientMap["huggingface"] = m_huggingfaceClient;
     m_clientMap["openrouter"] = m_openrouterClient;
@@ -79,7 +76,6 @@ AIClientManager::AIClientManager(QObject *parent)
 
     // トラッカーへの初期登録
     m_tracker.registerClient(m_mistralClient->defaultStatus());
-    m_tracker.registerClient(m_cerebrasClient->defaultStatus());
     m_tracker.registerClient(m_groqClient->defaultStatus());
     m_tracker.registerClient(m_huggingfaceClient->defaultStatus());
     m_tracker.registerClient(m_openrouterClient->defaultStatus());
@@ -150,7 +146,6 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
 
     // APIキーとモデル設定の読み込み
     QString mistralKey = obj["mistral_api_key"].toString();
-    QString cerebrasKey = obj["cerebras_api_key"].toString();
     QString groqKey = obj["groq_api_key"].toString();
     m_tavilyApiKey = obj["tavily_api_key"].toString();
     m_taskFlowEnabled = obj.value("taskflow_enabled").toBool(true);
@@ -163,7 +158,6 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
         return raw;
     };
     m_groqModel        = normalizeModel(obj["groq_model"].toString());
-    m_cerebrasModel    = normalizeModel(obj["cerebras_model"].toString());
     m_mistralModel     = normalizeModel(obj["mistral_model"].toString());
     m_huggingfaceModel = normalizeModel(obj["huggingface_model"].toString().trimmed());
     m_openrouterModel  = normalizeModel(obj["openrouter_model"].toString().trimmed());
@@ -205,7 +199,6 @@ void AIClientManager::loadCredentials() {
             loadSettingsFromJsonObject(obj);
 
             QString mistralKey = obj["mistral_api_key"].toString();
-            QString cerebrasKey = obj["cerebras_api_key"].toString();
             QString groqKey = obj["groq_api_key"].toString();
             QString hfKey = obj["huggingface_api_key"].toString();
             QString openrouterKey = obj["openrouter_api_key"].toString();
@@ -230,15 +223,6 @@ void AIClientManager::loadCredentials() {
             {
                 ProviderStatus s = m_tracker.statusOf("mistral");
                 s.available = !mistralKey.trimmed().isEmpty();
-                m_tracker.registerClient(s);
-            }
-
-            m_cerebrasClient->setApiKey(cerebrasKey);
-            m_cerebrasClient->setModel(m_cerebrasModel);
-            m_cerebrasClient->setTavilyApiKey(m_tavilyApiKey);
-            {
-                ProviderStatus s = m_tracker.statusOf("cerebras");
-                s.available = !cerebrasKey.trimmed().isEmpty();
                 m_tracker.registerClient(s);
             }
 
@@ -535,7 +519,7 @@ QStringList AIClientManager::workerPriorityOrder() const {
     if (!m_provider.isEmpty()) {
         order.append(m_provider);
     }
-    QStringList defaultPriority = { "groq", "cerebras", "mistral", "huggingface", "openrouter", "sakura", "dummy" };
+    QStringList defaultPriority = { "groq", "mistral", "huggingface", "openrouter", "sakura", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
             order.append(p);
@@ -549,7 +533,7 @@ QStringList AIClientManager::managerPriorityOrder() const {
     if (!m_managerProvider.isEmpty()) {
         order.append(m_managerProvider);
     }
-    QStringList defaultPriority = { "groq", "cerebras", "mistral", "dummy" };
+    QStringList defaultPriority = { "groq", "mistral", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
             order.append(p);
@@ -1257,7 +1241,7 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
 
     // レートリミット監視機能のナレッジをシステムプロンプトに常時注入（誤回答防止）
     QString rateLimitCapabilityKnowledge =
-        "[システム機能知識: 本アプリには各AIプロバイダ（Groq, Mistral, Cerebras, さくらAI, Hugging Face, OpenRouter）の"
+        "[システム機能知識: 本アプリには各AIプロバイダ（Groq, Mistral, さくらAI, Hugging Face, OpenRouter）の"
         "レートリミット（1分間/1日の利用枠・残量・解除カウントダウン）をリアルタイムに確認・更新表示する『レートリミット』タブ機能が実装されています。"
         "ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。]";
 
@@ -2872,9 +2856,9 @@ void AIClientManager::processPendingRequests() {
 
 void AIClientManager::buildFallbackProviderList() {
     // API キー設定済みプロバイダを優先順に並べ、現在選択中のプロバイダを除外する
-    // 優先順序: groq → cerebras → mistral → huggingface → openrouter → sakura
+    // 優先順序: groq → mistral → huggingface → openrouter → sakura
     static const QStringList priorityOrder = {
-        "groq", "cerebras", "mistral", "huggingface", "openrouter", "sakura"
+        "groq", "mistral", "huggingface", "openrouter", "sakura"
     };
     m_fallbackProviders.clear();
 
@@ -2979,7 +2963,7 @@ bool AIClientManager::selectAndPrepareClient(const QString &prompt) {
     // 1. 全 API キーが未設定かどうかの検証
     bool hasAnyApiKey = false;
     QStringList unconfiguredProviders;
-    QStringList allKnownProviders = {"mistral", "cerebras", "groq", "huggingface", "openrouter", "sakura"};
+    QStringList allKnownProviders = {"mistral", "groq", "huggingface", "openrouter", "sakura"};
     for (const QString &p : allKnownProviders) {
         if (m_clientMap.contains(p)) {
             QString key = m_clientMap[p]->apiKey();

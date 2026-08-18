@@ -114,7 +114,6 @@ QString SystemResponseManager::processPrompt(const QString &prompt, const QStrin
                 else if (currentProvider == "sakura") friendlyName = "さくらAI";
                 else if (currentProvider == "mistral") friendlyName = "Mistral AI";
                 else if (currentProvider == "groq") friendlyName = "Groq";
-                else if (currentProvider == "cerebras") friendlyName = "Cerebras";
                 else if (currentProvider == "dummy") friendlyName = "ダミーAIクライアント";
                 else if (!friendlyName.isEmpty()) {
                     friendlyName[0] = friendlyName[0].toUpper(); // 先頭大文字化

@@ -1221,7 +1221,6 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     // プロバイダ構成仕様リストの定義 (拡張がデータ定義1行で完結)
     m_providerSpecs = {
         { "mistral", "Mistral AI", "Mistral API キーを入力...", false, {}, false },
-        { "cerebras", "Cerebras AI", "Cerebras API キーを入力...", true, { "自動選択 (推奨)", "llama3.1-8b", "llama3.3-70b", "gemma-4-31b" }, false },
         { "groq", "Groq AI", "Groq API キーを入力...", true, { "自動選択 (推奨)", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it" }, false },
         { "huggingface", "HuggingFace", "HuggingFace API キー (hf_...) を入力...", true, { "自動選択 (推奨)", "meta-llama/Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3" }, true },
         { "openrouter", "OpenRouter", "OpenRouter API キー (sk-or-v1-...) を入力...", true, { "自動選択 (推奨)", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "inclusionai/ling-3.0-flash:free", "qwen/qwen-2.5-72b-instruct" }, true },
@@ -1271,21 +1270,18 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     // 後方互換メンバポインタ紐付け
     m_aiProviderMistralCheckbox = m_providerSpecs[0].checkbox;
     m_aiApiKeyEdit = m_providerSpecs[0].keyEdit;
-    m_aiProviderCerebrasCheckbox = m_providerSpecs[1].checkbox;
-    m_aiCerebrasApiKeyEdit = m_providerSpecs[1].keyEdit;
-    m_aiCerebrasModelCombo = m_providerSpecs[1].modelCombo;
-    m_aiProviderGroqCheckbox = m_providerSpecs[2].checkbox;
-    m_aiGroqApiKeyEdit = m_providerSpecs[2].keyEdit;
-    m_aiGroqModelCombo = m_providerSpecs[2].modelCombo;
-    m_aiProviderHuggingFaceCheckbox = m_providerSpecs[3].checkbox;
-    m_aiHuggingFaceApiKeyEdit = m_providerSpecs[3].keyEdit;
-    m_aiHuggingFaceModelCombo = m_providerSpecs[3].modelCombo;
-    m_aiProviderOpenRouterCheckbox = m_providerSpecs[4].checkbox;
-    m_aiOpenRouterApiKeyEdit = m_providerSpecs[4].keyEdit;
-    m_aiOpenRouterModelCombo = m_providerSpecs[4].modelCombo;
-    m_aiProviderSakuraCheckbox = m_providerSpecs[5].checkbox;
-    m_aiSakuraApiKeyEdit = m_providerSpecs[5].keyEdit;
-    m_aiSakuraModelCombo = m_providerSpecs[5].modelCombo;
+    m_aiProviderGroqCheckbox = m_providerSpecs[1].checkbox;
+    m_aiGroqApiKeyEdit = m_providerSpecs[1].keyEdit;
+    m_aiGroqModelCombo = m_providerSpecs[1].modelCombo;
+    m_aiProviderHuggingFaceCheckbox = m_providerSpecs[2].checkbox;
+    m_aiHuggingFaceApiKeyEdit = m_providerSpecs[2].keyEdit;
+    m_aiHuggingFaceModelCombo = m_providerSpecs[2].modelCombo;
+    m_aiProviderOpenRouterCheckbox = m_providerSpecs[3].checkbox;
+    m_aiOpenRouterApiKeyEdit = m_providerSpecs[3].keyEdit;
+    m_aiOpenRouterModelCombo = m_providerSpecs[3].modelCombo;
+    m_aiProviderSakuraCheckbox = m_providerSpecs[4].checkbox;
+    m_aiSakuraApiKeyEdit = m_providerSpecs[4].keyEdit;
+    m_aiSakuraModelCombo = m_providerSpecs[4].modelCombo;
 
     m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
@@ -1301,7 +1297,7 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
 
     m_managerEnabledCheckbox = new QCheckBox("マネージャにAIを使用", scrollContent);
     m_managerProviderCombo = new QComboBox(scrollContent);
-    m_managerProviderCombo->addItems({"groq", "cerebras", "mistral"});
+    m_managerProviderCombo->addItems({"groq", "mistral"});
 
     m_managerModelCombo = new QComboBox(scrollContent);
     // 初期推奨設定の表示
@@ -1309,8 +1305,6 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
         m_managerModelCombo->clear();
         if (provider == "groq") {
             m_managerModelCombo->addItems({"llama-3.1-8b-instant (推奨)", "llama-3.3-70b-versatile", "gemma2-9b-it"});
-        } else if (provider == "cerebras") {
-            m_managerModelCombo->addItems({"llama3.1-8b (推奨)", "llama3.3-70b"});
         } else if (provider == "mistral") {
             m_managerModelCombo->addItems({"mistral-small-latest (推奨)", "mistral-large-latest"});
         }
@@ -1514,14 +1508,12 @@ void AvatarWindow::loadSettingsToUI() {
             QString provider = obj.value("ai_provider").toString(ConfigDefaults::AI_PROVIDER);
 
             if (m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
-            if (m_aiProviderCerebrasCheckbox) m_aiProviderCerebrasCheckbox->setChecked(provider == "cerebras");
             if (m_aiProviderGroqCheckbox) m_aiProviderGroqCheckbox->setChecked(provider == "groq");
             if (m_aiProviderHuggingFaceCheckbox) m_aiProviderHuggingFaceCheckbox->setChecked(provider == "huggingface");
             if (m_aiProviderOpenRouterCheckbox) m_aiProviderOpenRouterCheckbox->setChecked(provider == "openrouter");
             if (m_aiProviderSakuraCheckbox) m_aiProviderSakuraCheckbox->setChecked(provider == "sakura");
 
             if (m_aiApiKeyEdit) m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
-            if (m_aiCerebrasApiKeyEdit) m_aiCerebrasApiKeyEdit->setText(obj.value("cerebras_api_key").toString());
             if (m_aiGroqApiKeyEdit) m_aiGroqApiKeyEdit->setText(obj.value("groq_api_key").toString());
             if (m_aiHuggingFaceApiKeyEdit) m_aiHuggingFaceApiKeyEdit->setText(obj.value("huggingface_api_key").toString());
             if (m_aiOpenRouterApiKeyEdit) m_aiOpenRouterApiKeyEdit->setText(obj.value("openrouter_api_key").toString());
@@ -1535,13 +1527,6 @@ void AvatarWindow::loadSettingsToUI() {
             }
             if (m_aiSakuraModelCombo && obj.contains("sakura_model")) {
                 m_aiSakuraModelCombo->setCurrentText(obj.value("sakura_model").toString("llm-jp-3.1-8x13b-instruct4"));
-            }
-
-            if (m_aiCerebrasModelCombo) {
-                QString cerModel = obj.value("cerebras_model").toString("llama3.1-8b");
-                int modelIdx = m_aiCerebrasModelCombo->findText(cerModel);
-                if (modelIdx < 0) modelIdx = m_aiCerebrasModelCombo->findText(cerModel + " (推奨)");
-                if (modelIdx >= 0) m_aiCerebrasModelCombo->setCurrentIndex(modelIdx);
             }
 
             if (m_aiGroqModelCombo) {
@@ -1721,7 +1706,6 @@ void AvatarWindow::saveSettingsFromUI() {
     QString provider = "auto";
 #endif
     if (m_aiProviderMistralCheckbox->isChecked()) provider = "mistral";
-    else if (m_aiProviderCerebrasCheckbox->isChecked()) provider = "cerebras";
     else if (m_aiProviderGroqCheckbox->isChecked()) provider = "groq";
     else if (m_aiProviderHuggingFaceCheckbox->isChecked()) provider = "huggingface";
     else if (m_aiProviderOpenRouterCheckbox->isChecked()) provider = "openrouter";
@@ -1729,11 +1713,6 @@ void AvatarWindow::saveSettingsFromUI() {
     obj["ai_provider"] = provider;
 
     obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
-    obj["cerebras_api_key"] = m_aiCerebrasApiKeyEdit->text().trimmed();
-    
-    QString cerModel = m_aiCerebrasModelCombo->currentText();
-    obj["cerebras_model"] = cerModel.replace(" (推奨)", "").trimmed();
-
     obj["groq_api_key"] = m_aiGroqApiKeyEdit->text().trimmed();
     QString groqModel = m_aiGroqModelCombo->currentText();
     obj["groq_model"] = groqModel.replace(" (推奨)", "").trimmed();
@@ -2607,9 +2586,6 @@ void AvatarWindow::onLimitAutoFetchClicked() {
     if (providerId == "groq") {
         apiKey = m_aiGroqApiKeyEdit->text().trimmed();
         urlStr = "https://api.groq.com/openai/v1/models";
-    } else if (providerId == "cerebras") {
-        apiKey = m_aiCerebrasApiKeyEdit->text().trimmed();
-        urlStr = "https://api.cerebras.ai/v1/models";
     } else if (providerId == "mistral") {
         apiKey = m_aiApiKeyEdit->text().trimmed();
         urlStr = "https://api.mistral.ai/v1/models";
@@ -2665,17 +2641,6 @@ void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
         }
         if (maxContext == 0) maxContext = 131072;
         toolCallSupported = true;
-    } else if (providerId == "cerebras") {
-        for (const QJsonValue &v : dataArr) {
-            QJsonObject mObj = v.toObject();
-            QString id = mObj.value("id").toString();
-            if (id.startsWith("llama")) {
-                maxContext = qMax(maxContext, 131072);
-                toolCallSupported = true;
-            }
-        }
-        if (maxContext == 0) maxContext = 131072;
-        toolCallSupported = true;
     } else if (providerId == "mistral") {
         for (const QJsonValue &v : dataArr) {
             QJsonObject mObj = v.toObject();
@@ -2694,13 +2659,11 @@ void AvatarWindow::onModelsReplyFinished(QNetworkReply *reply) {
 
     if (m_limitRpmEdit->text().trimmed().isEmpty() || m_limitRpmEdit->text().trimmed() == "0") {
         if (providerId == "groq") m_limitRpmEdit->setText("30");
-        else if (providerId == "cerebras") m_limitRpmEdit->setText("30");
         else if (providerId == "mistral") m_limitRpmEdit->setText("30");
 
     }
     if (m_limitRpdEdit->text().trimmed().isEmpty() || m_limitRpdEdit->text().trimmed() == "0") {
         if (providerId == "groq") m_limitRpdEdit->setText("14400");
-        else if (providerId == "cerebras") m_limitRpdEdit->setText("1000");
     }
 
     QMessageBox::information(this, "成功", QString("%1 のモデル・スペック情報を取得し、UIへ自動設定しました。\n「保存して適用」を押すことで有効化されます。").arg(providerId));

@@ -59,7 +59,6 @@ private:
 
     // --- F-15/F-16/F-32 AIプロバイダ追加 ---
     class MistralAIClient *m_mistralClient = nullptr;
-    class CerebrasAIClient *m_cerebrasClient = nullptr;
     class GroqAIClient *m_groqClient = nullptr;
     class HuggingFaceAIClient *m_huggingfaceClient = nullptr;
     class OpenRouterAIClient *m_openrouterClient = nullptr;
@@ -76,7 +75,6 @@ private:
     QString m_managerProvider = "groq";
     QString m_managerModel = "llama-3.1-8b-instant";
     QString m_groqModel = "llama-3.3-70b-versatile";
-    QString m_cerebrasModel = "llama3.1-8b";
     QString m_mistralModel = "mistral-small-latest";
     QString m_huggingfaceModel = "meta-llama/Llama-3.1-8B-Instruct";
     QString m_openrouterModel = "meta-llama/llama-3.1-8b-instruct:free";

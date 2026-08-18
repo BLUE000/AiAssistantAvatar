@@ -6,7 +6,7 @@
 
 /// 各AIプロバイダの状態・制限・仕様を保持する構造体
 struct ProviderStatus {
-    QString   provider;           // "groq" / "cerebras" / "mistral" / "dummy"
+    QString   provider;           // "groq" / "mistral" / "huggingface" / "openrouter" / "sakura" / "dummy"
     bool      available = true;   // レートリミット未到達なら true
 
     // --- リクエスト制限 ---

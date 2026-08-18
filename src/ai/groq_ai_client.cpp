@@ -270,7 +270,7 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
                             qDebug() << "GroqAIClient: Function call detected. id:" << m_activeToolCallId << "query:" << query;
                             
-                            // tool_calls を含む assistant メッセージを履歴に追加する (Cerebras APIの仕様上必須)
+                            // tool_calls を含む assistant メッセージを履歴に追加する (OpenAI API互換の仕様上必須)
                             m_pendingMessages.append(messageObj);
 
                             m_isToolCalling = true;
@@ -309,7 +309,7 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             
                             m_pendingMessages.append(toolResponse);
 
-                            // 再度 Cerebras に最終回答リクエストを送信
+                            // 再度 Groq に最終回答リクエストを送信
                             QUrl url("https://api.groq.com/openai/v1/chat/completions");
                             QNetworkRequest request(url);
                             request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -411,7 +411,7 @@ void GroqAIClient::on_searchFinished(const QString &resultText, bool success) {
     
     m_pendingMessages.append(toolResponse);
 
-    // 再度 Cerebras に最終回答リクエストを送信
+    // 再度 Groq に最終回答リクエストを送信
     QUrl url("https://api.groq.com/openai/v1/chat/completions");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");

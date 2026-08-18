@@ -1419,7 +1419,7 @@ TEST_F(AIClientTest, AIRouterRoutingTest) {
     s1.available = true;
     
     ProviderStatus s2;
-    s2.provider = "cerebras";
+    s2.provider = "huggingface";
     s2.available = false; // 枯渇
 
     ProviderStatus s3;
@@ -1430,7 +1430,7 @@ TEST_F(AIClientTest, AIRouterRoutingTest) {
     tracker.registerClient(s2);
     tracker.registerClient(s3);
 
-    QStringList priority = {"groq", "cerebras", "mistral"};
+    QStringList priority = {"groq", "huggingface", "mistral"};
 
     // 1. 優先度最高かつ利用可能な groq が選ばれること
     EXPECT_EQ(router.selectClient(AIRole::Worker, tracker, priority), "groq");
@@ -1439,7 +1439,7 @@ TEST_F(AIClientTest, AIRouterRoutingTest) {
     s1.available = false;
     tracker.registerClient(s1);
 
-    // 3. 次に利用可能な mistral が選ばれること（cerebrasはスキップされる）
+    // 3. 次に利用可能な mistral が選ばれること（huggingfaceはスキップされる）
     EXPECT_EQ(router.selectClient(AIRole::Worker, tracker, priority), "mistral");
 
     // 4. 全枯渇状態
@@ -1777,15 +1777,15 @@ TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
         manager.tracker().registerClient(s);
     }
 
-    // テスト用に cerebras のみ available = true に一時的にする（これを最初に使わせるため）
-    ProviderStatus s_cerebras = manager.tracker().statusOf("cerebras");
-    s_cerebras.available = true;
-    s_cerebras.rpmRemaining = 10;
-    manager.tracker().registerClient(s_cerebras);
+    // テスト用に groq のみ available = true に一時的にする（これを最初に使わせるため）
+    ProviderStatus s_groq = manager.tracker().statusOf("groq");
+    s_groq.available = true;
+    s_groq.rpmRemaining = 10;
+    manager.tracker().registerClient(s_groq);
 
     QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
 
-    // 1. リクエストを発行（内部で cerebras が選ばれて送信開始される）
+    // 1. リクエストを発行（内部で groq が選ばれて送信開始される）
     manager.on_requestAI("テストプロンプト", "userA");
 
     // 2. 擬似的に 429 エラーレスポンスを注入する
@@ -1815,7 +1815,7 @@ TEST_F(AIClientTest, DynamicFallbackOn429ErrorTest) {
         }
     }
     EXPECT_TRUE(hasResponse);
-    EXPECT_FALSE(manager.tracker().isAvailable("cerebras")); // 429を受けたcerebrasは利用不可になっているはず
+    EXPECT_FALSE(manager.tracker().isAvailable("groq")); // 429を受けたgroqは利用不可になっているはず
 }
 
 TEST(VerifyAPI, TestDecryptLocal) {
@@ -2195,11 +2195,11 @@ TEST(FallbackTest, BuildHumanReadableError_503) {
 TEST(FallbackTest, On429_TriggersUIWarning) {
     AIClientManager manager;
 
-    // groq と cerebras をフォールバック候補として登録
+    // groq と mistral をフォールバック候補として登録
     QJsonObject settings;
-    settings["groq_api_key"]     = "dummy_groq_key";
-    settings["cerebras_api_key"] = "dummy_cerebras_key";
-    settings["ai_provider"]      = "groq";
+    settings["groq_api_key"]    = "dummy_groq_key";
+    settings["mistral_api_key"] = "dummy_mistral_key";
+    settings["ai_provider"]     = "groq";
     manager.loadSettingsFromJsonObject(settings);
 
     {
@@ -2209,10 +2209,10 @@ TEST(FallbackTest, On429_TriggersUIWarning) {
         manager.tracker().registerClient(sg);
     }
     {
-        ProviderStatus sc = manager.tracker().statusOf("cerebras");
-        sc.available = true;
-        sc.rpmRemaining = 10;
-        manager.tracker().registerClient(sc);
+        ProviderStatus sm = manager.tracker().statusOf("mistral");
+        sm.available = true;
+        sm.rpmRemaining = 10;
+        manager.tracker().registerClient(sm);
     }
 
     manager.buildFallbackProviderList();
