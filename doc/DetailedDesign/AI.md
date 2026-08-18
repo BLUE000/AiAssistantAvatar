@@ -47,16 +47,13 @@ signals:
 ### 3.4 `MistralAIClient` (Mistral AI API)
 - エンドポイント: `https://api.mistral.ai/v1/chat/completions`
 
-### 3.5 `CerebrasAIClient` (Cerebras API)
-- エンドポイント: `https://api.cerebras.ai/v1/chat/completions`
-
-### 3.6 `HuggingFaceAIClient` (HuggingFace Inference API)
+### 3.5 `HuggingFaceAIClient` (HuggingFace Inference API)
 - エンドポイント: `https://api-inference.huggingface.co/models/...`
 
-### 3.7 `OpenRouterAIClient` (OpenRouter API)
+### 3.6 `OpenRouterAIClient` (OpenRouter API)
 - エンドポイント: `https://openrouter.ai/api/v1/chat/completions`
 
-### 3.8 `DummyAIClient` (開発・テスト用ダミーAI)
+### 3.7 `DummyAIClient` (開発・テスト用ダミーAI)
 - Debug ビルド (`#ifdef QT_DEBUG`) でのみ稼働。Release ビルドでは自動選定対象から除外。
 
 ---
@@ -192,7 +189,7 @@ QString RateLimitTracker::selectBestAvailableClient() {
 - **注入内容**:
   `system` ロールプロンプトへ以下を常時追加注入する：
   > `[System Capability]`
-  > `本アプリには、各AIプロバイダ（Groq, Mistral, Cerebras, Sakura AI, HuggingFace, OpenRouter等）のレートリミット使用枠（RPM/RPD）や残量、リセット時間をリアルタイム監視・更新・表示する『レートリミット』タブ機能が実装されています。ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。`
+  > `本アプリには、各AIプロバイダ（Groq, Mistral, Sakura AI, HuggingFace, OpenRouter等）のレートリミット使用枠（RPM/RPD）や残量、リセット時間をリアルタイム監視・更新・表示する『レートリミット』タブ機能が実装されています。ユーザーからレートリミットの表示や更新について尋ねられた場合は、アプリの『レートリミット』タブからいつでも確認・更新できる旨を正しく回答してください。`
 
 ---
 
@@ -207,7 +204,7 @@ QString RateLimitTracker::selectBestAvailableClient() {
 ## 10. マネージャー AI 使用プロバイダの優先度自動調整 ＆ Mistral RPM 詳細設計
 
 ### 10.1 `AIClientManager::buildFallbackProviderList` の改善
-- リスト構築時、標準優先度順序（`groq`, `cerebras`, `mistral`, `huggingface`, `openrouter`, `sakura`）から `m_provider`（選択中 Worker）に加えて、**`m_managerEnabled` が true の場合の `m_managerProvider`** も上位候補から除外/移動する。
+- リスト構築時、標準優先度順序（`groq`, `mistral`, `huggingface`, `openrouter`, `sakura`）から `m_provider`（選択中 Worker）に加えて、**`m_managerEnabled` が true の場合の `m_managerProvider`** も上位候補から除外/移動する。
 - `m_managerProvider` はフォールバックリストの最末尾（最下位優先度）へ配置され、メイン会話プロバイダが利用可能である限り、マネージャー用プロバイダへ会話リクエストが重複して消費されるのを防ぐ。
 
 ### 10.2 Mistral AI デフォルト RPM の修正
@@ -364,7 +361,7 @@ Web 検索（`WebSearchRAG`）または知識検索結果が存在する場合�
   - 上記の非対象ケースでは、`update_nickname` ツールの呼び出しを行わず、またニックネーム設定と誤認した確認発言（例:「〇〇と呼んでほしいってことかな？」）を行ってはならない。
 
 ### 16.2 システムプロンプト指示の厳格化
-各AIクライアント（`MistralAIClient`, `GroqAIClient`, `CerebrasAIClient` 等）および `AIClientManager` で注入するシステムプロンプト指示を以下のように厳格化する：
+各AIクライアント（`MistralAIClient`, `GroqAIClient` 等）および `AIClientManager` で注入するシステムプロンプト指示を以下のように厳格化する：
 > `ユーザー自身が「〇〇です」「〇〇だよ」と名乗る自己紹介や、「〇〇と呼んで」などの呼び名指定をした場合のみ、『update_nickname』ツールを呼び出してニックネームを設定してください。文脈中に第三者や配信者の名前が登場しただけの場合（例：「〇〇さんにおすすめの〜」など）は、ニックネーム設定と誤認しないでください。`
 
 ### 16.3 ツール定義 (`update_nickname`) の明確化

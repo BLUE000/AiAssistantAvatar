@@ -3768,8 +3768,8 @@ QString AIClientManager::evaluateWithObserver(const QString &platform, const QSt
              << "--text" << text;
 
         process.start(observerExe, args);
-        // 50ms タイムアウトで安全待機
-        if (process.waitForFinished(50)) {
+        // プロセス起動・実行（500ms タイムアウトで安全待機）
+        if (process.waitForFinished(500)) {
             QByteArray output = process.readAllStandardOutput();
             QJsonDocument doc = QJsonDocument::fromJson(output);
             if (doc.isObject()) {
@@ -3780,8 +3780,13 @@ QString AIClientManager::evaluateWithObserver(const QString &platform, const QSt
                 }
             }
         } else {
-            qWarning() << "AIClientManager: CommunityObserver process timed out (50ms). Fallback to normal flow.";
+            qWarning() << "AIClientManager: CommunityObserver process timed out. Fallback to direct engine.";
             process.kill();
+            static CommunityObserverEngine fallbackEngine("Config/observer_logs");
+            ObserverEvaluationResult res = fallbackEngine.recordAndEvaluate(platform, user, text);
+            if (!res.directive.isEmpty()) {
+                return res.directive;
+            }
         }
     } else {
         // 2. 単体テスト環境等のフォールバック: エンジンクラスを直接利用

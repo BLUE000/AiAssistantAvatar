@@ -48,7 +48,6 @@ AIの返答に合わせて、可愛いアバターの表情が変わり、画面
 | サービス / AIプロバイダ | 役割・特徴 | ガイド手順書リンク |
 | :--- | :--- | :--- |
 | **Mistral AI** | バランスに優れ、自然で賢い日本語会話が可能 | [Mistral AI ガイド](doc/api_guides/mistral.md) |
-| **Cerebras AI** | 超高速レスポンス（リアルタイム会話に最適） | [Cerebras AI ガイド](doc/api_guides/cerebras.md) |
 | **Groq AI** | LPUによる爆速推論 ＆ 寛大な無料枠 | [Groq AI ガイド](doc/api_guides/groq.md) |
 | **HuggingFace** | 世界最大のAIコミュニティ（最新オープンモデル利用可） | [HuggingFace ガイド](doc/api_guides/huggingface.md) |
 | **OpenRouter** | 統一キーで最新モデルを利用（完全無料 `:free` モデル多数） | [OpenRouter ガイド](doc/api_guides/openrouter.md) |
@@ -66,7 +65,6 @@ AIの返答に合わせて、可愛いアバターの表情が変わり、画面
 
 * **プロバイダ・拡張機能の個別設定ガイド**:
   * [Mistral AI のキー取得手順](doc/api_guides/mistral.md)
-  * [Cerebras AI のキー取得手順](doc/api_guides/cerebras.md)
   * [Groq AI のキー取得手順](doc/api_guides/groq.md)
   * [HuggingFace のキー取得手順](doc/api_guides/huggingface.md)
   * [OpenRouter のキー取得手順](doc/api_guides/openrouter.md)
@@ -146,7 +144,7 @@ Twitch や Discord のチャットで呼びかけられた際、AI が作成し�
 * **スローモード対応（安全送信キュー）**：分割された各メッセージは、チャンネルのスローモード（投稿間隔制限）やレートリミットに引っかからないよう、安全な送信インターバル（遅延キュー制御）を挟んで順次送信されます。
 ### 📊 AI レートリミット監視 ＆ 表示自動更新機能
 
-* **レートリミットタブ**: ウィンドウ左側の「**レートリミット**」タブを開くことで、各 AI プロバイダ（Groq / Mistral / Cerebras / さくらAI / Hugging Face / OpenRouter）の 1 分間使用枠 (RPM) や利用可能ステータス（🟢 利用可能 / 🔴 レートリミット到達中）、リセットまでのカウントダウンをリアルタイム表示・更新できます。
+* **レートリミットタブ**: ウィンドウ左側の「**レートリミット**」タブを開くことで、各 AI プロバイダ（Groq / Mistral / さくらAI / Hugging Face / OpenRouter）の 1 分間使用枠 (RPM) や利用可能ステータス（🟢 利用可能 / 🔴 レートリミット到達中）、リセットまでのカウントダウンをリアルタイム表示・更新できます。
 * **表示更新呼びかけ対応**: チャットや音声入力で「**レートリミット表示して**」「**レートリミットの更新して**」とアバターに呼びかけると、最新ステータスを即時評価して「レートリミット」タブの表示を動的に更新し、利用枠・残量を回答案内します。
 
 ### 📝 `local_settings.json` での 1 行コメント (`#`) 対応
@@ -338,7 +336,6 @@ AIの返答（吹き出し）が画面に表示される時間を調整します
 #### 4. AI対話エンジン (対応 AI API プロバイダ)
 本アプリケーションの返答生成機能は、ユーザーが選択・設定した外部の AI プロバイダ API を利用して動作します。ご利用の際は各サービスの利用規約およびポリシーをご確認ください。
 * **Mistral AI**: [Mistral AI Terms of Service](https://mistral.ai/terms/)
-* **Cerebras Cloud**: [Cerebras Terms of Service](https://cerebras.ai/terms-of-service/)
 * **Groq Cloud**: [Groq Terms of Service](https://groq.com/terms-of-service/)
 * **HuggingFace**: [HuggingFace Terms of Service](https://huggingface.co/terms-of-service)
 * **OpenRouter**: [OpenRouter Terms of Service](https://openrouter.ai/terms)

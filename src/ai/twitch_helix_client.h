@@ -39,6 +39,6 @@ public:
     void sendShoutout(const QString &fromBroadcasterId, const QString &toBroadcasterId, const QString &moderatorId, std::function<void(bool success)> callback = nullptr);
     void sendShoutoutToUser(const QString &fromUsername, const QString &toUsername, std::function<void(bool success)> callback = nullptr);
 
-private:
-    QString extractSnsInfo(const QString &bio) const;
+    // Bio から SNS・外部リンクを抽出する純粋関数
+    static QString extractSnsInfo(const QString &bio);
 };

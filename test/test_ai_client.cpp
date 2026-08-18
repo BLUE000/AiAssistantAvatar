@@ -24,6 +24,7 @@
 
 #include "ai/openrouter_ai_client.h"
 #include "ai/sakura_ai_client.h"
+#include "ai/twitch_helix_client.h"
 #include "cipher_engine.h"
 #include "twitch/twitch_reader.h"
 #include "discord/discord_reader.h"
@@ -3281,6 +3282,131 @@ TEST_F(AIClientTest, ConversationShoutoutPromptHasNoRaidContext) {
     EXPECT_FALSE(prompt.contains("レイドして来てくれた"));
     EXPECT_FALSE(prompt.contains("リスナーの皆さんを引き連れて"));
 }
+
+// UT-REG-ROUTING-01: Twitch 入力 → event.source="Twitch" + extraData["twitch_channel"] が設定されること
+TEST_F(AIClientTest, RoutingTwitchInputGoesToTwitchOutput) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    manager.on_requestAI("こんにちは", "[Twitch:my_channel]viewer", "");
+    manager.on_clientRequestFinished("テスト応答", true, 200);
+
+    ASSERT_GE(spy.count(), 1);
+    AppEvent ev = spy.last().at(0).value<AppEvent>();
+    ASSERT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_EQ(ev.source, "Twitch");
+    EXPECT_TRUE(ev.extraData.contains("twitch_channel"));
+    EXPECT_EQ(ev.extraData["twitch_channel"].toString(), "my_channel");
+    EXPECT_FALSE(ev.extraData.contains("channel_id"));
+}
+
+// UT-REG-ROUTING-02: Discord 入力 → event.source="Discord" + extraData["channel_id"] が設定されること
+TEST_F(AIClientTest, RoutingDiscordInputGoesToDiscordOutput) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    manager.on_requestAI("こんにちは", "[Discord:123456789]User#0001", "");
+    manager.on_clientRequestFinished("テスト応答", true, 200);
+
+    ASSERT_GE(spy.count(), 1);
+    AppEvent ev = spy.last().at(0).value<AppEvent>();
+    ASSERT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_EQ(ev.source, "Discord");
+    EXPECT_TRUE(ev.extraData.contains("channel_id"));
+    EXPECT_EQ(ev.extraData["channel_id"].toString(), "123456789");
+    EXPECT_FALSE(ev.extraData.contains("twitch_channel"));
+}
+
+// UT-REG-ROUTING-03: UI 入力 → event.source="UI" のみ、twitch_channel も channel_id も設定されないこと
+TEST_F(AIClientTest, RoutingUIInputGoesToUIOnly) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    manager.on_requestAI("こんにちは", "", "UI");
+    manager.on_clientRequestFinished("テスト応答", true, 200);
+
+    ASSERT_GE(spy.count(), 1);
+    AppEvent ev = spy.last().at(0).value<AppEvent>();
+    ASSERT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_EQ(ev.source, "UI");
+    EXPECT_FALSE(ev.extraData.contains("twitch_channel"));
+    EXPECT_FALSE(ev.extraData.contains("channel_id"));
+}
+
+// UT-REG-ROUTING-04: Twitch → UI の順でリクエストした際、2件目の応答に前回の twitch_channel が残留しないこと
+TEST_F(AIClientTest, RoutingSourceDoesNotPolluteBetweenRequests) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy spy(&manager, &AIClientManager::notifyEvent);
+
+    // 1件目: Twitch (user: "Alice")
+    manager.on_requestAI("最初のリクエスト", "[Twitch:my_channel]Alice", "");
+    manager.on_clientRequestFinished("Twitch応答", true, 200);
+
+    ASSERT_GE(spy.count(), 1);
+    AppEvent ev1 = spy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(ev1.source, "Twitch");
+    EXPECT_TRUE(ev1.extraData.contains("twitch_channel"));
+
+    // 2件目: UI (user: "Alice" - 同一ユーザーからのUI直接入力)
+    int countBeforeSecond = spy.count();
+    manager.on_requestAI("次のリクエスト", "Alice", "UI");
+    manager.on_clientRequestFinished("UI応答", true, 200);
+
+    ASSERT_GT(spy.count(), countBeforeSecond);
+    AppEvent ev2 = spy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(ev2.source, "UI");
+    // 前回の Twitch チャンネル情報が残留していないこと
+    EXPECT_FALSE(ev2.extraData.contains("twitch_channel"));
+    EXPECT_FALSE(ev2.extraData.contains("channel_id"));
+}
+
+
+// UT-REG-SNS-01: Twitter / YouTube の抽出
+TEST(TwitchHelixClientTest, ExtractSnsInfo_TwitterAndYouTube) {
+    QString bio = "配信してます！ Twitter: https://twitter.com/test_user YouTube: https://youtube.com/@test_ch";
+    QString result = TwitchHelixClient::extractSnsInfo(bio);
+    EXPECT_TRUE(result.contains("https://twitter.com/test_user"));
+    EXPECT_TRUE(result.contains("https://youtube.com/@test_ch"));
+}
+
+// UT-REG-SNS-02: TikTok / Instagram の抽出
+TEST(TwitchHelixClientTest, ExtractSnsInfo_TikTokAndInstagram) {
+    QString bio = "TikTok: https://tiktok.com/@tiktok_user Insta: https://instagram.com/insta_user";
+    QString result = TwitchHelixClient::extractSnsInfo(bio);
+    EXPECT_TRUE(result.contains("https://tiktok.com/@tiktok_user"));
+    EXPECT_TRUE(result.contains("https://instagram.com/insta_user"));
+}
+
+// UT-REG-SNS-03: discord.gg / linktr.ee の抽出
+TEST(TwitchHelixClientTest, ExtractSnsInfo_DiscordAndLinktree) {
+    QString bio = "Discord: https://discord.gg/mycommunity リンク集: https://linktr.ee/myprofile";
+    QString result = TwitchHelixClient::extractSnsInfo(bio);
+    EXPECT_TRUE(result.contains("https://discord.gg/mycommunity"));
+    EXPECT_TRUE(result.contains("https://linktr.ee/myprofile"));
+}
+
+// UT-REG-SNS-04: 無関係 URL が誤抽出されないこと
+TEST(TwitchHelixClientTest, ExtractSnsInfo_IgnoreIrrelevantUrls) {
+    QString bio = "公式サイトはこちら: https://example.com/mypage ブログ: https://myblog.net/entry";
+    QString result = TwitchHelixClient::extractSnsInfo(bio);
+    EXPECT_TRUE(result.isEmpty());
+}
+
+// UT-REG-SNS-05: Bio が空の場合のフォールバック
+TEST(TwitchHelixClientTest, ExtractSnsInfo_EmptyBio) {
+    QString result = TwitchHelixClient::extractSnsInfo("");
+    EXPECT_TRUE(result.isEmpty());
+}
+
+
 
 
 

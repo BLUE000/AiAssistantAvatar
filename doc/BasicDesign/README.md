@@ -37,6 +37,6 @@
        |                         |                        |                     |
 [ 外部AIプロバイダ群 ]    [ SearchManager ]        [ TaskFlow API ]      [ チャット連携 ]
 (Sakura/Gemini/Groq/   (Tavily / DuckDuckGo    (URL未設定安全ガード)  (Twitch IRC / Helix
- Mistral/Cerebras/      フォールバックRAG)                               Discord Gateway)
+ Mistral/      フォールバックRAG)                               Discord Gateway)
  HuggingFace/OpenRouter)
 ```

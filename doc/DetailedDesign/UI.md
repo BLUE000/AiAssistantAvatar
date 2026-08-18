@@ -112,7 +112,6 @@ sequenceDiagram
 | プロバイダ | QFormLayout ラベル | 右側フィールド (`QFormLayout` 領域) の構成 |
 | :--- | :--- | :--- |
 | **Mistral AI** | `Mistral AI:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]` (LineEdit) |
-| **Cerebras AI** | `Cerebras AI:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ llama3.1-8b (推奨) ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
 | **Groq** | `Groq AI:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ llama-3.3-70b-versatile (推奨) ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
 | **HuggingFace** | `HuggingFace:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ meta-llama/Llama-3.1-8B-Instruct ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
 | **OpenRouter** | `OpenRouter:`<br>`モデル:` | 1行目: `[レ] 有効` (CheckBox) ＋ `[●●●●●●●● (APIキー)]`<br>2行目: `[ google/gemma-4-31b-it:free ▼ ]` (ComboBox - 左端位置を有効CBと統一) |
@@ -124,8 +123,8 @@ sequenceDiagram
 #### 6.2.1 構造体定義 (`ProviderConfigSpec`)
 ```cpp
 struct ProviderConfigSpec {
-    QString id;                 // プロバイダ識別ID ("mistral", "cerebras", "groq" 等)
-    QString displayName;        // 表示ラベル ("Mistral AI", "Cerebras AI" 等)
+    QString id;                 // プロバイダ識別ID ("mistral", "groq" 等)
+    QString displayName;        // 表示ラベル ("Mistral AI", "Groq AI" 等)
     QString keyPlaceholder;     // APIキー入力欄プレースホルダー
     bool hasModelCombo = false; // モデル選択コンボボックスの有無
     QStringList defaultModels;  // デフォルト候補モデル一覧
@@ -143,7 +142,7 @@ struct ProviderConfigSpec {
    - `QList<ProviderConfigSpec>` を `for` ループで走査し、`QHBoxLayout` による「`[レ] 有効` ＋ `APIキー入力欄`」の生成および 2行目の「`モデル:` コンボボックス」のアラインメント位置あわせ配置を全自動実行。
    - モデル選択コンボボックスの先頭インデックス（index 0）に「`自動選択 (推奨)`」を全プロバイダ共通で追加。
 2. **全自動モデル選定 (Auto Model Selection) ロジック**:
-   - コンボボックスが「`自動選択 (推奨)`」に設定されている、または空文字の場合、各 AI クライアント（Groq, Cerebras, OpenRouter, HuggingFace, Sakura 等）はクライアント側で規定されている最新・推奨推論モデルを自動選択して推論を実行。
+   - コンボボックスが「`自動選択 (推奨)`」に設定されている、または空文字の場合、各 AI クライアント（Groq, OpenRouter, HuggingFace, Sakura 等）はクライアント側で規定されている最新・推奨推論モデルを自動選択して推論を実行。
 
 ---
 
@@ -215,7 +214,7 @@ struct ProviderConfigSpec {
    - プログレスバー色: **赤色 (`#e53935`)**
 
 ### 9.2 プロバイダ上限値の自動修復・最低安全ガード
-`AIClientManager` 設定読み込み時および `RateLimitTracker::setMaxValues` 内で、Mistral 等の `rpmMax` が `1` などの不正値に汚染されている場合、規定値（Mistral: 30, Groq: 30, Cerebras: 30, HuggingFace: 60, OpenRouter: 60, Sakura: 60）を下回る値を自動的にクレンジング・最低値ガードする。
+`AIClientManager` 設定読み込み時および `RateLimitTracker::setMaxValues` 内で、Mistral 等の `rpmMax` が `1` などの不正値に汚染されている場合、規定値（Mistral: 30, Groq: 30, HuggingFace: 60, OpenRouter: 60, Sakura: 60）を下回る値を自動的にクレンジング・最低値ガードする。
 
 ---
 

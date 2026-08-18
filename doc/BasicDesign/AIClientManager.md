@@ -1,7 +1,7 @@
 # 基本設計書 - AIClientManager ＆ ルーティングモジュール (AIClientManager.md)
 
 ## 1. 概要
-`AIClientManager` は、全 AI プロバイダクライアント（さくらAI, Gemini, Groq, Mistral, Cerebras, HuggingFace, OpenRouter, Dummy）の生命周期管理、プロバイダ自動選定、およびレートリミット監視を担当するコアコンポーネントである。
+`AIClientManager` は、全 AI プロバイダクライアント（さくらAI, Gemini, Groq, Mistral, HuggingFace, OpenRouter, Dummy）の生命周期管理、プロバイダ自動選定、およびレートリミット監視を担当するコアコンポーネントである。
 
 ---
 
@@ -46,7 +46,7 @@
 
 ### 2.7 マネージャー使用 AI の Worker (クライアント) 優先度自動降格 ＆ Mistral RPM 適正化
 - **マネージャー AI 使用プロバイダの末尾移動（優先度降格）**:
-  - `buildFallbackProviderList()` にてフォールバック優先順序（`groq` → `cerebras` → `mistral` → `huggingface` → `openrouter` → `sakura`）を構築する際、マネージャー AI で使用されているプロバイダ（`m_managerProvider`）をリストの最下位（末尾）へ自動で組み替える。
+  - `buildFallbackProviderList()` にてフォールバック優先順序（`groq` → `mistral` → `huggingface` → `openrouter` → `sakura`）を構築する際、マネージャー AI で使用されているプロバイダ（`m_managerProvider`）をリストの最下位（末尾）へ自動で組み替える。
   - マネージャー評価と会話応答が同一プロバイダへ集中し、レート制限に達するリスクを回避する。
 - **Mistral AI RPM デフォルト値適正化**:
   - Mistral AI の初期 RPM（`s.rpmMax`）を `1` から `30` へ変更し、連続発言時の不要なブロックを解消する。

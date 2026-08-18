@@ -230,8 +230,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 | 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 |
 | :--- | :--- | :--- | :--- |
-| **UT-ROUT-01** | `AIRouter::selectClient` | 全クライアント `available=true`、優先度 `["groq","cerebras","mistral"]`。 | `"groq"` を返すこと。 |
-| **UT-ROUT-02** | `AIRouter::selectClient` | Groqが `available=false`、Cerebrasが `available=true`。 | `"cerebras"` を返すこと。 |
+| **UT-ROUT-01** | `AIRouter::selectClient` | 全クライアント `available=true`、優先度 `["groq","mistral"]`。 | `"groq"` を返すこと。 |
+| **UT-ROUT-02** | `AIRouter::selectClient` | Groqが `available=false`、Mistralが `available=true`。 | `"mistral"` を返すこと。 |
 | **UT-ROUT-03** | `AIRouter::selectClient` | 全クライアントが `available=false`。 | 空文字 `""` を返すこと。 |
 | **UT-ROUT-04** | `AIRouter::selectClient` | 優先度リストが空の場合。 | 空文字 `""` を返すこと。 |
 

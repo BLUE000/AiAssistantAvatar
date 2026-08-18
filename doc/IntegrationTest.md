@@ -89,8 +89,8 @@
 | 試験ID | 対象機能 | 試験内容 | 期待される結果 | 実施方法 |
 | :--- | :--- | :--- | :--- | :--- |
 | **IT-ROUTE-01** | `AIRouter` + `RateLimitTracker` 連携 | 全クライアント `available=true` の状態でリクエストを送信する。 | 優先度最高の Groq が選択され、`GroqAIClient::sendRequest` が呼び出されること。 | 自動テスト |
-| **IT-ROUTE-02** | フォールバック (RPM制限) | Groqの `rpmRemaining=0` を設定した状態でリクエストを送信する。 | Cerebras にフォールバックし、`CerebrasAIClient::sendRequest` が呼び出されること。 | 自動テスト |
-| **IT-ROUTE-03** | フォールバック (連鎖) | Groq・Cerebras両方が `available=false` の状態でリクエストを送信する。 | Mistral にフォールバックし、`MistralAIClient::sendRequest` が呼び出されること。 | 自動テスト |
+| **IT-ROUTE-02** | フォールバック (RPM制限) | Groqの `rpmRemaining=0` を設定した状態でリクエストを送信する。 | Mistral にフォールバックし、`MistralAIClient::sendRequest` が呼び出されること。 | 自動テスト |
+| **IT-ROUTE-03** | フォールバック (連鎖) | Groq・Mistral両方が `available=false` の状態でリクエストを送信する。 | 次点プロバイダ (HuggingFace等) にフォールバックし、該当クライアントの `sendRequest` が呼び出されること。 | 自動テスト |
 | **IT-ROUTE-04** | 全クライアント枯渇時 | 全クライアントが `available=false` の状態でリクエストを送信する。 | AIへのAPI呼び出しが発生せず、「最短でX分後に使用可能になります」形式の応答テキストが `AIResponseReceived` イベントで返されること。 | 自動テスト |
 | **IT-ROUTE-05** | ヘッダー更新連携 | APIレスポンスに `x-ratelimit-remaining-requests: 3` ヘッダーを含めてモックする。 | コール後に `RateLimitTracker::statusOf("groq").rpmRemaining == 3` に更新されること。 | 自動テスト |
 | **IT-ROUTE-06** | 永続化ファイル連携 | 使用量を記録してアプリを再起動（別インスタンスでロード）する。 | `log/usage_stats.json` からRPD残量が正しくリストアされること。 | 自動テスト |

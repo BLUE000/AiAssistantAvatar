@@ -12,7 +12,7 @@ void TwitchHelixClient::setCredentials(const QString &oauthToken, const QString 
     m_clientId = clientId;
 }
 
-QString TwitchHelixClient::extractSnsInfo(const QString &bio) const {
+QString TwitchHelixClient::extractSnsInfo(const QString &bio) {
     if (bio.isEmpty()) return "";
     
     QStringList foundUrls;
@@ -21,7 +21,7 @@ QString TwitchHelixClient::extractSnsInfo(const QString &bio) const {
         "https?:\\/\\/(www\\.)?"
         "(twitter\\.com|x\\.com|youtube\\.com|youtu\\.be"
         "|tiktok\\.com|instagram\\.com|discord\\.gg|linktr\\.ee)"
-        "\/[a-zA-Z0-9_@.\\-]+"
+        "/[a-zA-Z0-9_@.\\-]+"
     ));
     QRegularExpressionMatchIterator i = regex.globalMatch(bio);
     while (i.hasNext()) {
