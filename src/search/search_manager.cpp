@@ -1,9 +1,7 @@
 #include "search_manager.h"
-#include "tavily_search_provider.h"
-#include "duckduckgo_search_provider.h"
-#include <QThread>
-#include <QEventLoop>
-#include <QTimer>
+#include <QCoreApplication>
+#include <QFile>
+#include <QDir>
 #include <QDebug>
 
 SearchManager::SearchManager(QObject *parent)
@@ -12,8 +10,13 @@ SearchManager::SearchManager(QObject *parent)
 }
 
 SearchManager::~SearchManager() {
-    if (m_currentProvider) {
-        m_currentProvider->deleteLater();
+    if (m_process) {
+        if (m_process->state() != QProcess::NotRunning) {
+            m_process->kill();
+            m_process->waitForFinished(500);
+        }
+        m_process->deleteLater();
+        m_process = nullptr;
     }
 }
 
@@ -21,67 +24,101 @@ void SearchManager::setTavilyApiKey(const QString &apiKey) {
     m_tavilyApiKey = apiKey;
 }
 
+void SearchManager::setTimeoutMs(int timeoutMs) {
+    if (timeoutMs > 0) {
+        m_timeoutMs = timeoutMs;
+    }
+}
+
+QString SearchManager::resolveExecutablePath() const {
+    QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates = {
+        appDir + "/WebSearcher.exe",
+        appDir + "/build/WebSearcher.exe",
+        QDir::currentPath() + "/build/WebSearcher.exe",
+        QDir::currentPath() + "/WebSearcher.exe",
+        "WebSearcher.exe"
+    };
+
+    for (const QString &path : candidates) {
+        if (QFile::exists(path)) {
+            return path;
+        }
+    }
+    return candidates.first();
+}
+
 void SearchManager::executeSearch(const QString &query) {
-    m_query = query;
-    m_useTavily = !m_tavilyApiKey.isEmpty();
-    startNextProvider();
+    if (m_process) {
+        if (m_process->state() != QProcess::NotRunning) {
+            m_process->kill();
+            m_process->waitForFinished(200);
+        }
+        m_process->deleteLater();
+        m_process = nullptr;
+    }
+
+    m_process = new QProcess(this);
+    connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &SearchManager::on_processFinished);
+
+    QString exePath = resolveExecutablePath();
+    QStringList args;
+    args << "--query" << query;
+    if (!m_tavilyApiKey.isEmpty()) {
+        args << "--tavily-key" << m_tavilyApiKey;
+    }
+    args << "--timeout" << QString::number(m_timeoutMs);
+
+    qDebug() << "SearchManager: Starting WebSearcher process:" << exePath << args;
+    m_process->start(exePath, args);
+}
+
+void SearchManager::on_processFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    if (!m_process) return;
+
+    QByteArray outputBytes = m_process->readAllStandardOutput();
+    QString resultText = QString::fromUtf8(outputBytes).trimmed();
+
+    bool success = (exitStatus == QProcess::NormalExit && exitCode == 0 && !resultText.isEmpty());
+    if (resultText == "Web検索不可: 検索結果を取得できませんでした。") {
+        success = false;
+    }
+
+    qDebug() << "SearchManager: Process finished. exitCode:" << exitCode << "success:" << success << "result length:" << resultText.length();
+    emit searchFinished(resultText, success);
 }
 
 QString SearchManager::executeSearchSync(const QString &query) {
-    QString result;
-    QEventLoop loop;
-    QTimer timer;
-    timer.setSingleShot(true);
+    QProcess process;
+    QString exePath = resolveExecutablePath();
+    QStringList args;
+    args << "--query" << query;
+    if (!m_tavilyApiKey.isEmpty()) {
+        args << "--tavily-key" << m_tavilyApiKey;
+    }
+    args << "--timeout" << QString::number(m_timeoutMs);
 
-    QMetaObject::Connection conn = connect(this, &SearchManager::searchFinished, [&](const QString &resText, bool success){
-        if (success) {
-            result = resText;
+    qDebug() << "SearchManager: Starting WebSearcher sync process:" << exePath << args;
+    process.start(exePath, args);
+    
+    // プロセス全体の安全待機時間（各プロバイダタイムアウト×2 + マージン）
+    int maxWaitMs = m_timeoutMs * 2 + 2000;
+    if (!process.waitForFinished(maxWaitMs)) {
+        qWarning() << "SearchManager: WebSearcher process timed out, killing.";
+        process.kill();
+        process.waitForFinished(500);
+        return QString();
+    }
+
+    if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+        QString result = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+        if (result == "Web検索不可: 検索結果を取得できませんでした。") {
+            return QString();
         }
-        loop.quit();
-    });
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    timer.start(5000);
-    executeSearch(query);
-    loop.exec();
-
-    disconnect(conn);
-    return result;
-}
-
-void SearchManager::startNextProvider() {
-    if (m_currentProvider) {
-        m_currentProvider->deleteLater();
-        m_currentProvider = nullptr;
+        return result;
     }
 
-    if (m_useTavily) {
-        qDebug() << "SearchManager: Attempting search with Tavily...";
-        TavilySearchProvider *tavily = new TavilySearchProvider(m_tavilyApiKey, this);
-        connect(tavily, &ISearchProvider::searchFinished,
-                this, &SearchManager::on_providerFinished);
-        m_currentProvider = tavily;
-        tavily->search(m_query);
-    } else {
-        qDebug() << "SearchManager: Attempting search with DuckDuckGo...";
-        DuckDuckGoSearchProvider *ddg = new DuckDuckGoSearchProvider(this);
-        connect(ddg, &ISearchProvider::searchFinished,
-                this, &SearchManager::on_providerFinished);
-        m_currentProvider = ddg;
-        ddg->search(m_query);
-    }
-}
-
-void SearchManager::on_providerFinished(const QString &resultText, bool success) {
-    if (success) {
-        qDebug() << "SearchManager: Search succeeded.";
-        emit searchFinished(resultText, true);
-    } else if (m_useTavily) {
-        qWarning() << "SearchManager: Tavily search failed, falling back to DuckDuckGo. Error:" << resultText;
-        m_useTavily = false;
-        startNextProvider();
-    } else {
-        qWarning() << "SearchManager: All search providers failed.";
-        emit searchFinished(resultText, false);
-    }
+    qWarning() << "SearchManager: WebSearcher failed with exit code:" << process.exitCode();
+    return QString();
 }

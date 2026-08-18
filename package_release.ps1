@@ -12,6 +12,9 @@ Copy-Item "build/AvatarSkinBuilder.exe" -Destination "$releaseDir/" -Force
 if (Test-Path "build/CommunityObserver.exe") {
     Copy-Item "build/CommunityObserver.exe" -Destination "$releaseDir/" -Force
 }
+if (Test-Path "build/WebSearcher.exe") {
+    Copy-Item "build/WebSearcher.exe" -Destination "$releaseDir/" -Force
+}
 
 # 2. windeployqt による Qt6 依存ファイル・プラグインの一括自動展開
 $windeployqt = "C:\Qt\6.10.1\mingw_64\bin\windeployqt.exe"

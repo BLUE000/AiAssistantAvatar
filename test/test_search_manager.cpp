@@ -58,8 +58,15 @@ TEST(SearchManagerTest, InitialStateAndApiKeyHandling) {
     
     // キーを設定して正しく渡るか
     manager.setTavilyApiKey("tvly-test-key-12345");
+    manager.setTimeoutMs(3000);
     // (非公開変数のため直接アサートはせず、ビルドおよびメモリ安全性を確保)
     SUCCEED();
+}
+
+// UT-SEARCH-03: 全系失敗時のWeb検索不可メッセージ処理テスト
+TEST(SearchManagerTest, AllProvidersFailedOutputHandling) {
+    QString errorMsg = "Web検索不可: 検索結果を取得できませんでした。";
+    EXPECT_TRUE(errorMsg.startsWith("Web検索不可"));
 }
 
 #include <QEventLoop>

@@ -128,6 +128,17 @@ add_executable(CommunityObserver ${OBSERVER_SOURCES})
 target_include_directories(CommunityObserver PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(CommunityObserver PRIVATE Qt6::Core)
 
+# 独立CLIツール: WebSearcher
+set(WEB_SEARCHER_SOURCES
+    src/search/web_searcher_main.cpp
+    src/search/isearch_provider.cpp
+    src/search/tavily_search_provider.cpp
+    src/search/duckduckgo_search_provider.cpp
+)
+add_executable(WebSearcher ${WEB_SEARCHER_SOURCES})
+target_include_directories(WebSearcher PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(WebSearcher PRIVATE Qt6::Core Qt6::Network)
+
 # テストビルドの有効化
 enable_testing()
 add_subdirectory(test)
