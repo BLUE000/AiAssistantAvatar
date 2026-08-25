@@ -607,6 +607,42 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | 6 | **自己シャウトアウト禁止** | Twitch 仕様上、自分自身への `/shoutout` が誤って送信されないか。 |
 | 7 | **クールタイム・キュー整合性** | シャウトアウトのクールタイム中に追加リクエストが来た場合にキューが正しく機能するか。 |
 
+---
+
+### 3.8 `TwitchHelixClient` の単体試験 (GTest/QTest)
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-HELIX-01** | `setCredentials` | `oauthToken` に `"oauth:abcd1234efgh"`, `clientId` に `"my_client_id"` を渡す。 | 1. 内部 `m_oauthToken` が `"abcd1234efgh"`（プレフィックス除去済み）となること。<br>2. 大文字 `"OAUTH:xyz"` の場合も正しくプレフィックスが除去されること。 |
+| **UT-HELIX-02** | `sendShoutout` (リクエスト構築) | `fromBroadcasterId="100"`, `toBroadcasterId="200"`, `moderatorId="100"` を渡して実行。 | 1. QNetworkRequest の `Authorization` ヘッダーが `"Bearer <token>"`（`oauth:` 不含）であること。<br>2. `Client-ID` ヘッダーが正しくセットされること。<br>3. URL クエリに `from_broadcaster_id=100`, `to_broadcaster_id=200`, `moderator_id=100` が正確に含まれること。 |
+| **UT-HELIX-03** | `sendChatAnnouncement` (リクエスト構築) | `message="Hello"`, `color="blue"` を渡して実行。 | 1. QNetworkRequest の `Authorization` ヘッダーが `"Bearer <token>"` であること。<br>2. JSON ボディに `{"message":"Hello","color":"blue"}` が格納されること。 |
+
+---
+
+### 3.9 レイドシャウトアウト E2E フロー (`AIClientManager`) の単体試験 (GTest/QTest)
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-RAID-FLOW-01** | `handleRaidShoutout` 正常系 | レイドイベント（`login: "raider1"`, `displayName: "レイド太郎"`, `viewerCount: 15`）を受信。モック Helix クライアントが情報取得成功を即時コールバック。 | 1. レイド歓迎プロンプトが正しく生成され AI クライアントの `sendRequest` が呼ばれること。<br>2. `m_currentSource` が `"Twitch"`、`m_currentTwitchChannel` が設定値となること。<br>3. `m_isShoutoutRequest` が `true` にセットされること。<br>4. モック Helix クライアントの `sendShoutoutToUser` が `"raider1"` 対象で呼び出されること。 |
+| **UT-RAID-FLOW-02** | `handleRaidShoutout` 応答完了と Twitch 送信 | AI から紹介文応答を受信。 | 1. `notifyEventToUI` / `CoreModule` 宛に `EventType::AIResponseReceived`（`source: "Twitch"`, `extraData["twitch_channel"]` あり）が発火すること。<br>2. 生成されたテキストに `/announce` や `/shoutout` 等の IRC 禁止文字列が含まれず、純粋なチャットテキストであること。 |
+| **UT-RAID-FLOW-03** | レイド `/shoutout` クールタイムと待機キュー | 1回目のレイド（User A）処理直後（クールタイム 120 秒内）に 2回目のレイド（User B）を受信。 | 1. User A に対する `sendShoutoutToUser` が即時発火すること。<br>2. User B は即時送信されず、待機キュー `m_shoutoutQueue` に追加（サイズ 1）されること。<br>3. `processNextShoutoutInQueue()` 呼び出し時に User B のシャウトアウトが自動トリガーされること。 |
+| **UT-RAID-FLOW-04** | 自己レイド・自己シャウトアウト除外 | 配信主自身（`login == m_twitchChannel`）のレイドイベントを受信。 | 1. AI 歓迎メッセージ生成は実行されること。<br>2. Twitch 公式 `/shoutout` API（`sendShoutoutToUser`）は Twitch 仕様制限のためスキップされること。 |
+| **UT-RAID-FLOW-05** | `/shoutout` 成功時のフォロー推奨メッセージ | `on_shoutoutSuccessReceived("raider1")` を呼び出す（`m_shoutoutFollowMsgEnabled = true`）。 | 1. `{name}` が置換されたフォロー推奨メッセージ（例:「ぜひ raider1 さんをフォローしてね！」）が生成されること。<br>2. Twitch 宛に `EventType::AIResponseReceived` として自動送出されること。 |
+| **UT-RAID-FLOW-06** | Helix API 失敗時の安全なフォールバック | Helix API（クリエイター情報取得や `/shoutout`）がネットワークエラーを返却。 | 1. アプリがクラッシュせず、フォールバック表示名等を用いて AI 歓迎メッセージの生成およびチャット投稿が最後まで継続完了すること。 |
+
+---
+
+### 3.10 `MarkdownTableEngine` 除外トリガー・占い想起の単体試験 (GTest/QTest)
+
+| 試験ID | 対象クラス・メソッド | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-KNOWLEDGE-TRIGGER-01** | 「うらない」（ひらがな）想起 | 入力 `"うらない"` または `"今日のうらない教えて"` を `resolveBestEntryForTrigger` に投入。 | `Omikuji`（おみくじ）エントリが最高スコアでマッチし、`isValid == true` となること。 |
+| **UT-KNOWLEDGE-TRIGGER-02** | 「占い」（漢字）想起 | 入力 `"占い"` または `"今日の占い"` を投入。 | `Omikuji` エントリがマッチし、`isValid == true` となること。 |
+| **UT-KNOWLEDGE-TRIGGER-03** | 他占い（タロット/手相等）の除外 | 入力 `"タロット占いして"`, `"手相占いできる？"`, `"四柱推命で占って"` を投入。 | Omikuji の除外トリガーに引っかかり、Omikuji エントリが想起対象から完全に除外（`isValid == false` または他エントリ判定）されること。 |
+| **UT-KNOWLEDGE-TRIGGER-04** | 星座指定占いの優先想起 | 入力 `"ふたご座のうらないして"`, `"牡羊座の今日の運勢"` を投入。 | 1. Omikuji 側は除外（「座」検出）されること。<br>2. `Zodiac`（星座占い）エントリが正確にマッチし、`isValid == true` となること。 |
+| **UT-KNOWLEDGE-TRIGGER-05** | 除外トリガーの大文字・小文字・部分一致網羅 | ナレッジ定義 `# 除外トリガー` に大文字/小文字・日本語混在ワードを設定し検証。 | 大文字小文字に関わらず正確に除外判定が行われること。 |
+
+
 
 
 

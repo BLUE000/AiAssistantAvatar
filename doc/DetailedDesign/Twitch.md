@@ -104,4 +104,37 @@ Twitch IRC から受信する `USERNOTICE` タグ付きメッセージから、�
 レイド受信時、`AIClientManager` は `m_currentSource = "Twitch"` および `m_currentTwitchChannel = m_twitchChannel` を明示的に設定する。
 これにより、AI応答生成完了時の `event.source` が `"Twitch"` となり、`event.extraData["twitch_channel"]` が確実にセットされ、`CoreModule` の `enqueueCommentSend` を通じて Twitch チャット欄へお礼メッセージが 100% 確実に投稿される。
 
+---
+
+## 6. Twitch Helix 認証トークン正規化 ＆ エラー耐性仕様
+
+### 6.1 OAuth トークン文字列の自動正規化 (`setCredentials`)
+Twitch Helix API (`https://api.twitch.tv/helix/...`) に対する HTTP リクエストでは、`Authorization: Bearer <token>` 形式のヘッダーが必須となる。
+設定ファイル（`local_settings.json`）や外部入力ではトークンに `oauth:` プレフィックスが付与されている場合があるため、`TwitchHelixClient::setCredentials` において以下の正規化を強制する：
+
+```cpp
+void TwitchHelixClient::setCredentials(const QString &oauthToken, const QString &clientId) {
+    m_oauthToken = oauthToken.trimmed();
+    if (m_oauthToken.startsWith("oauth:", Qt::CaseInsensitive)) {
+        m_oauthToken = m_oauthToken.mid(6).trimmed();
+    }
+    m_clientId = clientId.trimmed();
+}
+```
+
+これにより、ヘッダー生成時に `Authorization: Bearer oauth:xxxx` のような不正形式になることを完全に防止し、401 Unauthorized (`Host requires authentication`) エラーを根絶する。
+
+### 6.2 `/shoutout` REST API エンドポイント ＆ クエリパラメータ仕様
+- **エンドポイント**: `POST https://api.twitch.tv/helix/chat/shoutouts`
+- **クエリパラメータ**:
+  - `from_broadcaster_id`: 配信主（レイドを受け取ったチャンネル）の Twitch User ID
+  - `to_broadcaster_id`: レイド主（シャウトアウト対象）の Twitch User ID
+  - `moderator_id`: コマンドを実行するモデレーターまたは配信主の Twitch User ID
+- **ヘッダー**:
+  - `Client-ID`: `<m_clientId>`
+  - `Authorization`: `Bearer <m_oauthToken>`
+  - `Content-Type`: `application/json`
+- **レスポンス**: `204 No Content`（成功時）
+
+
 
