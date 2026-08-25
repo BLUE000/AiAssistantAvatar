@@ -92,6 +92,12 @@ bool MarkdownTableEngine::buildIndexAndValidate(QJsonObject &outIndexData, QList
         }
         entryObj["columns"] = headersArr;
 
+        QJsonArray excludeArr;
+        for (const QString &ex : entry.excludeTriggers) {
+            excludeArr.append(ex);
+        }
+        entryObj["exclude_triggers"] = excludeArr;
+
         for (const QString &trig : entry.triggers) {
             QJsonArray arr = triggersObj.value(trig).toArray();
             arr.append(entryObj);
@@ -119,6 +125,18 @@ KnowledgeIndexEntry MarkdownTableEngine::resolveBestEntryForTrigger(const QStrin
 
     for (const KnowledgeIndexEntry &entry : m_indexEntries) {
         if (!entry.isValid) continue;
+
+        // 除外トリガー（ネガティブキーワード）の判定: 一致する除外ワードがあれば即スキップ
+        bool excluded = false;
+        for (const QString &exTrig : entry.excludeTriggers) {
+            if (exTrig.isEmpty()) continue;
+            if (triggerWord.contains(exTrig, Qt::CaseInsensitive)) {
+                excluded = true;
+                break;
+            }
+        }
+        if (excluded) continue;
+
         int entryScore = 0;
         int maxTrigLen = 0;
         int matchCount = 0;
@@ -211,6 +229,7 @@ void MarkdownTableEngine::parseMarkdownFile(const QString &filePath, const QStri
     QStringList headers;
     int expectedColumnCount = -1;
     bool inTriggerSection = false;
+    bool inExcludeTriggerSection = false;
     bool inPrioritySection = false;
     bool inModeSection = false;
 
@@ -218,12 +237,19 @@ void MarkdownTableEngine::parseMarkdownFile(const QString &filePath, const QStri
         QString line = lines.at(i);
         if (line.isEmpty()) continue;
 
-        // セクション判定 (# トリガー, # 優先度, # 処理モード)
+        // セクション判定 (# トリガー, # 除外トリガー, # 優先度, # 処理モード)
         if (line.startsWith("#")) {
             QString headerText = line.section('#', 1).trimmed();
-            inTriggerSection = (headerText.contains("トリガー", Qt::CaseInsensitive) || headerText.contains("Trigger", Qt::CaseInsensitive));
+            inExcludeTriggerSection = (headerText.contains("除外トリガー", Qt::CaseInsensitive) || headerText.contains("除外", Qt::CaseInsensitive) || headerText.contains("Exclude", Qt::CaseInsensitive));
+            inTriggerSection = !inExcludeTriggerSection && (headerText.contains("トリガー", Qt::CaseInsensitive) || headerText.contains("Trigger", Qt::CaseInsensitive));
             inPrioritySection = (headerText.contains("優先度", Qt::CaseInsensitive) || headerText.contains("Priority", Qt::CaseInsensitive));
             inModeSection = (headerText.contains("処理", Qt::CaseInsensitive) || headerText.contains("Mode", Qt::CaseInsensitive));
+            continue;
+        }
+
+        if (inExcludeTriggerSection && (line.startsWith("-") || line.startsWith("*"))) {
+            QString exTrig = line.mid(1).trimmed();
+            if (!exTrig.isEmpty()) indexEntry.excludeTriggers.append(exTrig);
             continue;
         }
 

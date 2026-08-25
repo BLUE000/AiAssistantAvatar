@@ -8,8 +8,11 @@ TwitchHelixClient::TwitchHelixClient(QObject *parent)
     : QObject(parent), m_networkManager(new QNetworkAccessManager(this)) {}
 
 void TwitchHelixClient::setCredentials(const QString &oauthToken, const QString &clientId) {
-    m_oauthToken = oauthToken;
-    m_clientId = clientId;
+    m_oauthToken = oauthToken.trimmed();
+    if (m_oauthToken.startsWith("oauth:", Qt::CaseInsensitive)) {
+        m_oauthToken = m_oauthToken.mid(6).trimmed();
+    }
+    m_clientId = clientId.trimmed();
 }
 
 QString TwitchHelixClient::extractSnsInfo(const QString &bio) {

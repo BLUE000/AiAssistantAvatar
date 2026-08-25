@@ -3406,6 +3406,327 @@ TEST(TwitchHelixClientTest, ExtractSnsInfo_EmptyBio) {
     EXPECT_TRUE(result.isEmpty());
 }
 
+// =========================================================================
+// UT-HELIX-01 ~ UT-HELIX-03: TwitchHelixClient 認証正規化およびリクエスト単体試験
+// =========================================================================
+
+// UT-HELIX-01: setCredentials における oauth: プレフィックスの自動除去と正規化
+TEST(TwitchHelixClientTest, SetCredentials_TokenNormalization) {
+    TwitchHelixClient client;
+
+    // "oauth:abcd1234efgh" -> "abcd1234efgh"
+    client.setCredentials("oauth:abcd1234efgh", "my_client_id_1");
+    EXPECT_EQ(client.oauthToken(), "abcd1234efgh");
+    EXPECT_EQ(client.clientId(), "my_client_id_1");
+
+    // 大文字 "OAUTH:XYZ789" -> "XYZ789"
+    client.setCredentials("  OAUTH:XYZ789  ", "  my_client_id_2  ");
+    EXPECT_EQ(client.oauthToken(), "XYZ789");
+    EXPECT_EQ(client.clientId(), "my_client_id_2");
+
+    // プレフィックスなしの純粋トークン -> そのまま保持
+    client.setCredentials("pure_token_value", "my_client_id_3");
+    EXPECT_EQ(client.oauthToken(), "pure_token_value");
+    EXPECT_EQ(client.clientId(), "my_client_id_3");
+}
+
+// =========================================================================
+// MockTwitchHelixClient: テスト用 TwitchHelixClient モック
+// =========================================================================
+class MockTwitchHelixClient : public TwitchHelixClient {
+public:
+    explicit MockTwitchHelixClient(QObject *parent = nullptr) : TwitchHelixClient(parent) {}
+
+    bool mockFetchSuccess = true;
+    CreatorHelixInfo mockInfo;
+    int fetchCallCount = 0;
+    QString lastFetchedUser;
+
+    bool mockShoutoutSuccess = true;
+    int shoutoutCallCount = 0;
+    QString lastShoutoutFrom;
+    QString lastShoutoutTo;
+
+    void fetchCreatorInfo(const QString &username, std::function<void(const CreatorHelixInfo &info, bool success)> callback) override {
+        fetchCallCount++;
+        lastFetchedUser = username;
+        if (callback) {
+            CreatorHelixInfo info = mockInfo;
+            if (info.login.isEmpty()) info.login = username;
+            if (info.displayName.isEmpty()) info.displayName = username;
+            callback(info, mockFetchSuccess);
+        }
+    }
+
+    void sendShoutoutToUser(const QString &fromUsername, const QString &toUsername, std::function<void(bool success)> callback) override {
+        shoutoutCallCount++;
+        lastShoutoutFrom = fromUsername;
+        lastShoutoutTo = toUsername;
+        if (callback) {
+            callback(mockShoutoutSuccess);
+        }
+    }
+};
+
+// =========================================================================
+// UT-RAID-FLOW-01 ~ UT-RAID-FLOW-06: レイドシャウトアウト E2E フロー単体試験
+// =========================================================================
+
+// UT-RAID-FLOW-01: handleRaidShoutout 正常系フロー
+TEST_F(AIClientTest, RaidShoutout_NormalFlow) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    mockHelix.mockInfo.userId = "12345";
+    mockHelix.mockInfo.login = "raider_taro";
+    mockHelix.mockInfo.displayName = "レイド太郎";
+    mockHelix.mockInfo.gameName = "Farming Simulator 19";
+    manager.setHelixClient(&mockHelix);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // レイドイベント受信
+    QVariantMap raidMeta;
+    raidMeta["login"] = "raider_taro";
+    raidMeta["displayName"] = "レイド太郎";
+    raidMeta["viewerCount"] = 15;
+    raidMeta["channel"] = "my_streamer_channel";
+
+    manager.on_twitchRaidReceived("raider_taro", raidMeta);
+
+    // クリエイター情報取得および /shoutout が発火していること
+    EXPECT_EQ(mockHelix.fetchCallCount, 1);
+    EXPECT_EQ(mockHelix.lastFetchedUser, "raider_taro");
+    EXPECT_EQ(mockHelix.shoutoutCallCount, 1);
+    EXPECT_EQ(mockHelix.lastShoutoutTo, "raider_taro");
+}
+
+// UT-RAID-FLOW-02: handleRaidShoutout 応答完了と Twitch 送信
+TEST_F(AIClientTest, RaidShoutout_ResponseRoutingToTwitch) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = false; // 純粋な紹介コメントのルーティング検証
+    settings["shoutout_prefix"] = "【レイド感謝】";
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    QVariantMap raidMeta;
+    raidMeta["login"] = "raider_taro";
+    raidMeta["displayName"] = "レイド太郎";
+    raidMeta["channel"] = "my_streamer_channel";
+    manager.on_twitchRaidReceived("raider_taro", raidMeta);
+
+    // AIレスポンス完了
+    manager.on_clientRequestFinished("レイドありがとう！みんなで楽しもう！", true, 200);
+
+    // イベント通知確認
+    ASSERT_GE(eventSpy.count(), 1);
+    bool foundResponse = false;
+    for (int i = 0; i < eventSpy.count(); ++i) {
+        AppEvent ev = eventSpy.at(i).at(0).value<AppEvent>();
+        if (ev.type == EventType::AIResponseReceived) {
+            foundResponse = true;
+            EXPECT_EQ(ev.source, "Twitch");
+            EXPECT_EQ(ev.extraData.value("twitch_channel").toString(), "my_streamer_channel");
+            // IRC 禁止コマンド文字列が含まれないこと
+            EXPECT_FALSE(ev.text.startsWith("/announce"));
+            EXPECT_FALSE(ev.text.startsWith("/shoutout"));
+            EXPECT_TRUE(ev.text.contains("レイドありがとう"));
+            break;
+        }
+    }
+    EXPECT_TRUE(foundResponse);
+}
+
+// UT-RAID-FLOW-03: レイド /shoutout クールタイムと待機キュー
+TEST_F(AIClientTest, RaidShoutout_CooldownAndQueue) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    // 1人目のレイド
+    QVariantMap raidMeta1;
+    raidMeta1["login"] = "user_a";
+    raidMeta1["displayName"] = "ユーザーA";
+    raidMeta1["channel"] = "my_streamer_channel";
+    manager.on_twitchRaidReceived("user_a", raidMeta1);
+
+    EXPECT_EQ(mockHelix.shoutoutCallCount, 1);
+    EXPECT_EQ(mockHelix.lastShoutoutTo, "user_a");
+
+    // クールタイム中に 2人目のレイド
+    QVariantMap raidMeta2;
+    raidMeta2["login"] = "user_b";
+    raidMeta2["displayName"] = "ユーザーB";
+    raidMeta2["channel"] = "my_streamer_channel";
+    manager.on_twitchRaidReceived("user_b", raidMeta2);
+
+    // 即時には 2人目の shoutout は呼ばれず、キューで待機
+    EXPECT_EQ(mockHelix.shoutoutCallCount, 1);
+
+    // クールタイム満了時のキュー処理
+    manager.on_shoutoutSuccessReceived("user_a");
+}
+
+// UT-RAID-FLOW-04: 自己レイド・自己シャウトアウト除外
+TEST_F(AIClientTest, RaidShoutout_IgnoreSelfShoutout) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["twitch_username"] = "my_bot_account";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    // 配信主自身がレイドした場合
+    QVariantMap raidMeta;
+    raidMeta["login"] = "my_streamer_channel";
+    raidMeta["displayName"] = "配信主";
+    raidMeta["channel"] = "my_streamer_channel";
+    manager.on_twitchRaidReceived("my_streamer_channel", raidMeta);
+
+    // クリエイター情報取得は行われるが、自己シャウトアウトはスキップされる
+    EXPECT_EQ(mockHelix.shoutoutCallCount, 0);
+}
+
+// UT-RAID-FLOW-05: /shoutout 成功時のフォロー推奨メッセージ
+TEST_F(AIClientTest, RaidShoutout_FollowRecommendationMessage) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["shoutout_follow_msg_enabled"] = true;
+    settings["shoutout_use_announce"] = false;
+    settings["shoutout_follow_msg_template"] = "ぜひ {name} さんをフォローしてね！";
+    manager.loadSettingsFromJsonObject(settings);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // シャウトアウト成功通知を受信
+    manager.on_shoutoutSuccessReceived("raider_taro");
+
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent ev = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_EQ(ev.source, "ShoutoutModule");
+    EXPECT_EQ(ev.text, "ぜひ raider_taro さんをフォローしてね！");
+}
+
+// UT-RAID-FLOW-06: Helix API 失敗時の安全なフォールバック
+TEST_F(AIClientTest, RaidShoutout_HelixFailureFallback) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    mockHelix.mockFetchSuccess = false; // クリエイター情報取得失敗
+    manager.setHelixClient(&mockHelix);
+
+    QVariantMap raidMeta;
+    raidMeta["login"] = "offline_user";
+    raidMeta["displayName"] = "オフラインユーザー";
+
+    // エラーでもクラッシュせず処理が通ること
+    EXPECT_NO_THROW(manager.on_twitchRaidReceived("offline_user", raidMeta));
+}
+
+// =========================================================================
+// UT-KNOWLEDGE-TRIGGER-01 ~ UT-KNOWLEDGE-TRIGGER-05: MarkdownTableEngine 除外トリガー単体試験
+// =========================================================================
+
+// UT-KNOWLEDGE-TRIGGER-01 & 02: 「うらない」「占い」で Omikuji が想起されること
+TEST(MarkdownTableEngineTest, ExcludeTriggers_OmikujiTriggerMatch) {
+    MarkdownTableEngine engine("knowledge");
+
+    // ひらがな「うらない」
+    KnowledgeIndexEntry entry1 = engine.resolveBestEntryForTrigger("うらない");
+    EXPECT_TRUE(entry1.isValid);
+    EXPECT_EQ(entry1.tableName, "Ranks");
+    EXPECT_EQ(entry1.group, "Omikuji");
+
+    // 漢字「占い」
+    KnowledgeIndexEntry entry2 = engine.resolveBestEntryForTrigger("今日の占い教えて");
+    EXPECT_TRUE(entry2.isValid);
+    EXPECT_EQ(entry2.tableName, "Ranks");
+    EXPECT_EQ(entry2.group, "Omikuji");
+}
+
+// UT-KNOWLEDGE-TRIGGER-03: 他占い（タロット、手相等）で Omikuji が除外されること
+TEST(MarkdownTableEngineTest, ExcludeTriggers_OtherFortunesExcluded) {
+    MarkdownTableEngine engine("knowledge");
+
+    // タロット占い -> Omikuji は除外
+    KnowledgeIndexEntry entry1 = engine.resolveBestEntryForTrigger("タロット占いして");
+    EXPECT_NE(entry1.group, "Omikuji");
+
+    // 手相占い -> Omikuji は除外
+    KnowledgeIndexEntry entry2 = engine.resolveBestEntryForTrigger("手相占いはできる？");
+    EXPECT_NE(entry2.group, "Omikuji");
+
+    // 四柱推命 -> Omikuji は除外
+    KnowledgeIndexEntry entry3 = engine.resolveBestEntryForTrigger("四柱推命の占いをして");
+    EXPECT_NE(entry3.group, "Omikuji");
+}
+
+// UT-KNOWLEDGE-TRIGGER-04: 星座指定占いで Zodiac が優先想起され Omikuji が除外されること
+TEST(MarkdownTableEngineTest, ExcludeTriggers_ZodiacPriorityOverOmikuji) {
+    MarkdownTableEngine engine("knowledge");
+
+    // 「ふたご座のうらないして」 -> Omikuji は「座」で除外され、Zodiac がヒット
+    KnowledgeIndexEntry entry1 = engine.resolveBestEntryForTrigger("ふたご座のうらないして");
+    EXPECT_TRUE(entry1.isValid);
+    EXPECT_EQ(entry1.group, "Zodiac");
+
+    // 「牡羊座の占い」
+    KnowledgeIndexEntry entry2 = engine.resolveBestEntryForTrigger("牡羊座の占い");
+    EXPECT_TRUE(entry2.isValid);
+    EXPECT_EQ(entry2.group, "Zodiac");
+}
+
+// UT-KNOWLEDGE-TRIGGER-05: 除外トリガーの大文字・小文字・部分一致
+TEST(MarkdownTableEngineTest, ExcludeTriggers_CaseAndPartialMatch) {
+    MarkdownTableEngine engine("knowledge");
+
+    // 通常のおみくじは問題なくヒット
+    KnowledgeIndexEntry entry = engine.resolveBestEntryForTrigger("今日のおみくじ");
+    EXPECT_TRUE(entry.isValid);
+    EXPECT_EQ(entry.group, "Omikuji");
+}
+
+
 
 
 

@@ -175,6 +175,18 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
     m_shoutoutLength = obj.value("shoutout_length").toString("standard");
     m_shoutoutTone = obj.value("shoutout_tone").toString("明るく元気な口調で！");
     m_shoutoutPrefix = obj.value("shoutout_prefix").toString("【レイド感謝】");
+
+    if (obj.contains("twitch_channel")) {
+        m_twitchChannel = obj["twitch_channel"].toString().trimmed();
+    }
+    if (obj.contains("twitch_username")) {
+        m_twitchUsername = obj["twitch_username"].toString().trimmed();
+    }
+    if (m_helixClient && obj.contains("twitch_oauth_token")) {
+        QString twitchToken = obj["twitch_oauth_token"].toString();
+        QString twitchClientId = obj["twitch_client_id"].toString();
+        m_helixClient->setCredentials(twitchToken, twitchClientId);
+    }
 }
 
 void AIClientManager::loadCredentials() {

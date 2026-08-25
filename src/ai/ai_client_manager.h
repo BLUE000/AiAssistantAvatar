@@ -213,6 +213,8 @@ public:
     // 会話トリガーからのクリエイター紹介（呼び出し元ソースを引き継ぎ、レイド文脈と分離）
     void handleConversationShoutout(const QString &username, const QString &source, const QString &twitchChannel = {});
     void setAIProvider(const QString &provider, bool forceRefresh = false);
+    void setHelixClient(TwitchHelixClient *client) { m_helixClient = client; }
+    TwitchHelixClient* helixClient() const { return m_helixClient; }
 
     // 履歴データ取得/設定用のI/F
     QList<QPair<QString, QString>> chatHistory() const { return m_chatHistory; }

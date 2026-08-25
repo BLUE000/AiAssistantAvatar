@@ -26,6 +26,7 @@ struct KnowledgeIndexEntry {
     int priority = 100;
     QString mode = "random_row"; // "random_row" または "table_search"
     QStringList triggers;
+    QStringList excludeTriggers; // 除外トリガー（ネガティブキーワード）
     QStringList headers;
     bool isValid = true;
     QString errorMessage;

@@ -20,24 +20,27 @@ struct CreatorHelixInfo {
 
 class TwitchHelixClient : public QObject {
     Q_OBJECT
-private:
+protected:
     QNetworkAccessManager *m_networkManager;
     QString m_oauthToken;
     QString m_clientId;
 
 public:
     explicit TwitchHelixClient(QObject *parent = nullptr);
+    virtual ~TwitchHelixClient() = default;
     void setCredentials(const QString &oauthToken, const QString &clientId);
+    QString oauthToken() const { return m_oauthToken; }
+    QString clientId() const { return m_clientId; }
 
     // 非同期で Helix API からクリエイター情報を取得
-    void fetchCreatorInfo(const QString &username, std::function<void(const CreatorHelixInfo &info, bool success)> callback);
+    virtual void fetchCreatorInfo(const QString &username, std::function<void(const CreatorHelixInfo &info, bool success)> callback);
 
     // 非同期で Twitch Helix API (POST /helix/chat/announcements) から公式カラーアナウンスバナーを発信
-    void sendChatAnnouncement(const QString &broadcasterId, const QString &moderatorId, const QString &message, const QString &color = "primary", std::function<void(bool success)> callback = nullptr);
+    virtual void sendChatAnnouncement(const QString &broadcasterId, const QString &moderatorId, const QString &message, const QString &color = "primary", std::function<void(bool success)> callback = nullptr);
 
     // 非同期で Twitch Helix API (POST /helix/chat/shoutouts) から公式 Shoutout リクエストを発信
-    void sendShoutout(const QString &fromBroadcasterId, const QString &toBroadcasterId, const QString &moderatorId, std::function<void(bool success)> callback = nullptr);
-    void sendShoutoutToUser(const QString &fromUsername, const QString &toUsername, std::function<void(bool success)> callback = nullptr);
+    virtual void sendShoutout(const QString &fromBroadcasterId, const QString &toBroadcasterId, const QString &moderatorId, std::function<void(bool success)> callback = nullptr);
+    virtual void sendShoutoutToUser(const QString &fromUsername, const QString &toUsername, std::function<void(bool success)> callback = nullptr);
 
     // Bio から SNS・外部リンクを抽出する純粋関数
     static QString extractSnsInfo(const QString &bio);
