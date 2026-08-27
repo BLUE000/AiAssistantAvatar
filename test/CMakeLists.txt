@@ -51,6 +51,7 @@ set(TEST_SOURCES
     ../src/ai/system_response_manager.cpp
     ../src/ai/ai_random_utils.cpp
     ../src/ai/ai_router.cpp
+    ../src/ai/manager_context_evaluator.cpp
     ../src/search/isearch_provider.cpp
     ../src/search/search_manager.cpp
     ../src/search/tavily_search_provider.cpp

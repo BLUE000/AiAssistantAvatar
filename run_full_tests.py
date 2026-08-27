@@ -39,6 +39,68 @@ def parse_failed_tests(output_text):
                 failed_tests.append(test_name)
     return failed_tests
 
+def check_trustchain(project_dir):
+    """
+    Git コマンドを実行し、TrustChain 検証（コミット照合、未コミット差分、ブランチ）を判定する
+    """
+    res = {
+        "verified": False,
+        "status": "UNKNOWN",
+        "commit": "",
+        "branch": "",
+        "is_customized": True,
+        "details": ""
+    }
+    try:
+        commit_res = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        if commit_res.returncode == 0:
+            res["commit"] = commit_res.stdout.strip()
+
+        branch_res = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=project_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        if branch_res.returncode == 0:
+            res["branch"] = branch_res.stdout.strip()
+
+        status_res = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        is_dirty = bool(status_res.stdout.strip())
+
+        if is_dirty:
+            res["status"] = "CUSTOMIZED_DIRTY"
+            res["is_customized"] = True
+            res["verified"] = False
+            res["details"] = "Local uncommitted modifications detected."
+            return res
+
+        if res["commit"] and res["branch"]:
+            remote_res = subprocess.run(
+                ["git", "ls-remote", "origin", res["branch"]],
+                cwd=project_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if remote_res.returncode == 0 and res["commit"] in remote_res.stdout:
+                res["status"] = "PASSED"
+                res["is_customized"] = False
+                res["verified"] = True
+                res["details"] = "Commit verified on remote origin."
+            else:
+                res["status"] = "CUSTOMIZED_UNPUSHED"
+                res["is_customized"] = True
+                res["verified"] = False
+                res["details"] = "Commit not found on remote origin."
+    except Exception as e:
+        res["status"] = "VERIFICATION_ERROR"
+        res["details"] = str(e)
+
+    return res
+
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_dir = script_dir
@@ -166,7 +228,11 @@ def main():
     status_str = "SUCCESS" if passed_all else "FAILURE"
     pass_rate_percent = round((passed_count / total_count * 100.0), 2) if total_count > 0 else 0.0
 
-    # 7. テスト出力ログのファイル保存 (TestLog/YYYY-MM-DD_HH-MM-SS_TestLog.log ＆ build/test.log)
+    # 7. TrustChain 検証の実行
+    tc_info = check_trustchain(project_dir)
+    tc_status_line = f"TrustChain: {tc_info['status']} (Commit: {tc_info['commit'][:10] if tc_info['commit'] else 'N/A'}, RemoteVerified: {tc_info['verified']}, Details: {tc_info['details']})"
+
+    # 8. テスト出力ログのファイル保存 (TestLog/YYYY-MM-DD_HH-MM-SS_TestLog.log ＆ build/test.log)
     timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     test_log_filename = f"{timestamp_str}_TestLog.log"
     test_log_filepath = os.path.join(test_logs_dir, test_log_filename)
@@ -176,6 +242,7 @@ def main():
         f"============================================================\n"
         f"  AiAssistantAvatar Test Log - {datetime.now().isoformat()}\n"
         f"  Executable: {test_exe}\n"
+        f"  {tc_status_line}\n"
         f"  Status: {status_str} | Ran: {total_count} | Passed: {passed_count} | Failed: {failed_count} ({pass_rate_percent}%)\n"
         f"  Elapsed: {elapsed_seconds}s\n"
         f"============================================================\n\n"
@@ -188,7 +255,7 @@ def main():
     with open(build_test_log_filepath, "w", encoding="utf-8") as f:
         f.write(log_content)
 
-    # 8. サマリ JSON ファイルの出力
+    # 9. サマリ JSON ファイルの出力
     summary_data = {
         "timestamp": datetime.now().isoformat(),
         "success": passed_all,
@@ -199,6 +266,7 @@ def main():
         "suites_count": suites_count,
         "pass_rate_percent": pass_rate_percent,
         "elapsed_seconds": elapsed_seconds,
+        "trustchain": tc_info,
         "failed_tests": failed_test_list,
         "test_log_file": test_log_filepath,
         "test_exe": test_exe

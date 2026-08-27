@@ -4178,6 +4178,142 @@ TEST_F(AIClientTest, ManagerAIModelListUpdatesOnProviderChange) {
     EXPECT_TRUE(window.managerModelCombo()->findText("meta-llama/Llama-3.1-8B-Instruct (推奨)") >= 0);
 }
 
+TEST_F(AIClientTest, ManagerContext_ExtractCandidates) {
+    // UT-CTX-01: 会話ログからの候補コンテキスト抽出
+    QList<ChatMessageEntry> logs;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    ChatMessageEntry e1{"msg_1", "userA", false, "富士山ってどこにあるの？", now - 15000};
+    ChatMessageEntry e2{"msg_2", "AI", true, "山梨県のみにありますよ！", now - 10000};
+    ChatMessageEntry e3{"msg_3", "userC", false, "昨日のゲーム面白かったね", now - 5000};
+
+    logs.append(e1);
+    logs.append(e2);
+    logs.append(e3);
+
+    QList<ContextCandidate> candidates = ManagerContextEvaluator::extractContextCandidates(logs, "そこは静岡だよ！", 5, now);
+    ASSERT_EQ(candidates.size(), 3);
+    EXPECT_EQ(candidates.at(0).messageId, "msg_1");
+    EXPECT_EQ(candidates.at(1).messageId, "msg_2");
+    EXPECT_TRUE(candidates.at(1).isAssistant);
+    EXPECT_EQ(candidates.at(2).messageId, "msg_3");
+}
+
+TEST_F(AIClientTest, ManagerContext_InformationSpeechAct) {
+    // UT-CTX-02: 情報伝達 (INFORMATION) に対するリアクション生成
+    QList<ContextCandidate> candidates;
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "アバター名、aliceさんが今日はお休みだって言ってるよ！",
+        "bob",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.speechAct, "INFORMATION");
+    EXPECT_EQ(result.responseAction, "ACKNOWLEDGE");
+    EXPECT_GE(result.referenceConfidence, 0.80);
+
+    QString instruction = ManagerContextEvaluator::formatWorkerInstruction(result, pending);
+    EXPECT_TRUE(instruction.contains("情報伝達の受け止め指示"));
+    EXPECT_TRUE(instruction.contains("自然な相槌・リアクション"));
+}
+
+TEST_F(AIClientTest, ManagerContext_CorrectionSpeechAct) {
+    // UT-CTX-03: 過去発言訂正 (CORRECTION) に対する誤り受容プロンプト
+    QList<ContextCandidate> candidates;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    candidates.append(ContextCandidate{"msg_001", "AI", true, "富士山は山梨県だけにあります", 10});
+
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "そこは静岡だよ！",
+        "userB",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.speechAct, "CORRECTION");
+    EXPECT_EQ(result.responseAction, "CORRECT_APOLOGY");
+    EXPECT_EQ(result.refMessageId, "msg_001");
+
+    QString instruction = ManagerContextEvaluator::formatWorkerInstruction(result, pending);
+    EXPECT_TRUE(instruction.contains("過去発言の訂正受容指示"));
+    EXPECT_TRUE(instruction.contains("一般論や人生論、励まし"));
+    EXPECT_TRUE(instruction.contains("完全に禁止"));
+}
+
+TEST_F(AIClientTest, ManagerContext_DemonstrativeReference) {
+    // UT-CTX-04: 指示語（それ・そこ）の参照先特定
+    QList<ContextCandidate> candidates;
+    candidates.append(ContextCandidate{"msg_ai_100", "AI", true, "100ドルは1000円です", 5});
+
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "それ違うよ！15000円だよ",
+        "userA",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.speechAct, "CORRECTION");
+    EXPECT_EQ(result.refMessageId, "msg_ai_100");
+    EXPECT_GE(result.referenceConfidence, 0.80);
+}
+
+TEST_F(AIClientTest, ManagerContext_AskClarificationOnAmbiguity) {
+    // UT-CTX-05: 低確信度時の短い聞き返し (ASK_CLARIFICATION)
+    QList<ContextCandidate> candidates;
+    candidates.append(ContextCandidate{"msg_ai_1", "AI", true, "明日は晴れです", 30});
+    candidates.append(ContextCandidate{"msg_ai_2", "AI", true, "ゲームは10時から開始です", 10});
+
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "それ違うよ！",
+        "userA",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.speechAct, "CORRECTION");
+    EXPECT_EQ(result.responseAction, "ASK_CLARIFICATION");
+    EXPECT_LT(result.referenceConfidence, 0.50);
+    EXPECT_EQ(result.clarificationQuestion, "それってどれのこと？");
+
+    QString instruction = ManagerContextEvaluator::formatWorkerInstruction(result, pending);
+    EXPECT_TRUE(instruction.contains("聞き返し指示"));
+    EXPECT_TRUE(instruction.contains("それってどれのこと？"));
+}
+
+TEST_F(AIClientTest, ManagerContext_PendingClarificationResume) {
+    // UT-CTX-06: 聞き返し状態 (PendingClarification) の保持と文脈復元
+    PendingClarification pending;
+    pending.requester = "userA";
+    pending.candidateTopic = "それ違うよ！";
+    pending.questionText = "それってどれのこと？";
+    pending.timestamp = QDateTime::currentMSecsSinceEpoch();
+
+    EXPECT_TRUE(pending.isValid());
+
+    QList<ContextCandidate> candidates;
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "ゲームの時間のこと！",
+        "userA",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.responseAction, "ANSWER");
+    QString instruction = ManagerContextEvaluator::formatWorkerInstruction(result, pending);
+    EXPECT_TRUE(instruction.contains("直前の聞き返し応答に対する文脈復元指示"));
+    EXPECT_TRUE(instruction.contains("それってどれのこと？"));
+}
+
+
 
 
 

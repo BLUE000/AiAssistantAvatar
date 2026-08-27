@@ -9,6 +9,7 @@
 #include "../app_event.h"
 #include "rate_limit_tracker.h"
 #include "ai_router.h"
+#include "manager_context_evaluator.h"
 #include "../search/markdown_table_engine.h"
 
 enum class KnowledgeImportState {
@@ -56,6 +57,11 @@ private:
     QString m_avatarName;
     QString m_currentRequester;
     QString m_previousRequester; // 前回のリクエスター（切り替わり検知用）
+
+    // --- F-40 複数ユーザー文脈判定・聞き返し状態管理 ---
+    QList<ChatMessageEntry> m_chatLogs;
+    PendingClarification m_pendingClarification;
+
 
     // --- F-15/F-16/F-32/F-39 AIプロバイダ追加 ---
     class MistralAIClient *m_mistralClient = nullptr;
@@ -242,6 +248,12 @@ public:
     QString managerProvider() const { return m_managerProvider; }
     QString managerModel() const { return m_managerModel; }
     QString groqModel() const { return m_groqModel; }
+
+    const PendingClarification& pendingClarification() const { return m_pendingClarification; }
+    void setPendingClarification(const PendingClarification &p) { m_pendingClarification = p; }
+    const QList<ChatMessageEntry>& chatLogs() const { return m_chatLogs; }
+    void addChatLogEntry(const QString &sender, bool isAssistant, const QString &text);
+
 
     void setUseProcessForIntro(bool enabled) { m_useProcessForIntro = enabled; }
     bool useProcessForIntro() const { return m_useProcessForIntro; }

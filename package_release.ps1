@@ -1,3 +1,30 @@
+# 0. TrustChain 検証の実行
+Write-Host "============================================================"
+Write-Host "  TrustChain Verification for Release Packaging"
+Write-Host "============================================================"
+
+$tcCommit = (git rev-parse HEAD).Trim()
+$tcBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+$tcStatusPorcelain = (git status --porcelain).Trim()
+$tcIsDirty = -not [string]::IsNullOrEmpty($tcStatusPorcelain)
+$tcVerified = $false
+$tcStatus = "UNKNOWN"
+
+if ($tcIsDirty) {
+    $tcStatus = "CUSTOMIZED_DIRTY"
+    Write-Warning "[TrustChain] WARNING: Working tree has uncommitted changes (dirty). Build is marked as CUSTOMIZED."
+} else {
+    $remoteCheck = git ls-remote origin $tcBranch
+    if ($remoteCheck -and ($remoteCheck -match $tcCommit)) {
+        $tcStatus = "PASSED"
+        $tcVerified = $true
+        Write-Host "[TrustChain] Origin verification PASSED: Commit $tcCommit exists on remote $tcBranch." -ForegroundColor Green
+    } else {
+        $tcStatus = "CUSTOMIZED_UNPUSHED"
+        Write-Warning "[TrustChain] WARNING: Commit $tcCommit not found on remote $tcBranch (unpushed). Build is marked as CUSTOMIZED."
+    }
+}
+
 $releaseDir = "dist/AiAssistantAvatar_Release"
 $zipPath = "dist/AiAssistantAvatar_Release.zip"
 
@@ -72,8 +99,30 @@ if (Test-Path "knowledge") {
     Copy-Item -Recurse -Force "knowledge" -Destination "$releaseDir/"
 }
 
-
 # 5. ZIP 圧縮パッケージの作成
 Compress-Archive -Path "$releaseDir\*" -DestinationPath $zipPath -Force
 
-Write-Host "Full Release package successfully created at $zipPath with all Qt6 & MinGW DLLs!"
+# 6. リリースサマリ JSON の出力
+Start-Sleep -Milliseconds 500
+$zipItem = Get-Item "dist\AiAssistantAvatar_Release.zip"
+$zipItem.Refresh()
+$zipSize = $zipItem.Length
+$tcCustomized = if ($tcIsDirty) { $true } else { $false }
+
+$summaryObj = [PSCustomObject]@{
+    timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.ffffff")
+    package_file = $zipPath
+    package_size_bytes = $zipSize
+    trustchain = [PSCustomObject]@{
+        verified = $tcVerified
+        status = $tcStatus
+        commit = $tcCommit
+        branch = $tcBranch
+        is_customized = $tcCustomized
+    }
+}
+$jsonString = $summaryObj | ConvertTo-Json -Depth 4
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) "dist/release_summary.json"), $jsonString, [System.Text.Encoding]::UTF8)
+
+Write-Host "Full Release package successfully created at $zipPath with all Qt6 and MinGW DLLs!"
+Write-Host "TrustChain Status: $tcStatus | Summary: dist/release_summary.json"

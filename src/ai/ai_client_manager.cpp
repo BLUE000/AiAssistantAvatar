@@ -1431,8 +1431,46 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         }
     }
 
+    // 8. F-40 複数ユーザー会話文脈判定・指示語解決・聞き返し制御
+    addChatLogEntry(user, false, filteredPrompt);
+    QList<ContextCandidate> candidates = ManagerContextEvaluator::extractContextCandidates(m_chatLogs, filteredPrompt);
+    ManagerContextResult contextResult = ManagerContextEvaluator::evaluateContextRuleBased(
+        filteredPrompt, user, candidates, m_pendingClarification, m_avatarName
+    );
+
+    if (contextResult.responseAction == "ASK_CLARIFICATION") {
+        // 短い聞き返しを即座に発話し、保留状態をセット
+        m_pendingClarification.requester = user;
+        m_pendingClarification.candidateTopic = filteredPrompt;
+        m_pendingClarification.questionText = contextResult.clarificationQuestion.isEmpty() ? "それってどれのこと？" : contextResult.clarificationQuestion;
+        m_pendingClarification.timestamp = QDateTime::currentMSecsSinceEpoch();
+
+        addChatLogEntry(m_avatarName, true, m_pendingClarification.questionText);
+
+        AppEvent event;
+        event.type = EventType::AIResponseReceived;
+        event.source = "AIClientManager";
+        event.text = m_pendingClarification.questionText;
+        emit notifyEvent(event);
+        return;
+    }
+
+    QString contextInstruction = ManagerContextEvaluator::formatWorkerInstruction(contextResult, m_pendingClarification);
+    if (!contextInstruction.isEmpty()) {
+        if (!additionalSystemPrompt.isEmpty()) {
+            additionalSystemPrompt = contextInstruction + "\n\n" + additionalSystemPrompt;
+        } else {
+            additionalSystemPrompt = contextInstruction;
+        }
+    }
+
+    if (m_pendingClarification.isValid()) {
+        m_pendingClarification.clear();
+    }
+
     m_lastFinalPrompt = finalPrompt;
     m_lastAdditionalSystemPrompt = additionalSystemPrompt;
+
 
 
     if (selectAndPrepareClient(filteredPrompt)) {
@@ -1797,6 +1835,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
 
         // 履歴にペアを追加し、シグナルで通知
         m_chatHistory.append(QPair<QString, QString>(m_lastPromptWithTag, filteredResponse));
+        addChatLogEntry(m_avatarName, true, filteredResponse);
         emit chatHistoryUpdated(m_chatHistory);
 
         // 【TransCipher難読化要件の適用】
@@ -3872,6 +3911,21 @@ QString AIClientManager::evaluateWithObserver(const QString &platform, const QSt
 
     return QString();
 }
+
+void AIClientManager::addChatLogEntry(const QString &sender, bool isAssistant, const QString &text) {
+    ChatMessageEntry entry;
+    entry.messageId = QString("msg_%1").arg(QDateTime::currentMSecsSinceEpoch());
+    entry.sender = sender.isEmpty() ? (isAssistant ? m_avatarName : "User") : sender;
+    entry.isAssistant = isAssistant;
+    entry.text = text;
+    entry.timestamp = QDateTime::currentMSecsSinceEpoch();
+
+    m_chatLogs.append(entry);
+    while (m_chatLogs.size() > 50) {
+        m_chatLogs.removeFirst();
+    }
+}
+
 
 
 
