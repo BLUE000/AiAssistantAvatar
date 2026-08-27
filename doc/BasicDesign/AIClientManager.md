@@ -147,8 +147,25 @@
 - **Gemini コンソールアプリ (`GeminiChatter.exe`)**:
   - 独立プロセスとして Gemini 推論を実行する CLI ツールを提供。
   - コマンドライン引数（`--prompt`, `--system`, `--model`, `--api-key`, `--config`, `--format text/json`, `--timeout`）に対応。
-  - メインアプリおよび外部ツールから `tools/GeminiChatter.exe` を非同期起動可能。
-  - プロセス起動時は `ProcessUtils` により `PATH` 前置注入と DLL 共有を行い、軽量かつ安全に実行。
+### 2.19 複数ユーザー会話文脈判定・指示語解決・聞き返し状態管理設計 (F-40)
+- **二重 AI（Manager AI ＋ Worker AI）による文脈理解アーキテクチャ**:
+  - **ソフトウェア側（C++）の責務**:
+    - アバター名／ウェイクワードのトリガー検出、発言者メタデータ（ID、表示名、発言時刻、AI/User 種別）の管理。
+    - 単純な「直前の AI 発言」ではなく、直近の会話ログから一定時間以内の AI 参加発言や関連トピックを含む**「候補コンテキスト（`ContextCandidate`）」**を抽出して Manager AI に提供。
+    - Manager AI の判定結果（`response_action`）に基づくルーティング制御。
+    - 曖昧時の聞き返し状態（`PendingClarification`）のメモリ保持と、次回発言時における文脈復元。
+  - **Manager AI の責務**:
+    - 自然言語の意味・文脈判定（宛先 `target`、会話行為 `speech_act`、指示語参照先 `reference_message_id`、確信度 `reference_confidence`、推奨アクション `response_action`）。
+  - **Worker AI の責務**:
+    - Manager AI の判定指示（`response_action` / `speech_act`）に基づき、自然かつ適切なトーンで最終回答文を生成。
+- **会話行為（Speech Act）に応じた応答制御**:
+  - `INFORMATION`（情報伝達）: 解説や質問対応ではなく、「へー、〇〇さんはそう言ってたんだ！」と自然な受け止めリアクションを生成。
+  - `CORRECTION`（過去発言訂正）: 一般論・人生論・励ましモード（「周りに合わせよう」等）の展開を禁止し、誤りを認めて「あ、〇〇なんだ！勘違いしてた、ごめん！」と 1〜2 文で簡潔に返答。
+  - `ASK_CLARIFICATION`（聞き返し）: 指示語の参照先が不明確な場合、無理な推測回答を抑止し、「それってどれのこと？」と 1 文で短く聞き返す。
+- **聞き返し状態（`PendingClarification`）のライフサイクル**:
+  - 聞き返し発話時に `{ requester, targetCandidate, timestamp }` を保持（有効期間: 60 秒）。
+  - ユーザーが次に応答した際、直前の確認文脈と自動結合して意図を解決する。
+
 
 
 

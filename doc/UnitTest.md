@@ -693,6 +693,19 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-MGR-PROVIDER-02** | 全キー未設定時のデフォルト全プロバイダフォールバック | すべてのAPIキーが空の状態で初期化。 | `m_managerProviderCombo` にデフォルトの全プロバイダ一覧（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface`）が表示されること。 |
 | **UT-MGR-PROVIDER-03** | Manager AIプロバイダ変更時の推奨モデル一覧更新 | `m_managerProviderCombo` を `gemini` に切り替える。 | `m_managerModelCombo` に `gemini-2.0-flash (推奨)` 等のGemini推奨モデル一覧が表示されること。 |
 
+---
+
+### 3.15 複数ユーザー会話文脈判定・指示語・聞き返しの単体試験 (GTest/QTest)
+
+| 試験ID | 対象機能・シナリオ | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-CTX-01** | 会話ログからの候補コンテキスト抽出 | 複数ユーザー（A, B, C）の発言履歴が存在する状態で `extractContextCandidates` を実行。 | 一定時間以内の発言やAI参加発言が `ContextCandidate` リストとして正しく抽出され、時系列順に並ぶこと。 |
+| **UT-CTX-02** | 情報伝達 (`INFORMATION`) に対するリアクション生成 | 「〇〇さんが××だって言ってるよ」を Manager AI に判定させる。 | `speech_act` が `"INFORMATION"`、`response_action` が `"ACKNOWLEDGE"` と判定され、質問解説ではなく相槌・リアクション指示が Worker AI へ注入されること。 |
+| **UT-CTX-03** | 過去発言訂正 (`CORRECTION`) に対する誤り受容プロンプト | 「そこは静岡だよ！」を Manager AI に判定させる。 | `speech_act` が `"CORRECTION"`、`response_action` が `"CORRECT_APOLOGY"` と判定され、一般論や励ましが禁止され、誤りを認めて簡潔に返答する指示が Worker AI へ注入されること。 |
+| **UT-CTX-04** | 指示語（それ・そこ）の参照先特定 | 富士山の位置に関する過去AI発言が存在する状態で「そこ違うよ」を入力。 | 過去の富士山発言の `message_id` が `reference_message_id` として特定され、高確信度（$\ge 0.75$）が算出されること。 |
+| **UT-CTX-05** | 低確信度時の短い聞き返し (`ASK_CLARIFICATION`) | 関連候補が複数存在し文脈が曖昧な状態で「それ違うよ」を入力。 | `response_action` が `"ASK_CLARIFICATION"` と判定され、「それってどれのこと？」等の 1 文の短い聞き返しが選定されること。 |
+| **UT-CTX-06** | 聞き返し状態 (`PendingClarification`) の保持と文脈復元 | 聞き返し後にユーザーが「それ！」と返答。 | 直前の `PendingClarification` 状態から対象トピックが引き継がれ、文脈を解決して回答が生成されること。 |
+
 
 
 

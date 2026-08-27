@@ -587,12 +587,98 @@ Options:
 ### 22.3 内部処理シーケンス
 1. **引数および設定ロード**:
    - 引数 `--api-key` が未指定の場合、`--config` で指定された `local_settings.json` の `"gemini_api_key"` をロード。
-2. **REST API リクエスト送信**:
-   - `QNetworkAccessManager` を介して Gemini OpenAI 互換エンドポイントへ POST 送信。
-3. **レスポンス受信 ＆ 標準出力出力**:
-   - `--format text`: 生成されたテキストを UTF-8 で stdout に出力。
-   - `--format json`: `{ "status": "success", "model": "...", "text": "..." }` を stdout に出力。
-   - 終了コード: 正常時 `0`、エラー時 `1`。
+---
+
+## 23. Manager AI 文脈判定エンジン (Context Evaluator) ＆ 会話行為分類・聞き返し詳細設計 (F-40)
+
+### 23.1 概要・責務
+`ManagerContextEvaluator` は、複数ユーザーが発言する配信チャットにおいて、発言の宛先・会話行為（Speech Act）・指示語の参照先・確信度を判定するモジュールである。
+
+### 23.2 データ構造定義
+```cpp
+struct ChatMessageEntry {
+    QString messageId;
+    QString sender;
+    bool isAssistant = false;
+    QString text;
+    qint64 timestamp = 0;
+};
+
+struct ContextCandidate {
+    QString messageId;
+    QString sender;
+    bool isAssistant = false;
+    QString text;
+    int ageSeconds = 0;
+};
+
+struct PendingClarification {
+    QString requester;
+    QString candidateTopic;
+    QString questionText;
+    qint64 timestamp = 0;
+    bool isValid(qint64 currentMs, qint64 timeoutMs = 60000) const {
+        return (currentMs - timestamp) <= timeoutMs;
+    }
+};
+
+struct ManagerContextResult {
+    QString target = "ASSISTANT";            // "ASSISTANT", "USER", "OTHER"
+    QString speechAct = "QUESTION";          // "INFORMATION", "CORRECTION", "QUESTION", "COMMAND", "OPINION_DISAGREEMENT", "SUGGESTION", "REACTION", "OTHER"
+    QString refMessageId;                    // 参照先メッセージID
+    double referenceConfidence = 1.0;        // 0.0 〜 1.0
+    QString responseAction = "ANSWER";       // "ANSWER", "ACKNOWLEDGE", "CORRECT_APOLOGY", "ASK_CLARIFICATION", "IGNORE"
+};
+```
+
+### 23.3 Manager AI 判定プロンプト ＆ 入出力 JSON 仕様
+
+#### Manager AI 入力プロンプト
+```json
+{
+  "current_message": {
+    "sender": "userB",
+    "text": "アバター名、そこは静岡だよ！"
+  },
+  "candidates": [
+    { "message_id": "msg_001", "sender": "userA", "is_assistant": false, "text": "富士山ってどこにあるの？" },
+    { "message_id": "msg_002", "sender": "AI", "is_assistant": true, "text": "富士山は山梨県のみに位置していますよ！" },
+    { "message_id": "msg_003", "sender": "userC", "is_assistant": false, "text": "昨日のゲーム面白かったね" }
+  ],
+  "pending_clarification": null
+}
+```
+
+#### Manager AI 出力 JSON
+```json
+{
+  "target": "ASSISTANT",
+  "speech_act": "CORRECTION",
+  "reference_message_id": "msg_002",
+  "reference_confidence": 0.95,
+  "response_action": "CORRECT_APOLOGY"
+}
+```
+
+曖昧・低確信度時の出力例:
+```json
+{
+  "target": "ASSISTANT",
+  "speech_act": "CORRECTION",
+  "reference_message_id": null,
+  "reference_confidence": 0.35,
+  "response_action": "ASK_CLARIFICATION"
+}
+```
+
+### 23.4 Worker AI プロンプト指示制御仕様
+- **`CORRECT_APOLOGY`**:
+  - 指示: `【過去発言の訂正受容指示】ユーザーから過去のAI発言への訂正・指摘を受けました。一般論や人生論、励まし（周りに合わせて改善していこう等）を展開することは完全に禁止します。素直に誤りを認めて『あ、〇〇なんだ！勘違いしてた、ごめん！』のように 1〜2 文程度で簡潔に返答してください。`
+- **`ACKNOWLEDGE`**:
+  - 指示: `【情報伝達の受け止め指示】ユーザーはAIへの情報伝達を行っています。質問として解説するのではなく、『へー、〇〇さんはそう言ってたんだ！』のように自然な相槌・リアクションを 1〜2 文で返答してください。`
+- **`ASK_CLARIFICATION`**:
+  - 指示: `【聞き返し指示】発言内容の参照先が不明です。『それってどれのこと？』のように 1 文で短く確認・聞き返しを行ってください。`
+
 
 
 
