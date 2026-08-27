@@ -40,6 +40,7 @@ set(SOURCES
     src/ui/history_viewer_dialog.cpp
     src/utils/json_comment_remover.cpp
     src/utils/wakeword_matcher.cpp
+    src/utils/process_utils.cpp
     src/stt/stt_text_normalizer.cpp
     src/tts/bouyomichan_client.cpp
 
@@ -139,7 +140,51 @@ add_executable(WebSearcher ${WEB_SEARCHER_SOURCES})
 target_include_directories(WebSearcher PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(WebSearcher PRIVATE Qt6::Core Qt6::Network)
 
+# 独立CLIツール: TwitchIntroGenerator
+set(INTRO_GENERATOR_SOURCES
+    src/twitch/twitch_intro_generator_main.cpp
+    src/ai/twitch_helix_client.cpp
+    src/ai/ai_client_manager.cpp
+    src/ai/iai_client.cpp
+    src/ai/mistral_ai_client.cpp
+    src/ai/groq_ai_client.cpp
+    src/ai/huggingface_ai_client.cpp
+    src/ai/openrouter_ai_client.cpp
+    src/ai/sakura_ai_client.cpp
+    src/ai/dummy_ai_client.cpp
+    src/ai/rate_limit_tracker.cpp
+    src/ai/system_response_manager.cpp
+    src/ai/ai_random_utils.cpp
+    src/ai/ai_router.cpp
+    src/search/isearch_provider.cpp
+    src/search/search_manager.cpp
+    src/search/tavily_search_provider.cpp
+    src/search/duckduckgo_search_provider.cpp
+    src/search/markdown_table_engine.cpp
+    src/moderation/score_moderation_engine.cpp
+    src/observer/community_observer_engine.cpp
+    src/utils/json_comment_remover.cpp
+    src/utils/wakeword_matcher.cpp
+    src/utils/process_utils.cpp
+    src/stt/stt_text_normalizer.cpp
+)
+add_executable(TwitchIntroGenerator ${INTRO_GENERATOR_SOURCES})
+target_include_directories(TwitchIntroGenerator PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}"
+)
+target_compile_definitions(TwitchIntroGenerator PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(TwitchIntroGenerator PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    TransCipher
+)
+
 # テストビルドの有効化
 enable_testing()
 add_subdirectory(test)
+
 

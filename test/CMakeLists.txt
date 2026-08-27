@@ -32,6 +32,8 @@ set(TEST_SOURCES
     ../src/ai/ai_client_manager.cpp
     ../src/utils/json_comment_remover.cpp
     ../src/utils/wakeword_matcher.cpp
+    ../src/utils/process_utils.cpp
+    test_process_utils.cpp
     ../src/stt/stt_text_normalizer.cpp
     ../src/tts/bouyomichan_client.cpp
 

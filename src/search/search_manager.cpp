@@ -1,4 +1,5 @@
 #include "search_manager.h"
+#include "../utils/process_utils.h"
 #include <QCoreApplication>
 #include <QFile>
 #include <QDir>
@@ -31,21 +32,7 @@ void SearchManager::setTimeoutMs(int timeoutMs) {
 }
 
 QString SearchManager::resolveExecutablePath() const {
-    QString appDir = QCoreApplication::applicationDirPath();
-    QStringList candidates = {
-        appDir + "/WebSearcher.exe",
-        appDir + "/build/WebSearcher.exe",
-        QDir::currentPath() + "/build/WebSearcher.exe",
-        QDir::currentPath() + "/WebSearcher.exe",
-        "WebSearcher.exe"
-    };
-
-    for (const QString &path : candidates) {
-        if (QFile::exists(path)) {
-            return path;
-        }
-    }
-    return candidates.first();
+    return ProcessUtils::resolveExecutablePath("WebSearcher");
 }
 
 void SearchManager::executeSearch(const QString &query) {
@@ -59,6 +46,7 @@ void SearchManager::executeSearch(const QString &query) {
     }
 
     m_process = new QProcess(this);
+    ProcessUtils::configureProcessEnvironment(*m_process);
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &SearchManager::on_processFinished);
 
@@ -91,6 +79,7 @@ void SearchManager::on_processFinished(int exitCode, QProcess::ExitStatus exitSt
 
 QString SearchManager::executeSearchSync(const QString &query) {
     QProcess process;
+    ProcessUtils::configureProcessEnvironment(process);
     QString exePath = resolveExecutablePath();
     QStringList args;
     args << "--query" << query;

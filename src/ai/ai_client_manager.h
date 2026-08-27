@@ -200,6 +200,9 @@ private:
     QTimer *m_shoutoutUiTimer = nullptr;
     qint64 m_shoutoutCooldownStartMs = 0;
 
+    bool m_useProcessForIntro = true;
+    bool m_isMockHelix = false;
+
     void clearRequestState();
     void triggerShoutout(const QString &username);
     void processNextShoutoutInQueue();
@@ -213,7 +216,10 @@ public:
     // 会話トリガーからのクリエイター紹介（呼び出し元ソースを引き継ぎ、レイド文脈と分離）
     void handleConversationShoutout(const QString &username, const QString &source, const QString &twitchChannel = {});
     void setAIProvider(const QString &provider, bool forceRefresh = false);
-    void setHelixClient(TwitchHelixClient *client) { m_helixClient = client; }
+    void setHelixClient(TwitchHelixClient *client) {
+        m_helixClient = client;
+        m_isMockHelix = (client != nullptr);
+    }
     TwitchHelixClient* helixClient() const { return m_helixClient; }
 
     // 履歴データ取得/設定用のI/F
@@ -235,6 +241,10 @@ public:
     QString managerProvider() const { return m_managerProvider; }
     QString managerModel() const { return m_managerModel; }
     QString groqModel() const { return m_groqModel; }
+
+    void setUseProcessForIntro(bool enabled) { m_useProcessForIntro = enabled; }
+    bool useProcessForIntro() const { return m_useProcessForIntro; }
+    bool isMockHelix() const { return m_isMockHelix; }
 
     // 暗号化バックアップの復号・読み出し用I/F
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);

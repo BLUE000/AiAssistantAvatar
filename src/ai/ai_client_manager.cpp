@@ -3,6 +3,7 @@
 #include "ai_random_utils.h"
 #include "utils/config_utils.h"
 #include "utils/json_comment_remover.h"
+#include "../utils/process_utils.h"
 
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
@@ -3226,19 +3227,48 @@ QString AIClientManager::buildConversationShoutoutPrompt(
 // 会話・手動コマンドからのクリエイター紹介（呼び出し元ソースを引き継ぐ）
 void AIClientManager::handleConversationShoutout(const QString &username, const QString &source, const QString &twitchChannel) {
     if (username.isEmpty()) return;
-    if (!m_helixClient) return;
 
     QString login = username.trimmed();
-
     qDebug() << "AIClientManager: Conversation shoutout requested for" << login << "source:" << source << "channel:" << twitchChannel;
 
-    // 呼び出し元ソースをそのまま引き継ぐ（Twitch固定しない）
     m_currentSource = source.isEmpty() ? "UI" : source;
     if (m_currentSource == "Twitch" && !twitchChannel.isEmpty()) {
         m_currentTwitchChannel = twitchChannel;
     }
     m_currentRequester = login;
     m_isShoutoutRequest = true;
+
+    QString exePath = ProcessUtils::resolveExecutablePath("TwitchIntroGenerator");
+    if (m_useProcessForIntro && !m_isMockHelix && QFile::exists(exePath)) {
+        QProcess *process = new QProcess(this);
+        ProcessUtils::configureProcessEnvironment(*process);
+
+        QStringList args;
+        args << "--user" << login
+             << "--mode" << "conversation"
+             << "--length" << m_shoutoutLength
+             << "--tone" << m_shoutoutTone;
+
+        connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, process, login](int exitCode, QProcess::ExitStatus exitStatus) {
+            QString output = QString::fromUtf8(process->readAllStandardOutput()).trimmed();
+            process->deleteLater();
+
+            if (exitStatus == QProcess::NormalExit && exitCode == 0 && !output.isEmpty()) {
+                qDebug() << "AIClientManager: TwitchIntroGenerator succeeded for conversation shoutout:" << login;
+                on_clientRequestFinished(output, true, 200);
+            } else {
+                qWarning() << "AIClientManager: TwitchIntroGenerator failed. Falling back to default comment for:" << login;
+                on_clientRequestFinished(QString("ぜひ %1 さんのチャンネルをチェックしてみてくださいね！").arg(login), true, 200);
+            }
+        });
+
+        qDebug() << "AIClientManager: Starting TwitchIntroGenerator for conversation:" << exePath << args;
+        process->start(exePath, args);
+        return;
+    }
+
+    if (!m_helixClient) return;
 
     m_helixClient->fetchCreatorInfo(login, [this, login](const CreatorHelixInfo &info, bool success) {
         QString displayName = success && !info.displayName.trimmed().isEmpty() ? info.displayName : login;
@@ -3318,7 +3348,6 @@ void AIClientManager::handleRaidShoutout(const QString &username, const QVariant
     if (explicitDisplayName.isEmpty()) explicitDisplayName = login;
 
     qDebug() << "AIClientManager: Handling raid shoutout. Login:" << login << "DisplayName:" << explicitDisplayName;
-    if (!m_helixClient) return;
 
     // レイド受信時の返信先ソースおよびチャンネルを Twitch に確実に固定
     m_currentSource = "Twitch";
@@ -3327,6 +3356,65 @@ void AIClientManager::handleRaidShoutout(const QString &username, const QVariant
     }
     m_currentRequester = explicitDisplayName;
     m_isShoutoutRequest = true;
+
+    // Twitch公式 /shoutout コマンド処理 (自分自身への /shoutout は Twitch 仕様上不可のためスキップ)
+    bool isSelf = (!m_twitchChannel.isEmpty() && (login.toLower() == m_twitchChannel.toLower() || explicitDisplayName.toLower() == m_twitchChannel.toLower())) ||
+                 (!m_twitchUsername.isEmpty() && (login.toLower() == m_twitchUsername.toLower() || explicitDisplayName.toLower() == m_twitchUsername.toLower()));
+    if (m_shoutoutUseCommand && !isSelf) {
+        if (m_shoutoutCooldownTimer && m_shoutoutCooldownTimer->isActive()) {
+            // クールタイム中のため待機キューに追加
+            PendingShoutout ps;
+            ps.username = login;
+            ps.displayName = explicitDisplayName;
+            ps.requestTime = QDateTime::currentDateTime();
+            m_shoutoutQueue.append(ps);
+            qDebug() << "AIClientManager: Added shoutout to queue for" << login << "Queue size:" << m_shoutoutQueue.size();
+            updateShoutoutUiStatus();
+        } else {
+            // 即時送信
+            qDebug() << "AIClientManager: Sending immediate Twitch Helix Shoutout for" << login;
+            m_lastShoutoutUser = login;
+            triggerShoutout(login);
+
+            if (m_shoutoutCooldownTimer) {
+                m_shoutoutCooldownTimer->start(120000);
+                m_shoutoutCooldownStartMs = QDateTime::currentMSecsSinceEpoch();
+                updateShoutoutUiStatus();
+            }
+        }
+    }
+
+    QString exePath = ProcessUtils::resolveExecutablePath("TwitchIntroGenerator");
+    if (m_useProcessForIntro && !m_isMockHelix && QFile::exists(exePath)) {
+        QProcess *process = new QProcess(this);
+        ProcessUtils::configureProcessEnvironment(*process);
+
+        QStringList args;
+        args << "--user" << login
+             << "--mode" << "raid"
+             << "--length" << m_shoutoutLength
+             << "--tone" << m_shoutoutTone;
+
+        connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, process, login, explicitDisplayName](int exitCode, QProcess::ExitStatus exitStatus) {
+            QString output = QString::fromUtf8(process->readAllStandardOutput()).trimmed();
+            process->deleteLater();
+
+            if (exitStatus == QProcess::NormalExit && exitCode == 0 && !output.isEmpty()) {
+                qDebug() << "AIClientManager: TwitchIntroGenerator succeeded for raid shoutout:" << login;
+                on_clientRequestFinished(output, true, 200);
+            } else {
+                qWarning() << "AIClientManager: TwitchIntroGenerator failed. Falling back to default comment for:" << login;
+                on_clientRequestFinished(QString("%1 さん、レイドありがとうございます！ゆっくりしていってくださいね！").arg(explicitDisplayName), true, 200);
+            }
+        });
+
+        qDebug() << "AIClientManager: Starting TwitchIntroGenerator for raid:" << exePath << args;
+        process->start(exePath, args);
+        return;
+    }
+
+    if (!m_helixClient) return;
 
     m_helixClient->fetchCreatorInfo(login, [this, login, explicitDisplayName](const CreatorHelixInfo &info, bool success) {
         QString displayName = success && !info.displayName.trimmed().isEmpty() ? info.displayName : explicitDisplayName;
@@ -3346,33 +3434,6 @@ void AIClientManager::handleRaidShoutout(const QString &username, const QVariant
             m_currentClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
         } else if (m_dummyClient) {
             m_dummyClient->sendRequest(prompt, {}, "", "シャウトアウト紹介コメントを生成してください。");
-        }
-
-        // Twitch公式 /shoutout コマンド処理 (自分自身への /shoutout は Twitch 仕様上不可のためスキップ)
-        bool isSelf = (!m_twitchChannel.isEmpty() && (login.toLower() == m_twitchChannel.toLower() || displayName.toLower() == m_twitchChannel.toLower())) ||
-                     (!m_twitchUsername.isEmpty() && (login.toLower() == m_twitchUsername.toLower() || displayName.toLower() == m_twitchUsername.toLower()));
-        if (m_shoutoutUseCommand && !isSelf) {
-            if (m_shoutoutCooldownTimer && m_shoutoutCooldownTimer->isActive()) {
-                // クールタイム中のため待機キューに追加
-                PendingShoutout ps;
-                ps.username = login;
-                ps.displayName = displayName;
-                ps.requestTime = QDateTime::currentDateTime();
-                m_shoutoutQueue.append(ps);
-                qDebug() << "AIClientManager: Added shoutout to queue for" << login << "Queue size:" << m_shoutoutQueue.size();
-                updateShoutoutUiStatus();
-            } else {
-                // 即時送信
-                qDebug() << "AIClientManager: Sending immediate Twitch Helix Shoutout for" << login;
-                m_lastShoutoutUser = login;
-                triggerShoutout(login);
-
-                if (m_shoutoutCooldownTimer) {
-                    m_shoutoutCooldownTimer->start(120000);
-                    m_shoutoutCooldownStartMs = QDateTime::currentMSecsSinceEpoch();
-                    updateShoutoutUiStatus();
-                }
-            }
         }
     });
 }

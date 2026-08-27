@@ -9,11 +9,17 @@ New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 # 1. 実行ファイルのコピー
 Copy-Item "build/AiAssistantAvatar.exe" -Destination "$releaseDir/" -Force
 Copy-Item "build/AvatarSkinBuilder.exe" -Destination "$releaseDir/" -Force
+
+$toolsDir = "$releaseDir/tools"
+New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
 if (Test-Path "build/CommunityObserver.exe") {
-    Copy-Item "build/CommunityObserver.exe" -Destination "$releaseDir/" -Force
+    Copy-Item "build/CommunityObserver.exe" -Destination "$toolsDir/" -Force
 }
 if (Test-Path "build/WebSearcher.exe") {
-    Copy-Item "build/WebSearcher.exe" -Destination "$releaseDir/" -Force
+    Copy-Item "build/WebSearcher.exe" -Destination "$toolsDir/" -Force
+}
+if (Test-Path "build/TwitchIntroGenerator.exe") {
+    Copy-Item "build/TwitchIntroGenerator.exe" -Destination "$toolsDir/" -Force
 }
 
 # 2. windeployqt による Qt6 依存ファイル・プラグインの一括自動展開

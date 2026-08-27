@@ -3726,6 +3726,98 @@ TEST(MarkdownTableEngineTest, ExcludeTriggers_CaseAndPartialMatch) {
     EXPECT_EQ(entry.group, "Omikuji");
 }
 
+// ============================================================================
+// TwitchIntroGenerator ＆ クリエイター紹介文生成 単体試験 (UT-INTRO-GEN)
+// ============================================================================
+
+// UT-INTRO-GEN-01: レイド用プロンプト構築と逆転誤認防止ルール
+TEST(TwitchIntroGeneratorTest, BuildRaidShoutoutPrompt_ContainsAntiInversionRule) {
+    QString prompt = AIClientManager::buildRaidShoutoutPrompt(
+        "raider_taro", "レイド太郎", "FPSゲーマーです", "VALORANT",
+        {"Apex Legends", "Overwatch 2"}, "今夜もランクマ！", "Twitter: @raider_taro",
+        "standard", "明るく元気な口調で！");
+
+    // 歓迎文脈とクリエイター情報
+    EXPECT_TRUE(prompt.contains("レイド太郎"));
+    EXPECT_TRUE(prompt.contains("raider_taro"));
+    EXPECT_TRUE(prompt.contains("VALORANT"));
+    EXPECT_TRUE(prompt.contains("Apex Legends"));
+    EXPECT_TRUE(prompt.contains("Twitter: @raider_taro"));
+
+    // 逆転誤認防止ルールが明記されていること
+    EXPECT_TRUE(prompt.contains("私たちが相手の配信枠を見に行く（レイドする）のではなく"));
+    EXPECT_TRUE(prompt.contains("相手が私たちの配信枠へレイドして来てくれた"));
+    EXPECT_TRUE(prompt.contains("逆の立場"));
+}
+
+// UT-INTRO-GEN-02: 会話紹介用プロンプト構築
+TEST(TwitchIntroGeneratorTest, BuildConversationShoutoutPrompt_NeutralContext) {
+    QString prompt = AIClientManager::buildConversationShoutoutPrompt(
+        "streamer_hanako", "配信花子", "まったり雑談配信", "Just Chatting",
+        {"Minecraft", "雀魂"}, "お茶でも飲みながら", "YouTube: hanako_ch",
+        "short", "落ち着いた優しい口調で");
+
+    EXPECT_TRUE(prompt.contains("配信花子"));
+    EXPECT_TRUE(prompt.contains("streamer_hanako"));
+    EXPECT_TRUE(prompt.contains("Just Chatting"));
+    EXPECT_TRUE(prompt.contains("YouTube: hanako_ch"));
+    EXPECT_TRUE(prompt.contains("これはシャウトアウト（紹介）コメントです"));
+    EXPECT_FALSE(prompt.contains("レイドしてくれました"));
+}
+
+// UT-INTRO-GEN-03: 会話紹介トリガー時のフォールバック処理
+TEST_F(AIClientTest, ConversationShoutout_FallbackWhenCliNotFound) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    manager.handleConversationShoutout("friend_streamer", "Twitch", "my_channel");
+    manager.on_clientRequestFinished("friend_streamer さんの紹介コメントです！", true, 200);
+
+    // モックから Helix 情報が返り、Dummy AI で紹介文が生成されること
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent ev = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_EQ(ev.source, "Twitch");
+    EXPECT_EQ(ev.extraData.value("twitch_channel").toString(), "my_channel");
+}
+
+// UT-INTRO-GEN-04: レイド紹介トリガー時のフォールバック処理
+TEST_F(AIClientTest, RaidShoutout_FallbackWhenCliNotFound) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = false;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    QVariantMap raidMeta;
+    raidMeta["login"] = "raider_guest";
+    raidMeta["displayName"] = "ゲスト配信者";
+    raidMeta["channel"] = "my_streamer_channel";
+    manager.on_twitchRaidReceived("raider_guest", raidMeta);
+    manager.on_clientRequestFinished("レイドありがとうございます！", true, 200);
+
+    // モックから応答生成が完了し、Twitch 宛にイベントが飛ぶこと
+    ASSERT_GE(eventSpy.count(), 1);
+    AppEvent ev = eventSpy.last().at(0).value<AppEvent>();
+    EXPECT_EQ(ev.type, EventType::AIResponseReceived);
+    EXPECT_EQ(ev.source, "Twitch");
+    EXPECT_EQ(ev.extraData.value("twitch_channel").toString(), "my_streamer_channel");
+}
+
+
 
 
 
