@@ -12,6 +12,7 @@
 #include "../ai/ai_client_manager.h"
 #include "../ai/mistral_ai_client.h"
 #include "../ai/groq_ai_client.h"
+#include "../ai/gemini_ai_client.h"
 #include "../ai/huggingface_ai_client.h"
 #include "../ai/openrouter_ai_client.h"
 #include "../ai/sakura_ai_client.h"
@@ -76,8 +77,8 @@ int main(int argc, char *argv[]) {
     QString twitchUsername;
     bool shoutoutUseCommand = true;
     QString aiProvider = "dummy";
-    QString mistralKey, groqKey, hfKey, openrouterKey, sakuraKey;
-    QString mistralModel, groqModel, hfModel, openrouterModel, sakuraModel;
+    QString mistralKey, groqKey, geminiKey, hfKey, openrouterKey, sakuraKey;
+    QString mistralModel, groqModel, geminiModel, hfModel, openrouterModel, sakuraModel;
 
     if (QFile::exists(configPath)) {
         QFile file(configPath);
@@ -97,12 +98,14 @@ int main(int argc, char *argv[]) {
                 aiProvider = obj.value("ai_provider").toString("dummy").toLower();
                 mistralKey = obj.value("mistral_api_key").toString();
                 groqKey = obj.value("groq_api_key").toString();
+                geminiKey = obj.value("gemini_api_key").toString();
                 hfKey = obj.value("huggingface_api_key").toString();
                 openrouterKey = obj.value("openrouter_api_key").toString();
                 sakuraKey = obj.value("sakura_api_key").toString();
 
                 mistralModel = obj.value("mistral_model").toString();
                 groqModel = obj.value("groq_model").toString();
+                geminiModel = obj.value("gemini_model").toString();
                 hfModel = obj.value("huggingface_model").toString();
                 openrouterModel = obj.value("openrouter_model").toString();
                 sakuraModel = obj.value("sakura_model").toString();
@@ -178,6 +181,11 @@ int main(int argc, char *argv[]) {
             auto *c = new GroqAIClient(&app);
             c->setApiKey(groqKey);
             if (!groqModel.isEmpty()) c->setModel(groqModel);
+            client = c;
+        } else if (aiProvider == "gemini" && !geminiKey.isEmpty()) {
+            auto *c = new GeminiAIClient(&app);
+            c->setApiKey(geminiKey);
+            if (!geminiModel.isEmpty()) c->setModel(geminiModel);
             client = c;
         } else if (aiProvider == "huggingface" && !hfKey.isEmpty()) {
             auto *c = new HuggingFaceAIClient(&app);

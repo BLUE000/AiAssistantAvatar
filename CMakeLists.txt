@@ -57,6 +57,7 @@ set(SOURCES
     src/ai/iai_client.cpp
     src/ai/mistral_ai_client.cpp
     src/ai/groq_ai_client.cpp
+    src/ai/gemini_ai_client.cpp
     src/ai/huggingface_ai_client.cpp
     src/ai/openrouter_ai_client.cpp
     src/ai/sakura_ai_client.cpp
@@ -155,6 +156,7 @@ set(INTRO_GENERATOR_SOURCES
     src/ai/iai_client.cpp
     src/ai/mistral_ai_client.cpp
     src/ai/groq_ai_client.cpp
+    src/ai/gemini_ai_client.cpp
     src/ai/huggingface_ai_client.cpp
     src/ai/openrouter_ai_client.cpp
     src/ai/sakura_ai_client.cpp
@@ -188,6 +190,32 @@ target_link_libraries(TwitchIntroGenerator PRIVATE
     Qt6::Gui
     Qt6::Network
     TransCipher
+)
+
+# 独立CLIツール: GeminiChatter
+set(GEMINI_CHATTER_SOURCES
+    src/ai/gemini_chatter_main.cpp
+    src/ai/gemini_ai_client.cpp
+    src/ai/iai_client.cpp
+    src/search/isearch_provider.cpp
+    src/search/search_manager.cpp
+    src/search/tavily_search_provider.cpp
+    src/search/duckduckgo_search_provider.cpp
+    src/search/markdown_table_engine.cpp
+    src/utils/json_comment_remover.cpp
+    src/utils/process_utils.cpp
+)
+add_executable(GeminiChatter ${GEMINI_CHATTER_SOURCES})
+target_include_directories(GeminiChatter PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}"
+)
+target_compile_definitions(GeminiChatter PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(GeminiChatter PRIVATE
+    Qt6::Core
+    Qt6::Network
 )
 
 # テストビルドの有効化

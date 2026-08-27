@@ -1222,6 +1222,7 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_providerSpecs = {
         { "mistral", "Mistral AI", "Mistral API キーを入力...", false, {}, false },
         { "groq", "Groq AI", "Groq API キーを入力...", true, { "自動選択 (推奨)", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it" }, false },
+        { "gemini", "Gemini (Google AI Studio)", "Gemini API キー (AIzaSy...) を入力...", true, { "自動選択 (推奨)", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro" }, true },
         { "huggingface", "HuggingFace", "HuggingFace API キー (hf_...) を入力...", true, { "自動選択 (推奨)", "meta-llama/Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3" }, true },
         { "openrouter", "OpenRouter", "OpenRouter API キー (sk-or-v1-...) を入力...", true, { "自動選択 (推奨)", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "inclusionai/ling-3.0-flash:free", "qwen/qwen-2.5-72b-instruct" }, true },
         { "sakura", "さくらAI", "さくらAI API キーを入力...", true, { "自動選択 (推奨)", "llm-jp-3.1-8x13b-instruct4", "gpt-oss-120b", "preview/gemma-4-31B-it", "preview/Kimi-K2.6", "preview/Phi-4-mini-instruct-cpu", "preview/Phi-4-multimodal-instruct", "preview/Qwen3-0.6B-cpu", "preview/Qwen3-VL-30B-A3B-Instruct", "preview/Qwen3.6-35B-A3B" }, true }
@@ -1273,15 +1274,18 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_aiProviderGroqCheckbox = m_providerSpecs[1].checkbox;
     m_aiGroqApiKeyEdit = m_providerSpecs[1].keyEdit;
     m_aiGroqModelCombo = m_providerSpecs[1].modelCombo;
-    m_aiProviderHuggingFaceCheckbox = m_providerSpecs[2].checkbox;
-    m_aiHuggingFaceApiKeyEdit = m_providerSpecs[2].keyEdit;
-    m_aiHuggingFaceModelCombo = m_providerSpecs[2].modelCombo;
-    m_aiProviderOpenRouterCheckbox = m_providerSpecs[3].checkbox;
-    m_aiOpenRouterApiKeyEdit = m_providerSpecs[3].keyEdit;
-    m_aiOpenRouterModelCombo = m_providerSpecs[3].modelCombo;
-    m_aiProviderSakuraCheckbox = m_providerSpecs[4].checkbox;
-    m_aiSakuraApiKeyEdit = m_providerSpecs[4].keyEdit;
-    m_aiSakuraModelCombo = m_providerSpecs[4].modelCombo;
+    m_aiProviderGeminiCheckbox = m_providerSpecs[2].checkbox;
+    m_aiGeminiApiKeyEdit = m_providerSpecs[2].keyEdit;
+    m_aiGeminiModelCombo = m_providerSpecs[2].modelCombo;
+    m_aiProviderHuggingFaceCheckbox = m_providerSpecs[3].checkbox;
+    m_aiHuggingFaceApiKeyEdit = m_providerSpecs[3].keyEdit;
+    m_aiHuggingFaceModelCombo = m_providerSpecs[3].modelCombo;
+    m_aiProviderOpenRouterCheckbox = m_providerSpecs[4].checkbox;
+    m_aiOpenRouterApiKeyEdit = m_providerSpecs[4].keyEdit;
+    m_aiOpenRouterModelCombo = m_providerSpecs[4].modelCombo;
+    m_aiProviderSakuraCheckbox = m_providerSpecs[5].checkbox;
+    m_aiSakuraApiKeyEdit = m_providerSpecs[5].keyEdit;
+    m_aiSakuraModelCombo = m_providerSpecs[5].modelCombo;
 
     m_tavilyApiKeyEdit = new QLineEdit(scrollContent);
     m_tavilyApiKeyEdit->setEchoMode(QLineEdit::Password);
@@ -1509,16 +1513,21 @@ void AvatarWindow::loadSettingsToUI() {
 
             if (m_aiProviderMistralCheckbox) m_aiProviderMistralCheckbox->setChecked(provider == "mistral");
             if (m_aiProviderGroqCheckbox) m_aiProviderGroqCheckbox->setChecked(provider == "groq");
+            if (m_aiProviderGeminiCheckbox) m_aiProviderGeminiCheckbox->setChecked(provider == "gemini");
             if (m_aiProviderHuggingFaceCheckbox) m_aiProviderHuggingFaceCheckbox->setChecked(provider == "huggingface");
             if (m_aiProviderOpenRouterCheckbox) m_aiProviderOpenRouterCheckbox->setChecked(provider == "openrouter");
             if (m_aiProviderSakuraCheckbox) m_aiProviderSakuraCheckbox->setChecked(provider == "sakura");
 
             if (m_aiApiKeyEdit) m_aiApiKeyEdit->setText(obj.value("mistral_api_key").toString());
             if (m_aiGroqApiKeyEdit) m_aiGroqApiKeyEdit->setText(obj.value("groq_api_key").toString());
+            if (m_aiGeminiApiKeyEdit) m_aiGeminiApiKeyEdit->setText(obj.value("gemini_api_key").toString());
             if (m_aiHuggingFaceApiKeyEdit) m_aiHuggingFaceApiKeyEdit->setText(obj.value("huggingface_api_key").toString());
             if (m_aiOpenRouterApiKeyEdit) m_aiOpenRouterApiKeyEdit->setText(obj.value("openrouter_api_key").toString());
             if (m_aiSakuraApiKeyEdit) m_aiSakuraApiKeyEdit->setText(obj.value("sakura_api_key").toString());
 
+            if (m_aiGeminiModelCombo && obj.contains("gemini_model")) {
+                m_aiGeminiModelCombo->setCurrentText(obj.value("gemini_model").toString("gemini-2.0-flash"));
+            }
             if (m_aiHuggingFaceModelCombo && obj.contains("huggingface_model")) {
                 m_aiHuggingFaceModelCombo->setCurrentText(obj.value("huggingface_model").toString("meta-llama/Llama-3.1-8B-Instruct"));
             }
@@ -1705,28 +1714,37 @@ void AvatarWindow::saveSettingsFromUI() {
 #else
     QString provider = "auto";
 #endif
-    if (m_aiProviderMistralCheckbox->isChecked()) provider = "mistral";
-    else if (m_aiProviderGroqCheckbox->isChecked()) provider = "groq";
-    else if (m_aiProviderHuggingFaceCheckbox->isChecked()) provider = "huggingface";
-    else if (m_aiProviderOpenRouterCheckbox->isChecked()) provider = "openrouter";
-    else if (m_aiProviderSakuraCheckbox->isChecked()) provider = "sakura";
+    if (m_aiProviderMistralCheckbox && m_aiProviderMistralCheckbox->isChecked()) provider = "mistral";
+    else if (m_aiProviderGroqCheckbox && m_aiProviderGroqCheckbox->isChecked()) provider = "groq";
+    else if (m_aiProviderGeminiCheckbox && m_aiProviderGeminiCheckbox->isChecked()) provider = "gemini";
+    else if (m_aiProviderHuggingFaceCheckbox && m_aiProviderHuggingFaceCheckbox->isChecked()) provider = "huggingface";
+    else if (m_aiProviderOpenRouterCheckbox && m_aiProviderOpenRouterCheckbox->isChecked()) provider = "openrouter";
+    else if (m_aiProviderSakuraCheckbox && m_aiProviderSakuraCheckbox->isChecked()) provider = "sakura";
     obj["ai_provider"] = provider;
 
-    obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
-    obj["groq_api_key"] = m_aiGroqApiKeyEdit->text().trimmed();
-    QString groqModel = m_aiGroqModelCombo->currentText();
-    obj["groq_model"] = groqModel.replace(" (推奨)", "").trimmed();
+    if (m_aiApiKeyEdit) obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
+    if (m_aiGroqApiKeyEdit) obj["groq_api_key"] = m_aiGroqApiKeyEdit->text().trimmed();
+    if (m_aiGroqModelCombo) {
+        QString groqModel = m_aiGroqModelCombo->currentText();
+        obj["groq_model"] = groqModel.replace(" (推奨)", "").trimmed();
+    }
 
-    obj["huggingface_api_key"] = m_aiHuggingFaceApiKeyEdit->text().trimmed();
-    obj["huggingface_model"] = m_aiHuggingFaceModelCombo->currentText().trimmed();
+    if (m_aiGeminiApiKeyEdit) obj["gemini_api_key"] = m_aiGeminiApiKeyEdit->text().trimmed();
+    if (m_aiGeminiModelCombo) {
+        QString geminiModel = m_aiGeminiModelCombo->currentText();
+        obj["gemini_model"] = geminiModel.replace(" (推奨)", "").trimmed();
+    }
 
-    obj["openrouter_api_key"] = m_aiOpenRouterApiKeyEdit->text().trimmed();
-    obj["openrouter_model"] = m_aiOpenRouterModelCombo->currentText().trimmed();
+    if (m_aiHuggingFaceApiKeyEdit) obj["huggingface_api_key"] = m_aiHuggingFaceApiKeyEdit->text().trimmed();
+    if (m_aiHuggingFaceModelCombo) obj["huggingface_model"] = m_aiHuggingFaceModelCombo->currentText().trimmed();
 
-    obj["sakura_api_key"] = m_aiSakuraApiKeyEdit->text().trimmed();
-    obj["sakura_model"] = m_aiSakuraModelCombo->currentText().trimmed();
+    if (m_aiOpenRouterApiKeyEdit) obj["openrouter_api_key"] = m_aiOpenRouterApiKeyEdit->text().trimmed();
+    if (m_aiOpenRouterModelCombo) obj["openrouter_model"] = m_aiOpenRouterModelCombo->currentText().trimmed();
 
-    obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
+    if (m_aiSakuraApiKeyEdit) obj["sakura_api_key"] = m_aiSakuraApiKeyEdit->text().trimmed();
+    if (m_aiSakuraModelCombo) obj["sakura_model"] = m_aiSakuraModelCombo->currentText().trimmed();
+
+    if (m_tavilyApiKeyEdit) obj["tavily_api_key"] = m_tavilyApiKeyEdit->text().trimmed();
 
     // マネージャAI設定保存
     obj["manager_ai_enabled"] = m_managerEnabledCheckbox->isChecked();

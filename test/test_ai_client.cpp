@@ -12,11 +12,14 @@
 #include <QJsonObject>
 #include "ai/ai_client_manager.h"
 #include "ai/mistral_ai_client.h"
+#include "ai/groq_ai_client.h"
+#include "ai/gemini_ai_client.h"
 #include "utils/json_comment_remover.h"
 #include "utils/config_utils.h"
 #include "utils/wakeword_matcher.h"
 #include "stt/stt_text_normalizer.h"
 #include "tts/bouyomichan_client.h"
+#include <QComboBox>
 
 
 #include "ai/system_response_manager.h"
@@ -3889,6 +3892,148 @@ TEST_F(AIClientTest, RaidShoutout_SkipsShoutoutApiForSelf) {
 
     // 自分自身へのレイド時は /shoutout API がスキップされること
     EXPECT_TRUE(mockHelix.lastShoutoutTo.isEmpty());
+}
+
+// ---------------------------------------------------------------------------
+// UT-GEMINI-01 ~ 06: Google Gemini (Google AI Studio) 単体試験
+// ---------------------------------------------------------------------------
+
+TEST_F(AIClientTest, GeminiClientBasicProperties) {
+    // UT-GEMINI-01: クライアントID・デフォルトモデル・プロパティ検証
+    GeminiAIClient client;
+    EXPECT_EQ(client.clientId(), "gemini");
+    EXPECT_EQ(client.currentModelName(), "gemini-2.0-flash");
+
+    client.setModel("gemini-1.5-flash");
+    EXPECT_EQ(client.currentModelName(), "gemini-1.5-flash");
+
+    client.setApiKey("AIzaSyTestApiKey");
+    EXPECT_EQ(client.apiKey(), "AIzaSyTestApiKey");
+}
+
+TEST_F(AIClientTest, GeminiClientEmptyApiKeyError) {
+    // UT-GEMINI-02: API キー未設定時の即時エラー通知検証
+    GeminiAIClient client;
+    client.setApiKey("");
+
+    bool received = false;
+    QString resultMsg;
+    bool successFlag = true;
+
+    QObject::connect(&client, &IAIClient::requestFinished, [&](const QString &msg, bool success, int httpCode) {
+        Q_UNUSED(httpCode);
+        received = true;
+        resultMsg = msg;
+        successFlag = success;
+    });
+
+    client.sendRequest("こんにちは");
+    EXPECT_TRUE(received);
+    EXPECT_FALSE(successFlag);
+    EXPECT_TRUE(resultMsg.contains("Gemini APIキーが設定されていません"));
+}
+
+TEST_F(AIClientTest, GeminiRateLimitTrackerDefaultStatus) {
+    // UT-GEMINI-03: RateLimitTracker Gemini 初期値検証
+    GeminiAIClient client;
+    ProviderStatus s = client.defaultStatus();
+
+    EXPECT_EQ(s.provider, "gemini");
+    EXPECT_EQ(s.rpmMax, 15);
+    EXPECT_EQ(s.rpmRemaining, 15);
+    EXPECT_EQ(s.rpdMax, 1500);
+    EXPECT_EQ(s.rpdRemaining, 1500);
+    EXPECT_EQ(s.tpmMax, 1000000);
+    EXPECT_EQ(s.tpmRemaining, 1000000);
+    EXPECT_TRUE(s.toolCall);
+    EXPECT_DOUBLE_EQ(s.cost, 0.0);
+}
+
+TEST_F(AIClientTest, GeminiAIClientManagerIntegration) {
+    // UT-GEMINI-04: AIClientManager での Gemini プロバイダ切り替えおよびフォールバック順序
+    AIClientManager manager;
+    manager.setAIProvider("gemini", true);
+
+    QStringList priority = manager.workerPriorityOrder();
+    EXPECT_TRUE(priority.contains("gemini"));
+    EXPECT_EQ(priority.first(), "gemini");
+}
+
+TEST_F(AIClientTest, GeminiHumanReadableErrorFormatting) {
+    // UT-GEMINI-05: Gemini エラーの自然言語メッセージ変換検証
+    AIClientManager manager;
+    QJsonObject emptyObj;
+
+    QString msg429 = manager.buildHumanReadableError(429, "gemini", emptyObj);
+    EXPECT_TRUE(msg429.contains("gemini"));
+    EXPECT_TRUE(msg429.contains("レート制限"));
+
+    QString msg401 = manager.buildHumanReadableError(401, "gemini", emptyObj);
+    EXPECT_TRUE(msg401.contains("API キーが正しくありません"));
+
+    QString msg404 = manager.buildHumanReadableError(404, "gemini", emptyObj);
+    EXPECT_TRUE(msg404.contains("モデル名が見つかりません"));
+}
+
+TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
+    // UT-GEMINI-06: AvatarWindow の Gemini 設定読み込み・保存の検証
+    QString targetPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(targetPath);
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        QJsonObject obj;
+        obj["ai_provider"] = "gemini";
+        obj["gemini_api_key"] = "AIzaSy_UnitTest_Key_12345";
+        obj["gemini_model"] = "gemini-2.0-flash";
+
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        AvatarWindow window;
+        // UI に反映されていることを確認
+        const ProviderConfigSpec *geminiSpec = nullptr;
+        for (const auto &spec : window.providerSpecs()) {
+            if (spec.id == "gemini") {
+                geminiSpec = &spec;
+                break;
+            }
+        }
+        ASSERT_NE(geminiSpec, nullptr);
+        EXPECT_TRUE(geminiSpec->checkbox->isChecked());
+        EXPECT_EQ(geminiSpec->keyEdit->text(), "AIzaSy_UnitTest_Key_12345");
+        EXPECT_EQ(geminiSpec->modelCombo->currentText(), "gemini-2.0-flash");
+
+        // 変更して保存
+        geminiSpec->keyEdit->setText("AIzaSy_Updated_Key_67890");
+        window.saveSettingsFromUI();
+
+        QFile file2(targetPath);
+        ASSERT_TRUE(file2.open(QIODevice::ReadOnly | QIODevice::Text));
+        QByteArray cleanData = JsonCommentRemover::stripHashComments(file2.readAll());
+        QJsonObject savedObj = QJsonDocument::fromJson(cleanData).object();
+        file2.close();
+
+        EXPECT_EQ(savedObj.value("gemini_api_key").toString(), "AIzaSy_Updated_Key_67890");
+        EXPECT_EQ(savedObj.value("ai_provider").toString(), "gemini");
+    }
+
+    if (hasOriginal && !originalContent.isEmpty()) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
+    }
 }
 
 

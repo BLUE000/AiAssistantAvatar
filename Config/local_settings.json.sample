@@ -4,12 +4,13 @@
   # ※ このファイルを local_settings.json または Config/local_settings.json にコピーしてご使用ください。
   # ---------------------------------------------------------------------------
 
-  # メインで使用する AI プロバイダ ("groq", "mistral", "huggingface", "openrouter", "sakura", "dummy")
+  # メインで使用する AI プロバイダ ("groq", "gemini", "mistral", "huggingface", "openrouter", "sakura", "dummy")
   "ai_provider": "mistral",
 
   # 各プロバイダの API キー設定
   "mistral_api_key": "YOUR_MISTRAL_API_KEY_HERE",
   "groq_api_key": "gsk_YOUR_GROQ_API_KEY_HERE",
+  "gemini_api_key": "AIzaSy_YOUR_GEMINI_API_KEY_HERE",
   "huggingface_api_key": "hf_YOUR_HUGGINGFACE_API_KEY_HERE",
   "openrouter_api_key": "sk-or-v1-YOUR_OPENROUTER_API_KEY_HERE",
   "sakura_api_key": "YOUR_SAKURA_API_KEY_HERE",
@@ -17,6 +18,7 @@
   # 各プロバイダの使用モデル指定（空文字の場合は最新推奨モデルを自動選択）
   "mistral_model": "mistral-small-latest",
   "groq_model": "llama-3.3-70b-versatile",
+  "gemini_model": "gemini-2.0-flash",
 
   # マネージャー AI 設定 (マルチAI協調機能)
   "manager_ai_enabled": false,

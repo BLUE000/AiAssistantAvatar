@@ -8,6 +8,7 @@
 #include "twitch_helix_client.h"
 #include "mistral_ai_client.h"
 #include "groq_ai_client.h"
+#include "gemini_ai_client.h"
 #include "huggingface_ai_client.h"
 #include "openrouter_ai_client.h"
 #include "sakura_ai_client.h"
@@ -63,6 +64,7 @@ AIClientManager::AIClientManager(QObject *parent)
     // AI クライアントの全インスタンス化
     m_mistralClient = new MistralAIClient(this);
     m_groqClient = new GroqAIClient(this);
+    m_geminiClient = new GeminiAIClient(this);
     m_huggingfaceClient = new HuggingFaceAIClient(this);
     m_openrouterClient = new OpenRouterAIClient(this);
     m_sakuraClient = new SakuraAIClient(this);
@@ -70,6 +72,7 @@ AIClientManager::AIClientManager(QObject *parent)
 
     m_clientMap["mistral"] = m_mistralClient;
     m_clientMap["groq"] = m_groqClient;
+    m_clientMap["gemini"] = m_geminiClient;
     m_clientMap["huggingface"] = m_huggingfaceClient;
     m_clientMap["openrouter"] = m_openrouterClient;
     m_clientMap["sakura"] = m_sakuraClient;
@@ -78,6 +81,7 @@ AIClientManager::AIClientManager(QObject *parent)
     // トラッカーへの初期登録
     m_tracker.registerClient(m_mistralClient->defaultStatus());
     m_tracker.registerClient(m_groqClient->defaultStatus());
+    m_tracker.registerClient(m_geminiClient->defaultStatus());
     m_tracker.registerClient(m_huggingfaceClient->defaultStatus());
     m_tracker.registerClient(m_openrouterClient->defaultStatus());
     m_tracker.registerClient(m_sakuraClient->defaultStatus());
@@ -159,6 +163,7 @@ void AIClientManager::loadSettingsFromJsonObject(const QJsonObject &obj) {
         return raw;
     };
     m_groqModel        = normalizeModel(obj["groq_model"].toString());
+    m_geminiModel      = normalizeModel(obj["gemini_model"].toString());
     m_mistralModel     = normalizeModel(obj["mistral_model"].toString());
     m_huggingfaceModel = normalizeModel(obj["huggingface_model"].toString().trimmed());
     m_openrouterModel  = normalizeModel(obj["openrouter_model"].toString().trimmed());
@@ -213,6 +218,7 @@ void AIClientManager::loadCredentials() {
 
             QString mistralKey = obj["mistral_api_key"].toString();
             QString groqKey = obj["groq_api_key"].toString();
+            QString geminiKey = obj["gemini_api_key"].toString();
             QString hfKey = obj["huggingface_api_key"].toString();
             QString openrouterKey = obj["openrouter_api_key"].toString();
             QString sakuraKey = obj["sakura_api_key"].toString();
@@ -245,6 +251,15 @@ void AIClientManager::loadCredentials() {
             {
                 ProviderStatus s = m_tracker.statusOf("groq");
                 s.available = !groqKey.trimmed().isEmpty();
+                m_tracker.registerClient(s);
+            }
+
+            m_geminiClient->setApiKey(geminiKey.trimmed());
+            m_geminiClient->setModel(m_geminiModel.trimmed());
+            m_geminiClient->setTavilyApiKey(m_tavilyApiKey);
+            {
+                ProviderStatus s = m_tracker.statusOf("gemini");
+                s.available = !geminiKey.trimmed().isEmpty();
                 m_tracker.registerClient(s);
             }
 
@@ -532,7 +547,7 @@ QStringList AIClientManager::workerPriorityOrder() const {
     if (!m_provider.isEmpty()) {
         order.append(m_provider);
     }
-    QStringList defaultPriority = { "groq", "mistral", "huggingface", "openrouter", "sakura", "dummy" };
+    QStringList defaultPriority = { "groq", "gemini", "sakura", "mistral", "openrouter", "huggingface", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
             order.append(p);
@@ -546,7 +561,7 @@ QStringList AIClientManager::managerPriorityOrder() const {
     if (!m_managerProvider.isEmpty()) {
         order.append(m_managerProvider);
     }
-    QStringList defaultPriority = { "groq", "mistral", "dummy" };
+    QStringList defaultPriority = { "groq", "gemini", "mistral", "dummy" };
     for (const QString &p : defaultPriority) {
         if (!order.contains(p)) {
             order.append(p);
@@ -2869,9 +2884,9 @@ void AIClientManager::processPendingRequests() {
 
 void AIClientManager::buildFallbackProviderList() {
     // API キー設定済みプロバイダを優先順に並べ、現在選択中のプロバイダを除外する
-    // 優先順序: groq → mistral → huggingface → openrouter → sakura
+    // 優先順序: groq → gemini → sakura → mistral → openrouter → huggingface
     static const QStringList priorityOrder = {
-        "groq", "mistral", "huggingface", "openrouter", "sakura"
+        "groq", "gemini", "sakura", "mistral", "openrouter", "huggingface"
     };
     m_fallbackProviders.clear();
 

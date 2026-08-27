@@ -163,12 +163,15 @@ private:
 
     QCheckBox *m_aiProviderMistralCheckbox = nullptr;
     QCheckBox *m_aiProviderGroqCheckbox = nullptr; // Groq
+    QCheckBox *m_aiProviderGeminiCheckbox = nullptr; // Gemini
     QCheckBox *m_aiProviderHuggingFaceCheckbox = nullptr; // HuggingFace
     QCheckBox *m_aiProviderOpenRouterCheckbox = nullptr; // OpenRouter
     QCheckBox *m_aiProviderSakuraCheckbox = nullptr; // さくらAI
     QLineEdit *m_aiApiKeyEdit = nullptr;
     QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
     QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
+    QLineEdit *m_aiGeminiApiKeyEdit = nullptr; // Gemini API Key
+    QComboBox *m_aiGeminiModelCombo = nullptr; // Gemini Model
     QLineEdit *m_aiHuggingFaceApiKeyEdit = nullptr;
     QComboBox *m_aiHuggingFaceModelCombo = nullptr;
     QLineEdit *m_aiOpenRouterApiKeyEdit = nullptr;
@@ -373,6 +376,7 @@ public:
     void onSttReleased();
     void loadSettingsToUI();
     void saveSettingsFromUI();
+    const QList<ProviderConfigSpec>& providerSpecs() const { return m_providerSpecs; }
 
 
 

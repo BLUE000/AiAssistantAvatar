@@ -57,9 +57,10 @@ private:
     QString m_currentRequester;
     QString m_previousRequester; // 前回のリクエスター（切り替わり検知用）
 
-    // --- F-15/F-16/F-32 AIプロバイダ追加 ---
+    // --- F-15/F-16/F-32/F-39 AIプロバイダ追加 ---
     class MistralAIClient *m_mistralClient = nullptr;
     class GroqAIClient *m_groqClient = nullptr;
+    class GeminiAIClient *m_geminiClient = nullptr;
     class HuggingFaceAIClient *m_huggingfaceClient = nullptr;
     class OpenRouterAIClient *m_openrouterClient = nullptr;
     class SakuraAIClient *m_sakuraClient = nullptr;
@@ -75,6 +76,7 @@ private:
     QString m_managerProvider = "groq";
     QString m_managerModel = "llama-3.1-8b-instant";
     QString m_groqModel = "llama-3.3-70b-versatile";
+    QString m_geminiModel = "gemini-2.0-flash";
     QString m_mistralModel = "mistral-small-latest";
     QString m_huggingfaceModel = "meta-llama/Llama-3.1-8B-Instruct";
     QString m_openrouterModel = "meta-llama/llama-3.1-8b-instruct:free";
@@ -87,7 +89,6 @@ private:
     QString getTaskFlowSchedulesContext();
     qint64 m_apiCallStartTimeMs = 0;
 
-    QStringList workerPriorityOrder() const;
     QStringList managerPriorityOrder() const;
 
     struct PendingRequest {
@@ -233,7 +234,7 @@ public:
     QJsonObject knowledgeMetadata() const { return m_knowledgeMetadata; }
     QString lastFinalPrompt() const { return m_lastFinalPrompt; }
     QString lastAdditionalSystemPrompt() const { return m_lastAdditionalSystemPrompt; }
-    QString avatarName() const { return m_avatarName; }
+    Q_INVOKABLE QString avatarName() const { return m_avatarName; }
 
     RateLimitTracker& tracker() { return m_tracker; }
     const RateLimitTracker& tracker() const { return m_tracker; }
@@ -250,6 +251,7 @@ public:
     QList<QPair<QString, QString>> loadObfuscatedBackup(const QString &filePath);
 
     // --- F-33: テストから呼び出し可能なヘルパー ---
+    QStringList workerPriorityOrder() const;
     void buildFallbackProviderList(); // loadCredentials() 後に呼んでリストを構築する
     QString buildHumanReadableError(int httpCode, const QString &providerId,
                                     const QJsonObject &errorJson) const;
