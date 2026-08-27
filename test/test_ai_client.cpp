@@ -3817,6 +3817,81 @@ TEST_F(AIClientTest, RaidShoutout_FallbackWhenCliNotFound) {
     EXPECT_EQ(ev.extraData.value("twitch_channel").toString(), "my_streamer_channel");
 }
 
+// UT-INTRO-GEN-07: レイド受信時 (shoutout_use_command = true) のシャウトアウト API 送信検証
+TEST_F(AIClientTest, RaidShoutout_TriggersShoutoutApiOnRaid) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    QVariantMap raidMeta;
+    raidMeta["login"] = "raider_friend";
+    raidMeta["displayName"] = "友人配信者";
+    raidMeta["channel"] = "my_streamer_channel";
+
+    manager.on_twitchRaidReceived("raider_friend", raidMeta);
+
+    // MockTwitchHelixClient 側で sendShoutoutToUser または sendShoutout が呼び出されたこと
+    EXPECT_EQ(mockHelix.lastShoutoutTo, "raider_friend");
+}
+
+// UT-INTRO-GEN-08: 会話トリガー紹介時 (/shoutout API が送信されないことの検証)
+TEST_F(AIClientTest, ConversationShoutout_DoesNotTriggerShoutoutApi) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["shoutout_use_command"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    mockHelix.lastShoutoutTo.clear();
+
+    manager.handleConversationShoutout("friend_guest", "Twitch", "my_streamer_channel");
+
+    // 会話紹介では /shoutout API は一切呼ばれないこと
+    EXPECT_TRUE(mockHelix.lastShoutoutTo.isEmpty());
+}
+
+// UT-INTRO-GEN-09: 自己レイド時のシャウトアウト API スキップ検証
+TEST_F(AIClientTest, RaidShoutout_SkipsShoutoutApiForSelf) {
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QJsonObject settings;
+    settings["twitch_channel"] = "my_streamer_channel";
+    settings["twitch_username"] = "my_streamer_channel";
+    settings["raid_auto_shoutout_enabled"] = true;
+    settings["shoutout_use_command"] = true;
+    manager.loadSettingsFromJsonObject(settings);
+
+    MockTwitchHelixClient mockHelix;
+    manager.setHelixClient(&mockHelix);
+
+    mockHelix.lastShoutoutTo.clear();
+
+    QVariantMap raidMeta;
+    raidMeta["login"] = "my_streamer_channel";
+    raidMeta["displayName"] = "配信者自身";
+    raidMeta["channel"] = "my_streamer_channel";
+
+    manager.on_twitchRaidReceived("my_streamer_channel", raidMeta);
+
+    // 自分自身へのレイド時は /shoutout API がスキップされること
+    EXPECT_TRUE(mockHelix.lastShoutoutTo.isEmpty());
+}
+
+
 
 
 

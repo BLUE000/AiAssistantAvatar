@@ -72,6 +72,9 @@ int main(int argc, char *argv[]) {
 
     QString twitchToken;
     QString twitchClientId;
+    QString twitchChannel;
+    QString twitchUsername;
+    bool shoutoutUseCommand = true;
     QString aiProvider = "dummy";
     QString mistralKey, groqKey, hfKey, openrouterKey, sakuraKey;
     QString mistralModel, groqModel, hfModel, openrouterModel, sakuraModel;
@@ -86,6 +89,11 @@ int main(int argc, char *argv[]) {
                 QJsonObject obj = doc.object();
                 twitchToken = obj.value("twitch_oauth_token").toString();
                 twitchClientId = obj.value("twitch_client_id").toString();
+                twitchChannel = obj.value("twitch_channel").toString();
+                twitchUsername = obj.value("twitch_username").toString();
+                if (obj.contains("shoutout_use_command")) {
+                    shoutoutUseCommand = obj.value("shoutout_use_command").toBool(true);
+                }
                 aiProvider = obj.value("ai_provider").toString("dummy").toLower();
                 mistralKey = obj.value("mistral_api_key").toString();
                 groqKey = obj.value("groq_api_key").toString();
@@ -104,6 +112,20 @@ int main(int argc, char *argv[]) {
 
     TwitchHelixClient helixClient;
     helixClient.setCredentials(twitchToken, twitchClientId);
+
+    // レイド時限定: Twitch 公式 /shoutout REST API の送信（自己宛除外）
+    if (mode == "raid" && shoutoutUseCommand) {
+        bool isSelf = (!twitchChannel.isEmpty() && user.compare(twitchChannel, Qt::CaseInsensitive) == 0) ||
+                      (!twitchUsername.isEmpty() && user.compare(twitchUsername, Qt::CaseInsensitive) == 0);
+        if (!isSelf) {
+            QString broadcaster = !twitchChannel.isEmpty() ? twitchChannel : twitchUsername;
+            if (!broadcaster.isEmpty()) {
+                helixClient.sendShoutoutToUser(broadcaster, user, [](bool success) {
+                    qDebug() << "TwitchIntroGenerator: Shoutout REST API result:" << success;
+                });
+            }
+        }
+    }
 
     QTimer timeoutTimer;
     timeoutTimer.setSingleShot(true);
