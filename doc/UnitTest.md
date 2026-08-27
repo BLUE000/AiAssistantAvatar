@@ -669,6 +669,19 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-TOOLS-PATH-03** | 開発環境 `build/` フォルダ探索 | `appDir + "/build/WebSearcher.exe"` のみ存在。 | 開発環境パスが正常に選択・返却されること。 |
 | **UT-TOOLS-PATH-04** | プロセス環境変数 `PATH` への `appDir` 前置注入 | `configureProcessEnvironment(process)` を実行。 | `process.processEnvironment().value("PATH")` の先頭に `appDir` が追加されていること。 |
 
+---
+
+### 3.13 Google Gemini プロバイダ ＆ `GeminiChatter` コンソールアプリの単体試験 (GTest/QTest)
+
+| 試験ID | 対象機能・シナリオ | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-GEMINI-01** | `GeminiAIClient::sendRequest` リクエスト構築 | `gemini` プロバイダを選択し、プロンプトとシステム指示を送信。 | OpenAI 互換 Chat Completions API (`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`) に対し、指定した API キーおよびモデル名でリクエストが正常構築・送信されること。 |
+| **UT-GEMINI-02** | `GeminiAIClient` レスポンス正常パース | サーバーから正常な Chat Completions JSON レスポンスを受信。 | `choices[0].message.content` から回答テキストが正確に抽出され、シグナル通知されること。 |
+| **UT-GEMINI-03** | `GeminiAIClient` レート制限エラーハンドリング | HTTP 429 エラーを受信。 | 自然言語でのレートリミット通知が生成され、次候補プロバイダへのフォールバックが起動すること。 |
+| **UT-GEMINI-04** | `GeminiChatter` 引数パースと推論実行 | `--prompt "こんにちは" --model "gemini-2.0-flash" --format json` で起動。 | 引数が正しく解釈され、生成された JSON 応答が標準出力（stdout）に出力されること。 |
+| **UT-GEMINI-05** | `GeminiChatter` 設定ファイルからのキー自動ロード | `--api-key` 省略で起動。 | `Config/local_settings.json` から `"gemini_api_key"` が自動抽出されて推論が実行されること。 |
+| **UT-GEMINI-06** | `RateLimitTracker` Gemini 初期値検証 | トラッカーを初期化。 | Gemini の無料枠（RPM: 15, RPD: 1500, TPM: 1,000,000）が正しく初期設定されること。 |
+
 
 
 

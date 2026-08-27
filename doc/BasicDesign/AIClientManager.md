@@ -129,6 +129,15 @@
   - **障害時フォールバック**:
     - CLI の実行エラーまたはタイムアウト（15秒）時は、メインアプリ側で安全にフォールバックメッセージ（通常のお礼・紹介コメント）を出力する。
 
+### 2.18 Google Gemini プロバイダ ＆ Gemini コンソールアプリ (`GeminiChatter`) 連携設計
+- **プロバイダ統合アーキテクチャ**:
+  - Google AI Studio の無料枠 API（`gemini-2.0-flash`, `gemini-1.5-flash`、15 RPM / 1,500 RPD）を直接利用可能なクライアントエンジン（`GeminiAIClient`）として統合。
+  - プロバイダ自動ローテーションおよびフォールバック機構（Groq $\rightarrow$ Gemini $\rightarrow$ さくらAI $\rightarrow$ Mistral $\rightarrow$ OpenRouter $\rightarrow$ HuggingFace）に組み込み、無料枠の多さと高速性を最大限に活用。
+- **Gemini コンソールアプリ (`GeminiChatter.exe`)**:
+  - 独立プロセスとして Gemini 推論を実行する CLI ツールを提供。
+  - メインアプリおよび外部ツールから `tools/GeminiChatter.exe` を非同期起動可能。
+  - プロセス起動時は `ProcessUtils` により `PATH` 前置注入と DLL 共有を行い、軽量かつ安全に実行。
+
 
 
 

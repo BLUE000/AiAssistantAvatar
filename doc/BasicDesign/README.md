@@ -62,6 +62,7 @@ AiAssistantAvatar_Release/
 └── tools/                         (内部コンソールアプリ集約フォルダ)
     ├── WebSearcher.exe            (Web検索実行CLI)
     ├── CommunityObserver.exe      (コミュニティ監視CLI)
-    └── TwitchIntroGenerator.exe   (Twitch紹介文生成CLI)
+    ├── TwitchIntroGenerator.exe   (Twitch紹介文生成CLI)
+    └── GeminiChatter.exe          (Gemini推論実行CLI)
 ```
 

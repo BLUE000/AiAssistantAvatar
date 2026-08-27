@@ -875,6 +875,28 @@ sequenceDiagram
   - 将来的には Helix API の Social Links エンドポイント（提供された場合）への対応を検討する
   - SNS情報が空の場合もプロンプトに「外部リンク情報なし」と明示する（現行維持）
 
+### F-39: Google Gemini プロバイダ統合 ＆ Gemini コンソールアプリ (`GeminiChatter`)
+
+- **背景・目的**:
+  - 高精度・爆速レスポンス（0.5〜1.0秒）かつ 1日1,500回（15 RPM）の寛大な無料利用枠を持つ Google Gemini（Google AI Studio）をアプリの AI エンジンとして統合し、配信時の主力・フォールバックの選択肢を拡充する。
+  - 同時に、他ツールや外部連携から容易に Gemini 推論を呼び出せるよう、スタンドアロンのコンソールアプリ（`GeminiChatter.exe`）として切り出す。
+- **要件**:
+  1. **Google Gemini API クライアントエンジン (`GeminiAIClient`)**:
+     - Google AI Studio の REST API（OpenAI 互換規格 `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` または Native v1beta `generateContent`）と通信。
+     - デフォルトモデル: `gemini-2.0-flash`（推奨・最速） / `gemini-1.5-flash`。
+     - 会話履歴、システムプロンプト、Web検索情報（RAG）の注入に対応。
+     - 無料枠（RPM: 15, RPD: 1500, TPM: 1,000,000）のレートリミットトラッキング。
+  2. **Gemini コンソールアプリ (`GeminiChatter`)**:
+     - コマンドライン引数（`--prompt`, `--system`, `--model`, `--api-key`, `--config`, `--format text/json`）を受け取り、標準出力に結果テキストを出力して終了する独立 CLI。
+     - 配布環境では `tools/GeminiChatter.exe` に配置・隔離し、メインアプリから `ProcessUtils` 経由で探索・非同期起動可能とする。
+  3. **UI 設定・保存**:
+     - 「AI設定」タブに「Gemini (Google AI Studio)」の選択肢、API キー入力欄、モデル選択コンボボックスを追加。
+     - 設定ファイル（`local_settings.json` の `"gemini_api_key"`, `"gemini_model"`）での永続化。
+  4. **オートローテーション・フォールバック統合**:
+     - プロバイダ自動切り替えリスト（Groq $\rightarrow$ Gemini $\rightarrow$ さくらAI $\rightarrow$ Mistral $\rightarrow$ OpenRouter $\rightarrow$ HuggingFace）に統合。
+     - 429（レート制限）やエラー時の自然言語エラー通知に対応。
+
+
 
 
 

@@ -515,6 +515,81 @@ void configureProcessEnvironment(QProcess &process) {
 - CLI 側で `/shoutout` が実行されるため、メインアプリ側での `/shoutout` REST API 二重送信は行わない。
 - 120 秒クールタイムタイマー（`m_shoutoutCooldownTimer`）および待機キュー（`m_shoutoutQueue`）の管理はメインアプリ側で統括し、UIステータスを更新する。
 
+---
+
+## 21. Google Gemini (Google AI Studio) クライアント (`GeminiAIClient`) 詳細設計
+
+### 21.1 概要・通信仕様
+Google AI Studio の Gemini API を利用し、高速・高精度な応答を生成するクライアント。
+OpenAI 互換エンドポイントまたは Native v1beta エンドポイントを使用する。
+
+- **エンドポイント**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
+- **認証**: HTTP ヘッダー `Authorization: Bearer <gemini_api_key>` または クエリパラメータ `?key=<gemini_api_key>`
+- **デフォルトモデル**: `gemini-2.0-flash`（推奨・最速） / `gemini-1.5-flash`
+- **レートリミット（無料枠）**: RPM: 15, RPD: 1500, TPM: 1,000,000
+
+### 21.2 リクエスト・レスポンス JSON 構造
+```json
+// Request
+{
+  "model": "gemini-2.0-flash",
+  "messages": [
+    { "role": "system", "content": "システム指示テキスト..." },
+    { "role": "user", "content": "ユーザー質問..." }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1024,
+  "stream": false
+}
+
+// Response
+{
+  "id": "chatcmpl-...",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "AI回答テキスト..."
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+---
+
+## 22. Gemini コンソールアプリ (`GeminiChatter`) 詳細設計
+
+### 22.1 概要・責務
+`GeminiChatter` は、Google Gemini API をスタンドアロン環境や外部プロセスから呼び出す独立 CLI ツールである。
+配布環境では `tools/GeminiChatter.exe` に配置される。
+
+### 22.2 コマンドライン引数仕様
+```text
+GeminiChatter [options]
+Options:
+  --prompt <text>       [必須] 入力プロンプト・質問テキスト
+  --system <text>       [任意] システムプロンプト指示
+  --model <model>       [任意] Gemini モデル名 (デフォルト: "gemini-2.0-flash")
+  --api-key <key>       [任意] Gemini API キー (省略時は設定ファイルから取得)
+  --config <path>       [任意] 設定ファイルパス (デフォルト: "Config/local_settings.json")
+  --format <format>     [任意] 出力形式 ("text" または "json", デフォルト: "text")
+  --timeout <ms>        [任意] タイムアウトミリ秒 (デフォルト: 15000)
+  --help, -h            ヘルプ表示
+```
+
+### 22.3 内部処理シーケンス
+1. **引数および設定ロード**:
+   - 引数 `--api-key` が未指定の場合、`--config` で指定された `local_settings.json` の `"gemini_api_key"` をロード。
+2. **REST API リクエスト送信**:
+   - `QNetworkAccessManager` を介して Gemini OpenAI 互換エンドポイントへ POST 送信。
+3. **レスポンス受信 ＆ 標準出力出力**:
+   - `--format text`: 生成されたテキストを UTF-8 で stdout に出力。
+   - `--format json`: `{ "status": "success", "model": "...", "text": "..." }` を stdout に出力。
+   - 終了コード: 正常時 `0`、エラー時 `1`。
+
 
 
 
