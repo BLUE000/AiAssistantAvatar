@@ -30,7 +30,7 @@ if (Test-Path $windeployqt) {
     Write-Error "windeployqt.exe not found at $windeployqt"
 }
 
-# 3. MinGW ランタイム DLL のコピー
+# 3. MinGW ランタイム DLL および独自 DLL (libTransCipher.dll) のコピー
 $mingwBinPaths = @("C:\Qt\Tools\mingw1310_64\bin", "C:\tmp\mingw64\bin")
 $mingwDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
 
@@ -42,6 +42,16 @@ foreach ($dll in $mingwDlls) {
             break
         }
     }
+}
+
+$transCipherDll = "Lib/TransCipher/bin/libTransCipher.dll"
+if (-not (Test-Path $transCipherDll)) {
+    $transCipherDll = "Lib/TransCipher/lib/libTransCipher.dll"
+}
+if (Test-Path $transCipherDll) {
+    Copy-Item $transCipherDll -Destination "$releaseDir/" -Force
+} else {
+    Write-Warning "libTransCipher.dll not found in Lib/TransCipher!"
 }
 
 # 4. アセット・テキスト設定ファイルのコピー

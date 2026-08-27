@@ -111,6 +111,13 @@ target_link_libraries(AiAssistantAvatar PRIVATE
 trustchain_setup_target(AiAssistantAvatar)
 target_link_libraries(AiAssistantAvatar PRIVATE trustchain)
 
+add_custom_command(TARGET AiAssistantAvatar POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/Lib/TransCipher/bin/libTransCipher.dll"
+            "$<TARGET_FILE_DIR:AiAssistantAvatar>/libTransCipher.dll"
+    COMMENT "Copying libTransCipher.dll to target directory"
+)
+
 # 独立EXEツール: AvatarSkinBuilder
 set(SKIN_BUILDER_SOURCES
     src/skin_builder_main.cpp
