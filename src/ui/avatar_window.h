@@ -171,7 +171,7 @@ private:
     QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
     QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
     QLineEdit *m_aiGeminiApiKeyEdit = nullptr; // Gemini API Key
-    QComboBox *m_aiGeminiModelCombo = nullptr; // Gemini Model
+    QString m_geminiModel = "gemini-2.0-flash"; // Gemini Model (設定ファイルから保持)
     QLineEdit *m_aiHuggingFaceApiKeyEdit = nullptr;
     QComboBox *m_aiHuggingFaceModelCombo = nullptr;
     QLineEdit *m_aiOpenRouterApiKeyEdit = nullptr;
@@ -184,6 +184,7 @@ private:
     QCheckBox *m_managerEnabledCheckbox = nullptr;
     QComboBox *m_managerProviderCombo = nullptr;
     QComboBox *m_managerModelCombo = nullptr;
+    void updateManagerProviderComboList();
 
     // プロバイダ限界設定用UI
     QComboBox *m_limitProviderCombo = nullptr;
@@ -377,6 +378,11 @@ public:
     void loadSettingsToUI();
     void saveSettingsFromUI();
     const QList<ProviderConfigSpec>& providerSpecs() const { return m_providerSpecs; }
+    QComboBox* managerProviderCombo() const { return m_managerProviderCombo; }
+    QComboBox* managerModelCombo() const { return m_managerModelCombo; }
+    void updateManagerModelComboList(const QString &provider);
+
+
 
 
 

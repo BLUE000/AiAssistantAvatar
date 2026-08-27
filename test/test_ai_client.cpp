@@ -4011,7 +4011,8 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
         ASSERT_NE(geminiSpec, nullptr);
         EXPECT_TRUE(geminiSpec->checkbox->isChecked());
         EXPECT_EQ(geminiSpec->keyEdit->text(), "AIzaSy_UnitTest_Key_12345");
-        EXPECT_EQ(geminiSpec->modelCombo->currentText(), "gemini-2.0-flash");
+        // Gemini は UI 上にモデルコンボボックスを持たないこと
+        EXPECT_EQ(geminiSpec->modelCombo, nullptr);
 
         // 変更して保存
         geminiSpec->keyEdit->setText("AIzaSy_Updated_Key_67890");
@@ -4025,6 +4026,7 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
 
         EXPECT_EQ(savedObj.value("gemini_api_key").toString(), "AIzaSy_Updated_Key_67890");
         EXPECT_EQ(savedObj.value("ai_provider").toString(), "gemini");
+        EXPECT_EQ(savedObj.value("gemini_model").toString(), "gemini-2.0-flash");
     }
 
     if (hasOriginal && !originalContent.isEmpty()) {
@@ -4035,6 +4037,147 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
         }
     }
 }
+
+TEST_F(AIClientTest, RateLimitTabWidgetGeminiCardDisplay) {
+    // UT-GEMINI-07: RateLimitTabWidget 内の Gemini カード表示検証
+    RateLimitTabWidget tabWidget;
+    GeminiAIClient client;
+    ProviderStatus st = client.defaultStatus();
+    st.rpmRemaining = 12;
+    st.rpdRemaining = 1450;
+
+    tabWidget.onStatusUpdated({st});
+
+    // 内部カードが生成されていること
+    QList<QGroupBox*> groupBoxes = tabWidget.findChildren<QGroupBox*>();
+    bool foundGemini = false;
+    for (QGroupBox *gb : groupBoxes) {
+        if (gb->title().contains("GEMINI", Qt::CaseInsensitive)) {
+            foundGemini = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundGemini);
+}
+
+TEST_F(AIClientTest, ManagerAIProviderDynamicSelectionFromConfiguredKeys) {
+    // UT-MGR-PROVIDER-01: 設定済みAPIキーに基づくManager AIプロバイダ一覧の動的抽出
+    QString targetPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(targetPath);
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        QJsonObject obj;
+        obj["groq_api_key"] = "gsk_test_key";
+        obj["gemini_api_key"] = "AIzaSy_test_key";
+        obj["mistral_api_key"] = "";
+        obj["sakura_api_key"] = "";
+        obj["huggingface_api_key"] = "";
+        obj["openrouter_api_key"] = "";
+
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        AvatarWindow window;
+        ASSERT_NE(window.managerProviderCombo(), nullptr);
+        QStringList items;
+        for (int i = 0; i < window.managerProviderCombo()->count(); ++i) items.append(window.managerProviderCombo()->itemText(i));
+        EXPECT_TRUE(items.contains("groq"));
+        EXPECT_TRUE(items.contains("gemini"));
+        EXPECT_FALSE(items.contains("mistral"));
+    }
+
+    if (hasOriginal && !originalContent.isEmpty()) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
+    }
+}
+
+TEST_F(AIClientTest, ManagerAIProviderFallbackWhenNoKeysSet) {
+    // UT-MGR-PROVIDER-02: 全キー未設定時のデフォルト全プロバイダフォールバック
+    QString targetPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
+    QByteArray originalContent;
+    bool hasOriginal = QFile::exists(targetPath);
+    if (hasOriginal) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            originalContent = file.readAll();
+            file.close();
+        }
+    }
+
+    {
+        QJsonObject obj;
+        obj["groq_api_key"] = "";
+        obj["gemini_api_key"] = "";
+        obj["mistral_api_key"] = "";
+        obj["sakura_api_key"] = "";
+        obj["huggingface_api_key"] = "";
+        obj["openrouter_api_key"] = "";
+
+        QFile file(targetPath);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+
+        AvatarWindow window;
+        ASSERT_NE(window.managerProviderCombo(), nullptr);
+        QStringList items;
+        for (int i = 0; i < window.managerProviderCombo()->count(); ++i) items.append(window.managerProviderCombo()->itemText(i));
+        EXPECT_TRUE(items.contains("groq"));
+        EXPECT_TRUE(items.contains("gemini"));
+        EXPECT_TRUE(items.contains("sakura"));
+        EXPECT_TRUE(items.contains("mistral"));
+        EXPECT_TRUE(items.contains("openrouter"));
+        EXPECT_TRUE(items.contains("huggingface"));
+    }
+
+    if (hasOriginal && !originalContent.isEmpty()) {
+        QFile file(targetPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(originalContent);
+            file.close();
+        }
+    }
+}
+
+TEST_F(AIClientTest, ManagerAIModelListUpdatesOnProviderChange) {
+    // UT-MGR-PROVIDER-03: Manager AIプロバイダ変更時の推奨モデル一覧更新
+    AvatarWindow window;
+    ASSERT_NE(window.managerModelCombo(), nullptr);
+
+    // 各プロバイダの推奨モデルリスト更新を網羅的に検証
+    window.updateManagerModelComboList("groq");
+    EXPECT_TRUE(window.managerModelCombo()->findText("llama-3.1-8b-instant (推奨)") >= 0);
+
+    window.updateManagerModelComboList("gemini");
+    EXPECT_TRUE(window.managerModelCombo()->findText("gemini-2.0-flash (推奨)") >= 0);
+
+    window.updateManagerModelComboList("sakura");
+    EXPECT_TRUE(window.managerModelCombo()->findText("llm-jp-3.1-8x13b-instruct4 (推奨)") >= 0);
+
+    window.updateManagerModelComboList("mistral");
+    EXPECT_TRUE(window.managerModelCombo()->findText("mistral-small-latest (推奨)") >= 0);
+
+    window.updateManagerModelComboList("openrouter");
+    EXPECT_TRUE(window.managerModelCombo()->findText("google/gemma-4-31b-it:free (推奨)") >= 0);
+
+    window.updateManagerModelComboList("huggingface");
+    EXPECT_TRUE(window.managerModelCombo()->findText("meta-llama/Llama-3.1-8B-Instruct (推奨)") >= 0);
+}
+
 
 
 

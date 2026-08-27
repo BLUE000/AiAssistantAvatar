@@ -1222,7 +1222,7 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_providerSpecs = {
         { "mistral", "Mistral AI", "Mistral API キーを入力...", false, {}, false },
         { "groq", "Groq AI", "Groq API キーを入力...", true, { "自動選択 (推奨)", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it" }, false },
-        { "gemini", "Gemini (Google AI Studio)", "Gemini API キー (AIzaSy...) を入力...", true, { "自動選択 (推奨)", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro" }, true },
+        { "gemini", "Gemini (Google AI Studio)", "Gemini API キー (AIzaSy...) を入力...", false, {}, false },
         { "huggingface", "HuggingFace", "HuggingFace API キー (hf_...) を入力...", true, { "自動選択 (推奨)", "meta-llama/Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3" }, true },
         { "openrouter", "OpenRouter", "OpenRouter API キー (sk-or-v1-...) を入力...", true, { "自動選択 (推奨)", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "inclusionai/ling-3.0-flash:free", "qwen/qwen-2.5-72b-instruct" }, true },
         { "sakura", "さくらAI", "さくらAI API キーを入力...", true, { "自動選択 (推奨)", "llm-jp-3.1-8x13b-instruct4", "gpt-oss-120b", "preview/gemma-4-31B-it", "preview/Kimi-K2.6", "preview/Phi-4-mini-instruct-cpu", "preview/Phi-4-multimodal-instruct", "preview/Qwen3-0.6B-cpu", "preview/Qwen3-VL-30B-A3B-Instruct", "preview/Qwen3.6-35B-A3B" }, true }
@@ -1234,6 +1234,11 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
         spec.keyEdit = new QLineEdit(scrollContent);
         spec.keyEdit->setEchoMode(QLineEdit::Password);
         spec.keyEdit->setPlaceholderText(spec.keyPlaceholder);
+
+        // APIキー入力変更時に Manager AI プロバイダ一覧を動的更新
+        connect(spec.keyEdit, &QLineEdit::textChanged, this, [this]() {
+            updateManagerProviderComboList();
+        });
 
         if (spec.hasModelCombo) {
             spec.modelCombo = new QComboBox(scrollContent);
@@ -1276,7 +1281,6 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_aiGroqModelCombo = m_providerSpecs[1].modelCombo;
     m_aiProviderGeminiCheckbox = m_providerSpecs[2].checkbox;
     m_aiGeminiApiKeyEdit = m_providerSpecs[2].keyEdit;
-    m_aiGeminiModelCombo = m_providerSpecs[2].modelCombo;
     m_aiProviderHuggingFaceCheckbox = m_providerSpecs[3].checkbox;
     m_aiHuggingFaceApiKeyEdit = m_providerSpecs[3].keyEdit;
     m_aiHuggingFaceModelCombo = m_providerSpecs[3].modelCombo;
@@ -1301,20 +1305,12 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
 
     m_managerEnabledCheckbox = new QCheckBox("マネージャにAIを使用", scrollContent);
     m_managerProviderCombo = new QComboBox(scrollContent);
-    m_managerProviderCombo->addItems({"groq", "mistral"});
-
     m_managerModelCombo = new QComboBox(scrollContent);
-    // 初期推奨設定の表示
-    auto updateManagerModelComboList = [this](const QString &provider) {
-        m_managerModelCombo->clear();
-        if (provider == "groq") {
-            m_managerModelCombo->addItems({"llama-3.1-8b-instant (推奨)", "llama-3.3-70b-versatile", "gemma2-9b-it"});
-        } else if (provider == "mistral") {
-            m_managerModelCombo->addItems({"mistral-small-latest (推奨)", "mistral-large-latest"});
-        }
-    };
-    connect(m_managerProviderCombo, &QComboBox::currentTextChanged, this, updateManagerModelComboList);
-    updateManagerModelComboList("groq"); // 初期化
+
+    connect(m_managerProviderCombo, &QComboBox::currentTextChanged, this, &AvatarWindow::updateManagerModelComboList);
+
+    updateManagerProviderComboList();
+    updateManagerModelComboList(m_managerProviderCombo->currentText()); // 初期化
 
     // 表示トグルのバインディング
     auto toggleManagerFields = [this](bool checked) {
@@ -1348,6 +1344,66 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     m_modelsNetworkManager = new QNetworkAccessManager(this);
     connect(m_modelsNetworkManager, &QNetworkAccessManager::finished, this, &AvatarWindow::onModelsReplyFinished);
 }
+
+void AvatarWindow::updateManagerModelComboList(const QString &provider) {
+    if (!m_managerModelCombo) return;
+    QString currentModel = m_managerModelCombo->currentText();
+    m_managerModelCombo->clear();
+    if (provider == "groq") {
+        m_managerModelCombo->addItems({"llama-3.1-8b-instant (推奨)", "llama-3.3-70b-versatile", "gemma2-9b-it"});
+    } else if (provider == "gemini") {
+        m_managerModelCombo->addItems({"gemini-2.0-flash (推奨)", "gemini-1.5-flash"});
+    } else if (provider == "sakura") {
+        m_managerModelCombo->addItems({"llm-jp-3.1-8x13b-instruct4 (推奨)", "gpt-oss-120b", "preview/Phi-4-mini-instruct-cpu"});
+    } else if (provider == "mistral") {
+        m_managerModelCombo->addItems({"mistral-small-latest (推奨)", "mistral-large-latest"});
+    } else if (provider == "openrouter") {
+        m_managerModelCombo->addItems({"google/gemma-4-31b-it:free (推奨)", "openai/gpt-oss-20b:free"});
+    } else if (provider == "huggingface") {
+        m_managerModelCombo->addItems({"meta-llama/Llama-3.1-8B-Instruct (推奨)", "Qwen/Qwen2.5-7B-Instruct"});
+    }
+    int idx = m_managerModelCombo->findText(currentModel);
+    if (idx >= 0) {
+        m_managerModelCombo->setCurrentIndex(idx);
+    }
+}
+
+void AvatarWindow::updateManagerProviderComboList() {
+    if (!m_managerProviderCombo) return;
+    QString current = m_managerProviderCombo->currentText();
+    QStringList available;
+    for (const auto &spec : m_providerSpecs) {
+        if (spec.keyEdit && !spec.keyEdit->text().trimmed().isEmpty()) {
+            available.append(spec.id);
+        }
+    }
+    if (available.isEmpty()) {
+        available = {"groq", "gemini", "sakura", "mistral", "openrouter", "huggingface"};
+    }
+
+    QStringList currentItems;
+    for (int i = 0; i < m_managerProviderCombo->count(); ++i) {
+        currentItems.append(m_managerProviderCombo->itemText(i));
+    }
+
+    if (currentItems != available) {
+        m_managerProviderCombo->blockSignals(true);
+        m_managerProviderCombo->clear();
+        m_managerProviderCombo->addItems(available);
+        int idx = m_managerProviderCombo->findText(current);
+        if (idx >= 0) {
+            m_managerProviderCombo->setCurrentIndex(idx);
+        } else if (!available.isEmpty()) {
+            m_managerProviderCombo->setCurrentIndex(0);
+        }
+        m_managerProviderCombo->blockSignals(false);
+
+        // モデル一覧も更新
+        updateManagerModelComboList(m_managerProviderCombo->currentText());
+    }
+}
+
+
 
 void AvatarWindow::initShoutoutTab(QWidget *parent) {
     QVBoxLayout *containerLayout = new QVBoxLayout(parent);
@@ -1525,9 +1581,8 @@ void AvatarWindow::loadSettingsToUI() {
             if (m_aiOpenRouterApiKeyEdit) m_aiOpenRouterApiKeyEdit->setText(obj.value("openrouter_api_key").toString());
             if (m_aiSakuraApiKeyEdit) m_aiSakuraApiKeyEdit->setText(obj.value("sakura_api_key").toString());
 
-            if (m_aiGeminiModelCombo && obj.contains("gemini_model")) {
-                m_aiGeminiModelCombo->setCurrentText(obj.value("gemini_model").toString("gemini-2.0-flash"));
-            }
+            m_geminiModel = obj.value("gemini_model").toString("gemini-2.0-flash");
+
             if (m_aiHuggingFaceModelCombo && obj.contains("huggingface_model")) {
                 m_aiHuggingFaceModelCombo->setCurrentText(obj.value("huggingface_model").toString("meta-llama/Llama-3.1-8B-Instruct"));
             }
@@ -1550,6 +1605,7 @@ void AvatarWindow::loadSettingsToUI() {
                 bool mgrEnabled = obj.value("manager_ai_enabled").toBool(false);
                 m_managerEnabledCheckbox->setChecked(mgrEnabled);
             }
+            updateManagerProviderComboList();
             if (m_managerProviderCombo) {
                 QString mgrProvider = obj.value("manager_ai_provider").toString("groq");
                 int idx = m_managerProviderCombo->findText(mgrProvider);
@@ -1730,10 +1786,7 @@ void AvatarWindow::saveSettingsFromUI() {
     }
 
     if (m_aiGeminiApiKeyEdit) obj["gemini_api_key"] = m_aiGeminiApiKeyEdit->text().trimmed();
-    if (m_aiGeminiModelCombo) {
-        QString geminiModel = m_aiGeminiModelCombo->currentText();
-        obj["gemini_model"] = geminiModel.replace(" (推奨)", "").trimmed();
-    }
+    obj["gemini_model"] = m_geminiModel.isEmpty() ? "gemini-2.0-flash" : m_geminiModel;
 
     if (m_aiHuggingFaceApiKeyEdit) obj["huggingface_api_key"] = m_aiHuggingFaceApiKeyEdit->text().trimmed();
     if (m_aiHuggingFaceModelCombo) obj["huggingface_model"] = m_aiHuggingFaceModelCombo->currentText().trimmed();
