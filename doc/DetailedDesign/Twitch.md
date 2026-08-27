@@ -136,5 +136,50 @@ void TwitchHelixClient::setCredentials(const QString &oauthToken, const QString 
   - `Content-Type`: `application/json`
 - **レスポンス**: `204 No Content`（成功時）
 
+---
+
+## 7. Twitch クリエイター紹介文生成コンソールアプリ (`TwitchIntroGenerator`) 詳細設計
+
+### 7.1 概要・責務
+`TwitchIntroGenerator` は、Twitch 配信におけるクリエイター紹介文生成（プロフィール収集 ＋ プロンプト構築 ＋ AI生成）に特化したスタンドアロンのコンソールアプリケーションである。
+メインアプリ（GUI）および他ツールから独立したサブプロセスとして呼び出され、標準出力へ結果テキスト（または JSON）を出力して終了する。
+
+### 7.2 コマンドライン引数仕様
+```text
+TwitchIntroGenerator [options]
+Options:
+  --user <login>        [必須] 対象クリエイターの Twitch ユーザーID (英数字)
+  --mode <mode>         [任意] 文脈モード ("raid" または "conversation", デフォルト: "conversation")
+  --length <length>     [任意] 紹介文の長さ ("short", "standard", "long", デフォルト: "standard")
+  --tone <tone_text>    [任意] トーン・口調指示 (デフォルト: "明るく元気な口調で！")
+  --config <path>       [任意] 設定ファイルパス (デフォルト: "Config/local_settings.json")
+  --format <format>     [任意] 出力形式 ("text" または "json", デフォルト: "text")
+  --help, -h            ヘルプ表示
+```
+
+### 7.3 内部処理シーケンス
+1. **設定および認証情報のロード**:
+   - `--config` で指定された設定ファイル（または引数）から Twitch Client ID、OAuth Token、および AI プロバイダ設定（APIキー、モデル名）をロード。
+2. **クリエイター情報収集 (`TwitchHelixClient`)**:
+   - `GET /helix/users?login=<user>` $\rightarrow$ ユーザーID, 表示名, 自己紹介 (Bio), SNS抽出
+   - `GET /helix/channels?broadcaster_id=<id>` $\rightarrow$ 現在の配信カテゴリ, 配信タイトル
+   - `GET /helix/videos?user_id=<id>&type=archive` $\rightarrow$ 最近プレイしたゲーム一覧（最大5件）
+3. **プロンプト構築 (`AIClientManager` 共通ロジック)**:
+   - `--mode raid`: レイド歓迎プロンプト（迎え入れ・感謝の文脈）
+   - `--mode conversation`: 会話紹介プロンプト（チャットでの紹介文脈）
+4. **AI クライアントによる推論**:
+   - 設定された Worker AI クライアント（Mistral / Groq 等）にプロンプトを送信し、紹介文テキストを生成。
+5. **標準出力（stdout）への出力 ＆ 終了**:
+   - `--format text`: 生成された紹介文テキストのみを UTF-8 で出力。
+   - `--format json`: `{ "status": "success", "username": "...", "displayName": "...", "text": "..." }` を出力。
+   - 終了コード: 正常時 `0`、エラー時 `1`。
+
+### 7.4 メインアプリ (`AIClientManager`) との非同期プロセス連携
+- メインアプリは `QProcess` を使用して `TwitchIntroGenerator.exe` を非同期で起動する。
+- **タイムアウト監視**: 15秒以内に終了しない場合はプロセスを強制終了（`kill()`）し、フォールバックメッセージ（例: `「〇〇さん、レイドありがとうございます！」`）を出力する。
+- **レイド時 `/shoutout` との連動**:
+  - メインアプリは、CLI の完了を待たずに（または並行して）Twitch 公式 `/shoutout` API の発火および 120 秒クールタイム待機キュー処理を独立して実行する。
+
+
 
 

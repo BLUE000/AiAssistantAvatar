@@ -407,6 +407,16 @@ Web 検索（`WebSearchRAG`）または知識検索結果が存在する場合�
 `AIClientManager` は内部の `TwitchHelixClient` インスタンスを `setHelixClient(TwitchHelixClient *client)` 経由でテスト用スタブ/モックに差し替え可能とする。
 これにより、単体テスト環境においてもレイドイベント受信から `/shoutout` REST API 発火、クールタイム待機キュー、チャット送信、フォロー推奨メッセージ送信までの E2E シーケンスを網羅的に検証可能とする。
 
+### 17.4 コンソールアプリ (`TwitchIntroGenerator`) への委譲とフォールバック
+`AIClientManager` は、レイド時および会話紹介時の「クリエイター情報収集 ＋ プロンプト構築 ＋ AI紹介文生成」について、`TwitchIntroGenerator.exe` を非同期サブプロセス（`QProcess`）として起動して実行する。
+- **実行引数例**:
+  - `TwitchIntroGenerator.exe --user <login> --mode raid --length <m_shoutoutLength> --tone <m_shoutoutTone>`
+- **終了時ハンドリング**:
+  - 正常終了（ExitCode 0）: 標準出力のテキストを `applyMask()` 等のフィルタを通過させたうえで Twitch 送信用イベント（`AIResponseReceived`）として発火。
+  - タイムアウト（15秒）または異常終了: ログ出力のうえ、デフォルトのお礼メッセージ（`「〇〇さん、レイドありがとうございます！」` 等）をフォールバックとして出力。
+- **`/shoutout` API 制御の分離**:
+  - Twitch 公式 `/shoutout` REST API の送信および 120 秒クールタイム待機キュー管理は、CLI 呼び出しと並行して `AIClientManager` が直接 `TwitchHelixClient` を制御して実行する。
+
 ---
 
 ## 18. `MarkdownTableEngine` 除外トリガー（ネガティブキーワード）仕様 ＆ 占い・おみくじ想起設計 (F-15)
