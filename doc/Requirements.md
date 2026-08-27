@@ -355,7 +355,8 @@ UIの応答性を保ち、かつ各処理の結合度を下げるため、以下
 
 #### F-16-3: Manager AI
 - AI設定タブで「マネージャにAIを使用」を有効化すると、Manager AIロールが有効になる。
-  - Manager AIが使用するプロバイダとモデルをプルダウンで選択可能（推奨モデルに「推奨」マーク表示）。
+  - **プロバイダ選択仕様の動的化**: API キーが設定されているすべてのプロバイダ（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface` 等）から Manager AI を選択可能とする。APIキー未設定時は設定済みプロバイダ（未設定時はデフォルト一覧）を動的にリストアップする。
+  - プロバイダ変更時には、各プロバイダに応じた推奨モデル一覧（「(推奨)」表記付き）をモデルプルダウンに自動反映する。
   - APIキーはWorker設定欄と共用する。
 - Manager AIの役割は「どのWorker AIを使うか」の決定のみとし、最小限のトークン消費で動作させる。
 - Manager AI自体がレートリミットに達した場合、次に優先度の高い利用可能なクライアントがManager役を代行する。
@@ -882,15 +883,18 @@ sequenceDiagram
   - 同時に、他ツールや外部連携から容易に Gemini 推論を呼び出せるよう、スタンドアロンのコンソールアプリ（`GeminiChatter.exe`）として切り出す。
 - **要件**:
   1. **Google Gemini API クライアントエンジン (`GeminiAIClient`)**:
-     - Google AI Studio の REST API（OpenAI 互換規格 `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` または Native v1beta `generateContent`）と通信。
-     - デフォルトモデル: `gemini-2.0-flash`（推奨・最速） / `gemini-1.5-flash`。
-     - 会話履歴、システムプロンプト、Web検索情報（RAG）の注入に対応。
-     - 無料枠（RPM: 15, RPD: 1500, TPM: 1,000,000）のレートリミットトラッキング。
+     - Google AI Studio の REST API（OpenAI 互換規格 `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`）と通信。
+     - **モデル設定仕様（自動最適化 ＆ 設定ファイルオーバーライド）**:
+       - 無料利用枠（15 RPM / 1,500 RPD）および応答速度が最良となる `gemini-2.0-flash` を自動選択・デフォルトとする。
+       - 設定ファイル（`local_settings.json`）の `"gemini_model"` キーに現在使用しているモデル名を保存する。ユーザーが設定ファイルを直接書き換えた場合は、指定されたモデルに従って動作する。
+     - 会話履歴、システムプロンプト、Web検索情報（RAG）、ニックネーム登録（Function Calling）に対応。
+     - 無料枠（RPM: 15, RPD: 1,500, TPM: 1,000,000, コスト: 0.0）のレートリミットトラッキング。
   2. **Gemini コンソールアプリ (`GeminiChatter`)**:
-     - コマンドライン引数（`--prompt`, `--system`, `--model`, `--api-key`, `--config`, `--format text/json`）を受け取り、標準出力に結果テキストを出力して終了する独立 CLI。
+     - コマンドライン引数（`--prompt`, `--system`, `--model`, `--api-key`, `--config`, `--format text/json`, `--timeout`）を受け取り、標準出力に結果テキストを出力して終了する独立 CLI。
      - 配布環境では `tools/GeminiChatter.exe` に配置・隔離し、メインアプリから `ProcessUtils` 経由で探索・非同期起動可能とする。
-  3. **UI 設定・保存**:
-     - 「AI設定」タブに「Gemini (Google AI Studio)」の選択肢、API キー入力欄、モデル選択コンボボックスを追加。
+  3. **UI 設定・表示仕様**:
+     - **「AI設定」タブ**: Mistral と同様に **API キー入力欄および有効化チェックボックスのみ** を提供（モデル選択コンボボックスは非表示とし、UIをシンプルに保つ）。
+     - **「レートリミット」タブ**: アプリ起動時およびステータス要求時に Gemini プロバイダ（15 RPM / 1,500 RPD）の監視カードを確実に表示・更新する。
      - 設定ファイル（`local_settings.json` の `"gemini_api_key"`, `"gemini_model"`）での永続化。
   4. **オートローテーション・フォールバック統合**:
      - プロバイダ自動切り替えリスト（Groq $\rightarrow$ Gemini $\rightarrow$ さくらAI $\rightarrow$ Mistral $\rightarrow$ OpenRouter $\rightarrow$ HuggingFace）に統合。

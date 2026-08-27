@@ -23,6 +23,6 @@ Google Gemini（ジェミニ）は、Googleが提供する最先端のAIモデ�
 ---
 
 ## 💡 アプリ設定画面での指定
-- **Gemini (Google AI Studio) 使用**: チェックを入れる（またはプロバイダで選択）
-- **Gemini API キー**: コピーしたキーを貼り付け
-- **Gemini モデル**: `gemini-2.0-flash` または `gemini-1.5-flash` を選択・入力
+- **有効**: チェックを入れる
+- **Gemini API キー**: コピーしたキー（`AIzaSy...`）を貼り付け
+- **モデル**: 無料枠が最も広く（15 RPM / 1,500 RPD）最速応答の `gemini-2.0-flash` が自動設定されます。（※手動で変更したい場合は設定ファイル `local_settings.json` の `"gemini_model"` を編集可能）

@@ -328,3 +328,26 @@ private:
 ### 13.3 起動時設定自動補完処理 (`ensureBouyomiChanSettingsExist`)
 - アプリケーション起動時（`loadSettingsToUI` 内）に `local_settings.json` のテキストを直接確認し、`"bouyomichan_url"` または `"bouyomichan_enabled"` が未定義の場合、日本語説明コメント付きで該当キーをファイル末尾に自動追記・補完保存する。
 
+---
+
+## 14. AI設定タブ ＆ Manager AI プロバイダ動的選定詳細設計 (F-16-3 / F-39)
+
+### 14.1 Worker AI プロバイダ構成仕様
+「AI設定」タブ内の Worker AI グループは、`m_providerSpecs` データ定義に基づき動的に生成・配置される。
+- **Gemini / Mistral**: モデルコンボボックスを非表示とし、**有効チェックボックス ＋ API キー入力欄のみ** を提供。
+- **Groq / Sakura / OpenRouter / HuggingFace**: 有効チェックボックス ＋ API キー入力欄 ＋ 推奨モデル選択コンボボックスを提供。
+
+### 14.2 Manager AI プロバイダ動的リストアップ仕様
+- **動的フィルタリング**:
+  - API キーが入力・設定されているプロバイダ（Worker AI 側の API キー編集欄が空でないもの）を自動抽出し、`m_managerProviderCombo` の選択肢として動的に反映する。
+  - すべてのキーが未入力の場合は全プロバイダ（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface`）をデフォルト表示する。
+- **プロバイダ別推奨モデルマッピング (`updateManagerModelComboList`)**:
+  - `groq`: `llama-3.1-8b-instant (推奨)`, `llama-3.3-70b-versatile`, `gemma2-9b-it`
+  - `gemini`: `gemini-2.0-flash (推奨)`, `gemini-1.5-flash`
+  - `sakura`: `llm-jp-3.1-8x13b-instruct4 (推奨)`, `gpt-oss-120b`, `preview/Phi-4-mini-instruct-cpu`
+  - `mistral`: `mistral-small-latest (推奨)`, `mistral-large-latest`
+  - `openrouter`: `google/gemma-4-31b-it:free (推奨)`, `openai/gpt-oss-20b:free`
+  - `huggingface`: `meta-llama/Llama-3.1-8B-Instruct (推奨)`, `Qwen/Qwen2.5-7B-Instruct`
+- **キー入力イベント連動**:
+  - 各プロバイダの API キー入力変更時（`textChanged`）および設定ロード時（`loadSettingsToUI`）に、Manager AI プロバイダ一覧を再評価・更新する。
+

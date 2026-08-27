@@ -521,12 +521,16 @@ void configureProcessEnvironment(QProcess &process) {
 
 ### 21.1 概要・通信仕様
 Google AI Studio の Gemini API を利用し、高速・高精度な応答を生成するクライアント。
-OpenAI 互換エンドポイントまたは Native v1beta エンドポイントを使用する。
+OpenAI 互換エンドポイントを使用する。
 
 - **エンドポイント**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
-- **認証**: HTTP ヘッダー `Authorization: Bearer <gemini_api_key>` または クエリパラメータ `?key=<gemini_api_key>`
-- **デフォルトモデル**: `gemini-2.0-flash`（推奨・最速） / `gemini-1.5-flash`
-- **レートリミット（無料枠）**: RPM: 15, RPD: 1500, TPM: 1,000,000
+- **認証**: HTTP ヘッダー `Authorization: Bearer <gemini_api_key>`
+- **モデル選定仕様**:
+  - **自動選定（デフォルト）**: 無料利用枠（15 RPM / 1,500 RPD）および応答速度が最良となる `gemini-2.0-flash` を自動使用。
+  - **UI 仕様**: Mistral と同様に **API キー入力欄のみ** を表示し、モデル選択コンボボックスは配置しない（UIの簡素化）。
+  - **設定ファイルオーバーライド**: `local_settings.json` の `"gemini_model"` キーに現在使用しているモデル名を保存・保持し、ユーザーが手動で書き換えた場合はそのモデルを適用する。
+- **レートリミット（無料枠）**: RPM: 15, RPD: 1500, TPM: 1,000,000, コスト: 0.0
+  - アプリ起動時および「レートリミット」タブ表示時に、Gemini プロバイダカードが自動表示され残リクエスト数が追従更新される。
 
 ### 21.2 リクエスト・レスポンス JSON 構造
 ```json

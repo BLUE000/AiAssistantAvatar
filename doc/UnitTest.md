@@ -675,12 +675,23 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 | 試験ID | 対象機能・シナリオ | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-GEMINI-01** | `GeminiAIClient::sendRequest` リクエスト構築 | `gemini` プロバイダを選択し、プロンプトとシステム指示を送信。 | OpenAI 互換 Chat Completions API (`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`) に対し、指定した API キーおよびモデル名でリクエストが正常構築・送信されること。 |
-| **UT-GEMINI-02** | `GeminiAIClient` レスポンス正常パース | サーバーから正常な Chat Completions JSON レスポンスを受信。 | `choices[0].message.content` から回答テキストが正確に抽出され、シグナル通知されること。 |
-| **UT-GEMINI-03** | `GeminiAIClient` レート制限エラーハンドリング | HTTP 429 エラーを受信。 | 自然言語でのレートリミット通知が生成され、次候補プロバイダへのフォールバックが起動すること。 |
-| **UT-GEMINI-04** | `GeminiChatter` 引数パースと推論実行 | `--prompt "こんにちは" --model "gemini-2.0-flash" --format json` で起動。 | 引数が正しく解釈され、生成された JSON 応答が標準出力（stdout）に出力されること。 |
-| **UT-GEMINI-05** | `GeminiChatter` 設定ファイルからのキー自動ロード | `--api-key` 省略で起動。 | `Config/local_settings.json` から `"gemini_api_key"` が自動抽出されて推論が実行されること。 |
-| **UT-GEMINI-06** | `RateLimitTracker` Gemini 初期値検証 | トラッカーを初期化。 | Gemini の無料枠（RPM: 15, RPD: 1500, TPM: 1,000,000）が正しく初期設定されること。 |
+| **UT-GEMINI-01** | `GeminiAIClient` 基本プロパティとモデル自動選定 | `GeminiAIClient` を初期化。 | クライアントIDが `"gemini"` であり、デフォルトモデルが自動的に最良無料枠の `"gemini-2.0-flash"` となること。モデル手動指定時に反映されること。 |
+| **UT-GEMINI-02** | `GeminiAIClient` APIキー未設定時エラー | APIキー未設定で `sendRequest` を呼び出す。 | 即座にエラー通知シグナルが発行され、「Gemini APIキーが設定されていません」を含むメッセージが返ること。 |
+| **UT-GEMINI-03** | `RateLimitTracker` Gemini 初期値検証 | トラッカーを初期化。 | Gemini の無料枠（RPM: 15, RPD: 1500, TPM: 1,000,000, コスト: 0.0）が正しく初期設定されること。 |
+| **UT-GEMINI-04** | `AIClientManager` での Gemini 統合・フォールバック順序 | `setAIProvider("gemini")` を実行。 | 優先プロバイダ順序の先頭が `"gemini"` となり、フォールバックリストに正常に含まれること。 |
+| **UT-GEMINI-05** | `buildHumanReadableError` による自然言語エラー変換 | HTTP 429 / 401 / 404 エラーを受信。 | それぞれ「レート制限」「API キーが正しくありません」「モデル名が見つかりません」を含む自然言語メッセージが返ること。 |
+| **UT-GEMINI-06** | `AvatarWindow` 設定永続化とモデルファイル保存 | `local_settings.json` に設定を書き込み `loadSettingsToUI` / `saveSettingsFromUI` を実行。 | UIにモデルコンボボックスが存在せずAPIキーのみが表示されること。設定ファイルの `"gemini_model"` が保持され、手動編集値が正しく読み込まれること。 |
+| **UT-GEMINI-07** | `RateLimitTabWidget` Gemini カード表示 | レートリミットステータス更新シグナルを受信。 | `RateLimitTabWidget` 内に `GEMINI プロバイダ` カードが生成・表示され、RPM/RPD プログレスバーが反映されること。 |
+
+---
+
+### 3.14 Manager AI プロバイダ動的選定の単体試験 (GTest/QTest)
+
+| 試験ID | 対象機能・シナリオ | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-MGR-PROVIDER-01** | 設定済みAPIキーに基づくManager AIプロバイダ一覧の動的抽出 | `gemini_api_key` および `groq_api_key` のみが設定された状態で `loadSettingsToUI` を実行。 | `m_managerProviderCombo` に `gemini` と `groq` がリストアップされ、未設定のプロバイダは除外されること。 |
+| **UT-MGR-PROVIDER-02** | 全キー未設定時のデフォルト全プロバイダフォールバック | すべてのAPIキーが空の状態で初期化。 | `m_managerProviderCombo` にデフォルトの全プロバイダ一覧（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface`）が表示されること。 |
+| **UT-MGR-PROVIDER-03** | Manager AIプロバイダ変更時の推奨モデル一覧更新 | `m_managerProviderCombo` を `gemini` に切り替える。 | `m_managerModelCombo` に `gemini-2.0-flash (推奨)` 等のGemini推奨モデル一覧が表示されること。 |
 
 
 

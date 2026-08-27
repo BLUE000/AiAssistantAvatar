@@ -44,9 +44,12 @@
   - `AIClientManager` のリクエスト処理および `Manager AI` の自動評価処理において、リクエスト送信直前に 1 秒未満（約 600ms）の送出遅延（時差）を挟む。
   - 短時間での多重・連続 API 呼び出しを防ぎ、Groq や OpenRouter 等の外部 AI サーバー側で「不審な高頻度アクセス（Bot）」と誤判定されてセキュリティアラートが出されるのを防ぐ。
 
-### 2.7 マネージャー使用 AI の Worker (クライアント) 優先度自動降格 ＆ Mistral RPM 適正化
+### 2.7 マネージャー使用 AI の動的選定 ＆ Worker (クライアント) 優先度自動降格
+- **マネージャー AI プロバイダの動的リストアップ**:
+  - UI 上で API キーが設定（入力）されているすべてのプロバイダ（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface` 等）を抽出し、マネージャ AI プロバイダの選択肢として動的提供する。
+  - プロバイダ変更時には各プロバイダに応じた推奨モデル一覧を表示する。
 - **マネージャー AI 使用プロバイダの末尾移動（優先度降格）**:
-  - `buildFallbackProviderList()` にてフォールバック優先順序（`groq` → `mistral` → `huggingface` → `openrouter` → `sakura`）を構築する際、マネージャー AI で使用されているプロバイダ（`m_managerProvider`）をリストの最下位（末尾）へ自動で組み替える。
+  - `buildFallbackProviderList()` にてフォールバック優先順序（`groq` → `gemini` → `sakura` → `mistral` → `openrouter` → `huggingface`）を構築する際、マネージャー AI で使用されているプロバイダ（`m_managerProvider`）をリストの最下位（末尾）へ自動で組み替える。
   - マネージャー評価と会話応答が同一プロバイダへ集中し、レート制限に達するリスクを回避する。
 - **Mistral AI RPM デフォルト値適正化**:
   - Mistral AI の初期 RPM（`s.rpmMax`）を `1` から `30` へ変更し、連続発言時の不要なブロックを解消する。
@@ -132,9 +135,18 @@
 ### 2.18 Google Gemini プロバイダ ＆ Gemini コンソールアプリ (`GeminiChatter`) 連携設計
 - **プロバイダ統合アーキテクチャ**:
   - Google AI Studio の無料枠 API（`gemini-2.0-flash`, `gemini-1.5-flash`、15 RPM / 1,500 RPD）を直接利用可能なクライアントエンジン（`GeminiAIClient`）として統合。
-  - プロバイダ自動ローテーションおよびフォールバック機構（Groq $\rightarrow$ Gemini $\rightarrow$ さくらAI $\rightarrow$ Mistral $\rightarrow$ OpenRouter $\rightarrow$ HuggingFace）に組み込み、無料枠の多さと高速性を最大限に活用。
+  - **モデル自動選定仕様**:
+    - 無料利用枠・レスポンス速度・会話性能が最も優れている `gemini-2.0-flash` を自動選択・デフォルトとする。
+    - UI（AI設定タブ）は Mistral と同様に **API キー入力欄のみ** とし、モデルコンボボックスを廃止して設定をシンプル化する。
+    - 設定ファイル（`local_settings.json`）には現在使用中のモデル名（`"gemini_model": "gemini-2.0-flash"`）を保存・保持し、ユーザーが手動で書き換えた場合はそのモデル指定を優先適用する。
+  - **レートリミット監視設計**:
+    - `RateLimitTracker` にて 15 RPM / 1,500 RPD / 1,000,000 TPM / コスト 0.0 を初期値として管理。
+    - 「レートリミット」タブ（`RateLimitTabWidget`）において、アプリ起動直後およびタブ表示時から Gemini プロバイダカードが確実に可視化され、残リクエスト数をリアルタイム表示する。
+  - **フォールバック統合**:
+    - プロバイダ自動ローテーションおよびフォールバック機構（Groq $\rightarrow$ Gemini $\rightarrow$ さくらAI $\rightarrow$ Mistral $\rightarrow$ OpenRouter $\rightarrow$ HuggingFace）に組み込み、無料枠の多さと高速性を最大限に活用。
 - **Gemini コンソールアプリ (`GeminiChatter.exe`)**:
   - 独立プロセスとして Gemini 推論を実行する CLI ツールを提供。
+  - コマンドライン引数（`--prompt`, `--system`, `--model`, `--api-key`, `--config`, `--format text/json`, `--timeout`）に対応。
   - メインアプリおよび外部ツールから `tools/GeminiChatter.exe` を非同期起動可能。
   - プロセス起動時は `ProcessUtils` により `PATH` 前置注入と DLL 共有を行い、軽量かつ安全に実行。
 
