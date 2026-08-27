@@ -40,3 +40,28 @@
  Mistral/      フォールバックRAG)                               Discord Gateway)
  HuggingFace/OpenRouter)
 ```
+
+---
+
+## 3. 配布パッケージ・実行環境ディレクトリ構成
+
+ユーザーの誤操作（コンソールアプリの誤ダブルクリック）を防止し、ルート階層の視認性を高めるため、内部サブプロセスとして稼働するコンソールアプリ群は `tools/` サブフォルダに集約・隔離する。
+
+```text
+AiAssistantAvatar_Release/
+├── AiAssistantAvatar.exe          (メインGUIアプリケーション)
+├── AvatarSkinBuilder.exe          (スキン作成GUIツール)
+├── Qt6Core.dll, Qt6Gui.dll...     (Qt6 共有DLL群)
+├── libgcc_s_seh-1.dll, libstdc++  (MinGW ランタイムDLL群)
+├── Config/                        (設定ファイルディレクトリ)
+│   ├── local_settings.json
+│   ├── blacklist.txt
+│   └── whitelist.txt
+├── knowledge/                     (ナレッジデータディレクトリ)
+├── pic/                           (アバター画像・アセット)
+└── tools/                         (内部コンソールアプリ集約フォルダ)
+    ├── WebSearcher.exe            (Web検索実行CLI)
+    ├── CommunityObserver.exe      (コミュニティ監視CLI)
+    └── TwitchIntroGenerator.exe   (Twitch紹介文生成CLI)
+```
+

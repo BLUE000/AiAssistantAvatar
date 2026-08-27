@@ -655,6 +655,18 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-INTRO-GEN-05** | JSON 形式出力 | `--format json` で紹介文を生成。 | `status`, `username`, `displayName`, `text` を含む有効な JSON が標準出力に出力されること。 |
 | **UT-INTRO-GEN-06** | メインアプリ非同期呼出しとフォールバック | `AIClientManager` から `QProcess` で呼び出し、タイムアウトまたは異常終了を模擬。 | タイムアウト時にプロセスが安全に kill され、フォールバック紹介コメントが Twitch 送信用イベントとして発行されること。 |
 
+---
+
+### 3.12 コンソールアプリ `tools/` パス探索・プロセス起動の単体試験 (GTest/QTest)
+
+| 試験ID | 対象機能・シナリオ | 試験条件 | 期待される結果 (アサート項目) |
+| :--- | :--- | :--- | :--- |
+| **UT-TOOLS-PATH-01** | `tools/` サブフォルダ優先探索 | `appDir + "/tools/WebSearcher.exe"` および `appDir + "/WebSearcher.exe"` が存在。 | `tools/` 配下のパスが最優先で選択・返却されること。 |
+| **UT-TOOLS-PATH-02** | 同一フォルダフォールバック探索 | `tools/` 配下に存在せず、`appDir + "/WebSearcher.exe"` のみ存在。 | 同一フォルダ配下のパスが正常に選択・返却されること。 |
+| **UT-TOOLS-PATH-03** | 開発環境 `build/` フォルダ探索 | `appDir + "/build/WebSearcher.exe"` のみ存在。 | 開発環境パスが正常に選択・返却されること。 |
+| **UT-TOOLS-PATH-04** | プロセス環境変数 `PATH` への `appDir` 前置注入 | `configureProcessEnvironment(process)` を実行。 | `process.processEnvironment().value("PATH")` の先頭に `appDir` が追加されていること。 |
+
+
 
 
 

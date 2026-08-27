@@ -460,6 +460,43 @@ Markdown ナレッジファイルに除外トリガーリストを定義可能�
 | 「タロット占いして」 | **除外**（「タロット」検出） | 不一致 | **なし**（自由対話） | ナレッジ注入なし（AIが自然な対話で返答） |
 | 「手相占いできる？」 | **除外**（「手相」検出） | 不一致 | **なし**（自由対話） | ナレッジ注入なし（AIが自然な対話で返答） |
 
+---
+
+## 19. コンソールアプリ共通プロセス起動 ＆ `tools/` パス探索・DLL共有仕様
+
+### 19.1 概要・目的
+メインアプリからサブプロセスとして呼び出される各種コンソールアプリ（`WebSearcher.exe`, `CommunityObserver.exe`, `TwitchIntroGenerator.exe` 等）は、配布パッケージ内で `tools/` サブフォルダに隔離・集約される。
+これに伴い、メインアプリ（`SearchManager`, `AIClientManager`, `CommunityObserverEngine` 等）における実行ファイル探索およびプロセス起動処理を共通仕様として標準化する。
+
+### 19.2 探索優先順位 (`resolveExecutablePath`)
+コンソールアプリの実行ファイルパスを解決する際、以下の順序で探索を行う：
+
+1. `QCoreApplication::applicationDirPath() + "/tools/<app_name>.exe"`（配布環境・リリース環境最優先）
+2. `QCoreApplication::applicationDirPath() + "/<app_name>.exe"`（従来互換・同一フォルダ）
+3. `QCoreApplication::applicationDirPath() + "/build/<app_name>.exe"`（開発環境・同一ディレクトリ）
+4. `QDir::currentPath() + "/build/<app_name>.exe"`（開発環境カレント）
+5. `QDir::currentPath() + "/<app_name>.exe"`
+6. `"<app_name>.exe"`（環境変数 PATH）
+
+### 19.3 DLL 共有アーキテクチャ（`PATH` 環境変数自動注入）
+`tools/` サブディレクトリ内のコンソールアプリが、ルート階層に配置された Qt6 共有 DLL（`Qt6Core.dll` 等）および MinGW ランタイム DLL を確実にロードできるようにするため、`QProcess` 起動時にメインアプリ側で環境変数を自動設定する。
+
+```cpp
+// 共通プロセス起動ヘルパー
+void configureProcessEnvironment(QProcess &process) {
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QString appDir = QCoreApplication::applicationDirPath();
+    // ルートフォルダを PATH の先頭に追加することで、tools/ 配下の EXE がルートの DLL を参照可能
+    env.insert("PATH", appDir + ";" + env.value("PATH"));
+    process.setProcessEnvironment(env);
+}
+```
+
+- **効果**:
+  - `tools/` 配下に DLL を二重コピーする必要がなく、配布パッケージサイズを最小限に維持。
+  - Windows の DLL 探索順序（`PATH`）により、常に同一パッケージ内の正規 Qt6/MinGW DLL が確実にロードされる。
+
+
 
 
 

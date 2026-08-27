@@ -175,10 +175,16 @@ Options:
    - 終了コード: 正常時 `0`、エラー時 `1`。
 
 ### 7.4 メインアプリ (`AIClientManager`) との非同期プロセス連携
-- メインアプリは `QProcess` を使用して `TwitchIntroGenerator.exe` を非同期で起動する。
-- **タイムアウト監視**: 15秒以内に終了しない場合はプロセスを強制終了（`kill()`）し、フォールバックメッセージ（例: `「〇〇さん、レイドありがとうございます！」`）を出力する。
+- **実行ファイル探索パス (`tools/` 優先)**:
+  - `AIClientManager` は `appDir + "/tools/TwitchIntroGenerator.exe"` を最優先で探索し、存在しない場合は `appDir + "/TwitchIntroGenerator.exe"` または `appDir + "/build/TwitchIntroGenerator.exe"` を探索する。
+- **DLL 共有環境変数の注入**:
+  - `QProcessEnvironment` の `PATH` 先頭に `appDir` を前置し、`tools/` 配下の `TwitchIntroGenerator.exe` がルート階層の Qt6 / MinGW DLL 群を自動参照できるようにする。
+- **非同期実行とタイムアウト監視**:
+  - メインアプリは `QProcess` を使用して `TwitchIntroGenerator.exe` を非同期で起動する。
+  - 15秒以内に終了しない場合はプロセスを強制終了（`kill()`）し、フォールバックメッセージ（例: `「〇〇さん、レイドありがとうございます！」`）を出力する。
 - **レイド時 `/shoutout` との連動**:
   - メインアプリは、CLI の完了を待たずに（または並行して）Twitch 公式 `/shoutout` API の発火および 120 秒クールタイム待機キュー処理を独立して実行する。
+
 
 
 
