@@ -3,10 +3,16 @@ Write-Host "============================================================"
 Write-Host "  TrustChain Verification for Release Packaging"
 Write-Host "============================================================"
 
-$tcCommit = (git rev-parse HEAD).Trim()
-$tcBranch = (git rev-parse --abbrev-ref HEAD).Trim()
-$tcStatusPorcelain = (git status --porcelain).Trim()
-$tcIsDirty = -not [string]::IsNullOrEmpty($tcStatusPorcelain)
+$tcCommit = ""
+$rawCommit = git rev-parse HEAD
+if ($rawCommit) { $tcCommit = $rawCommit.Trim() }
+
+$tcBranch = ""
+$rawBranch = git rev-parse --abbrev-ref HEAD
+if ($rawBranch) { $tcBranch = $rawBranch.Trim() }
+
+$rawStatus = git status --porcelain
+$tcIsDirty = -not [string]::IsNullOrWhiteSpace($rawStatus)
 $tcVerified = $false
 $tcStatus = "UNKNOWN"
 
