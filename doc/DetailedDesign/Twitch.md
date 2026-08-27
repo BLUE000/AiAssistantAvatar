@@ -159,17 +159,22 @@ Options:
 
 ### 7.3 内部処理シーケンス
 1. **設定および認証情報のロード**:
-   - `--config` で指定された設定ファイル（または引数）から Twitch Client ID、OAuth Token、および AI プロバイダ設定（APIキー、モデル名）をロード。
+   - `--config` で指定された設定ファイル（または引数）から Twitch Client ID、OAuth Token、チャンネル名、および AI プロバイダ設定（APIキー、モデル名、`shoutout_use_command` 設定等）をロード。
 2. **クリエイター情報収集 (`TwitchHelixClient`)**:
    - `GET /helix/users?login=<user>` $\rightarrow$ ユーザーID, 表示名, 自己紹介 (Bio), SNS抽出
    - `GET /helix/channels?broadcaster_id=<id>` $\rightarrow$ 現在の配信カテゴリ, 配信タイトル
    - `GET /helix/videos?user_id=<id>&type=archive` $\rightarrow$ 最近プレイしたゲーム一覧（最大5件）
-3. **プロンプト構築 (`AIClientManager` 共通ロジック)**:
+3. **レイド時限定 `/shoutout` REST API 発信**:
+   - **`--mode raid`（レイド受信時）**:
+     - 設定 `shoutout_use_command` が true かつ自己レイドでない場合、`TwitchHelixClient::sendShoutoutToUser` を呼び出して Twitch 公式 `/shoutout` REST API を発信。
+   - **`--mode conversation`（会話紹介時）**:
+     - `/shoutout` REST API は**一切発信せず**、紹介文生成のみを実行。
+4. **プロンプト構築 (`AIClientManager` 共通ロジック)**:
    - `--mode raid`: レイド歓迎プロンプト（迎え入れ・感謝の文脈）
    - `--mode conversation`: 会話紹介プロンプト（チャットでの紹介文脈）
-4. **AI クライアントによる推論**:
+5. **AI クライアントによる推論**:
    - 設定された Worker AI クライアント（Mistral / Groq 等）にプロンプトを送信し、紹介文テキストを生成。
-5. **標準出力（stdout）への出力 ＆ 終了**:
+6. **標準出力（stdout）への出力 ＆ 終了**:
    - `--format text`: 生成された紹介文テキストのみを UTF-8 で出力。
    - `--format json`: `{ "status": "success", "username": "...", "displayName": "...", "text": "..." }` を出力。
    - 終了コード: 正常時 `0`、エラー時 `1`。
@@ -182,8 +187,16 @@ Options:
 - **非同期実行とタイムアウト監視**:
   - メインアプリは `QProcess` を使用して `TwitchIntroGenerator.exe` を非同期で起動する。
   - 15秒以内に終了しない場合はプロセスを強制終了（`kill()`）し、フォールバックメッセージ（例: `「〇〇さん、レイドありがとうございます！」`）を出力する。
-- **レイド時 `/shoutout` との連動**:
-  - メインアプリは、CLI の完了を待たずに（または並行して）Twitch 公式 `/shoutout` API の発火および 120 秒クールタイム待機キュー処理を独立して実行する。
+- **レイド時 `/shoutout` 制御と二重送信防止**:
+  - レイド受信時（`handleRaidShoutout`）は CLI 起動時に `--mode raid` を指定することで、CLI 側で `/shoutout` API が実行される。
+  - メインアプリ側は 120 秒クールタイムタイマー監視および待機キュー管理を行い、CLI 実行と並行して UI ステータスを更新する。
+
+### 7.5 文脈別 `/shoutout` 動作マトリクス
+| 起動モード (`--mode`) | 発生トリガー | AI紹介文生成 | Twitch公式 `/shoutout` REST API 発行 |
+| :--- | :--- | :--- | :--- |
+| **`raid`** | Twitch レイド受信時 | **実行**（レイド歓迎・迎え入れプロンプト） | **実行**（Twitch 公式画面上部バナー表示） |
+| **`conversation`** | チャットでの「〇〇さんを紹介して」/ `!so 〇〇` | **実行**（中立クリエイター紹介プロンプト） | **実行しない**（API呼び出しなし） |
+
 
 
 

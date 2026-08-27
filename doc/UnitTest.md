@@ -654,6 +654,9 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-INTRO-GEN-04** | 標準出力テキスト形式出力 | `--format text` で紹介文を生成。 | 余計なヘッダーやデバッグログを含まず、生成された紹介文テキストのみが標準出力（stdout）に出力されること。 |
 | **UT-INTRO-GEN-05** | JSON 形式出力 | `--format json` で紹介文を生成。 | `status`, `username`, `displayName`, `text` を含む有効な JSON が標準出力に出力されること。 |
 | **UT-INTRO-GEN-06** | メインアプリ非同期呼出しとフォールバック | `AIClientManager` から `QProcess` で呼び出し、タイムアウトまたは異常終了を模擬。 | タイムアウト時にプロセスが安全に kill され、フォールバック紹介コメントが Twitch 送信用イベントとして発行されること。 |
+| **UT-INTRO-GEN-07** | `--mode raid` 指定時の `/shoutout` REST API 送信 | `--mode raid` かつ `shoutout_use_command = true` で起動。 | クリエイター情報取得・紹介文生成と並行して、Twitch 公式 `/shoutout` REST API が送信されること。 |
+| **UT-INTRO-GEN-08** | `--mode conversation` 指定時の `/shoutout` 抑止 | `--mode conversation` で起動。 | クリエイター紹介文は生成されるが、Twitch 公式 `/shoutout` REST API は**一切送信されない**こと。 |
+| **UT-INTRO-GEN-09** | 自己レイド時の `/shoutout` スキップ | 配信者自身のユーザーIDを対象に `--mode raid` で起動。 | 自己宛の `/shoutout` API 送信が安全にスキップされ、エラーなく紹介文生成のみが実行されること。 |
 
 ---
 

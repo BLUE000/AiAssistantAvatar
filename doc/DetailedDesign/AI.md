@@ -496,6 +496,25 @@ void configureProcessEnvironment(QProcess &process) {
   - `tools/` 配下に DLL を二重コピーする必要がなく、配布パッケージサイズを最小限に維持。
   - Windows の DLL 探索順序（`PATH`）により、常に同一パッケージ内の正規 Qt6/MinGW DLL が確実にロードされる。
 
+---
+
+## 20. クリエイター紹介文生成プロセス連携 ＆ `/shoutout` 制御仕様
+
+### 20.1 概要
+メインアプリ（`AIClientManager`）は、クリエイター紹介のトリガー種別に応じて `TwitchIntroGenerator.exe` を非同期起動し、適切なモード引数を渡す。
+
+### 20.2 モード引数の制御
+1. **レイド受信時 (`handleRaidShoutout`)**:
+   - 引数: `--user <login> --mode raid --length <length> --tone <tone>`
+   - `TwitchIntroGenerator` 側でレイド歓迎プロンプトによる紹介文生成と同時に、Twitch 公式 `/shoutout` REST API を自動送信する。
+2. **会話・チャット紹介時 (`handleConversationShoutout`)**:
+   - 引数: `--user <login> --mode conversation --length <length> --tone <tone>`
+   - `TwitchIntroGenerator` 側は `/shoutout` REST API を送信せず、純粋な紹介文生成のみを実行する。
+
+### 20.3 二重送信防止とクールタイム管理
+- CLI 側で `/shoutout` が実行されるため、メインアプリ側での `/shoutout` REST API 二重送信は行わない。
+- 120 秒クールタイムタイマー（`m_shoutoutCooldownTimer`）および待機キュー（`m_shoutoutQueue`）の管理はメインアプリ側で統括し、UIステータスを更新する。
+
 
 
 
