@@ -1,15 +1,8 @@
-param(
-    [switch]$CleanBuild = $true
-)
-
-# 0. 必要に応じてクリーン＆最新コミット情報で再ビルドを実行
-if ($CleanBuild) {
-    Write-Host "============================================================"
-    Write-Host "  Re-configuring and Building in Release Mode..."
-    Write-Host "============================================================"
-    cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-    cmake --build build --config Release
-}
+Write-Host "============================================================"
+Write-Host "  Re-configuring and Building in Release Mode..."
+Write-Host "============================================================"
+& cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+& cmake --build build --config Release
 
 # 0. TrustChain 検証の実行
 Write-Host "============================================================"
