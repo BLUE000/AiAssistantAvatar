@@ -7,16 +7,8 @@ if ($CleanBuild) {
     Write-Host "============================================================"
     Write-Host "  Re-configuring and Building in Release Mode..."
     Write-Host "============================================================"
-    & cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "CMake configure failed."
-        exit $LASTEXITCODE
-    }
-    & cmake --build build --config Release
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "CMake build failed."
-        exit $LASTEXITCODE
-    }
+    cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --config Release
 }
 
 # 0. TrustChain 検証の実行
