@@ -82,7 +82,7 @@ private:
     QString m_managerProvider = "groq";
     QString m_managerModel = "llama-3.1-8b-instant";
     QString m_groqModel = "llama-3.3-70b-versatile";
-    QString m_geminiModel = "gemini-2.0-flash";
+    QString m_geminiModel = "gemini-2.5-flash";
     QString m_mistralModel = "mistral-small-latest";
     QString m_huggingfaceModel = "meta-llama/Llama-3.1-8B-Instruct";
     QString m_openrouterModel = "meta-llama/llama-3.1-8b-instruct:free";
@@ -90,6 +90,8 @@ private:
     QString m_tavilyApiKey;
     bool m_taskFlowEnabled = true;
     QString m_taskFlowApiUrl;
+
+    QTimer *m_workerTimeoutTimer = nullptr;
 
     // TaskFlow外部スケジュールAPI連携RAG
     QString getTaskFlowSchedulesContext();
@@ -302,6 +304,7 @@ public slots:
     void on_twitchRaidReceived(const QString &username, const QVariantMap &meta = {});
     void on_shoutoutSuccessReceived(const QString &username);
     void on_clientRequestFinished(const QString &responseText, bool success, int httpCode);
+    void on_workerTimeout();
     void resetSession(bool isManual); // セッションリセット機能
     void forceSummarizeHistory(); // 手動強制サマリ化
     QList<ConversationEntry> getConversationEntries() const; // 会話履歴エントリ取得

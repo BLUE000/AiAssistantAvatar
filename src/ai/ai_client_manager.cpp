@@ -53,6 +53,10 @@ AIClientManager::AIClientManager(QObject *parent)
     m_importTimeoutTimer->setSingleShot(true);
     connect(m_importTimeoutTimer, &QTimer::timeout, this, &AIClientManager::onImportTimeout);
 
+    m_workerTimeoutTimer = new QTimer(this);
+    m_workerTimeoutTimer->setSingleShot(true);
+    connect(m_workerTimeoutTimer, &QTimer::timeout, this, &AIClientManager::on_workerTimeout);
+
     m_shoutoutCooldownTimer = new QTimer(this);
     m_shoutoutCooldownTimer->setSingleShot(true);
     connect(m_shoutoutCooldownTimer, &QTimer::timeout, this, &AIClientManager::processNextShoutoutInQueue);
@@ -1508,12 +1512,28 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         // AI サーバー保護・Groq 不正アクセス判定回避のための 600ms 送出遅延 (1秒未満の時差制御)
         QThread::msleep(600);
 
+        if (m_workerTimeoutTimer) {
+            m_workerTimeoutTimer->start(8000);
+        }
         m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext, additionalSystemPrompt);
     }
 }
 
+void AIClientManager::on_workerTimeout() {
+    QString currentClientId = m_currentClient ? m_currentClient->clientId() : "unknown";
+    qWarning() << "[AIClientManager] 8s worker timeout reached for provider:" << currentClientId;
+    if (m_apiCallStartTimeMs > 0 && m_currentClient) {
+        m_tracker.recordLatency(m_currentClient->clientId(), 8000);
+        m_apiCallStartTimeMs = 0;
+    }
+    // タイムアウト時は即座に失敗（HTTP 408）として通知し、フォールバック処理を走らせる
+    on_clientRequestFinished(QString("AIプロバイダ応答タイムアウト (8秒超過): %1").arg(currentClientId), false, 408);
+}
 
 void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success, int httpCode) {
+    if (m_workerTimeoutTimer) {
+        m_workerTimeoutTimer->stop();
+    }
     if (m_apiCallStartTimeMs > 0 && m_currentClient) {
         int elapsed = QDateTime::currentMSecsSinceEpoch() - m_apiCallStartTimeMs;
         m_tracker.recordLatency(m_currentClient->clientId(), elapsed);
@@ -1887,8 +1907,8 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
         if (errMessage.isEmpty() && providerName.isEmpty())
             qWarning() << "  raw response    :" << responseText.left(300);
 
-        // 3. 一時エラー（429/503）→ フォールバック試行（F-33-1/2）
-        bool isTemporaryError = (httpCode == 429 || httpCode == 503);
+        // 3. 一時エラー（429/503/500/408/404等）→ フォールバック試行（F-33-1/2, F-45）
+        bool isTemporaryError = (httpCode == 429 || httpCode == 503 || httpCode == 500 || httpCode == 408 || httpCode == 404);
         if (isTemporaryError && m_currentClient) {
             // 現プロバイダをレートリミット扱いにする（429発生時は学習適応制御を適用）
             if (httpCode == 429) {
@@ -1922,6 +1942,9 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
                     emit notifyEvent(warnEvent);
 
                     // 元プロンプトをそのまま次プロバイダへ再送
+                    if (m_workerTimeoutTimer) {
+                        m_workerTimeoutTimer->start(8000);
+                    }
                     m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory,
                                                   m_sessionContext, m_lastAdditionalSystemPrompt);
                     return;
@@ -1929,7 +1952,7 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
             }
 
             event.type = EventType::ErrorOccurred;
-            event.text = "❌ 全ての AI プロバイダがレート制限中です。しばらく待ってから再試行してください。";
+            event.text = "❌ 全ての利用可能な AI プロバイダで応答が得られませんでした。しばらく待ってから再試行してください。";
             emit notifyEvent(event);
             clearRequestState();
             processPendingRequests();

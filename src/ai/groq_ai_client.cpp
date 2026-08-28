@@ -1,5 +1,4 @@
 #include "groq_ai_client.h"
-#include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -66,9 +65,13 @@ void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString,
     systemMessage["role"] = "system";
 
     QString avatarName = "AIアシスタント";
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        avatarName = manager->avatarName();
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "avatarName",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(QString, avatarName));
+        if (avatarName.isEmpty()) {
+            avatarName = "AIアシスタント";
+        }
     }
 
     QString systemPrompt = buildBaseSystemPrompt(avatarName)
@@ -115,7 +118,13 @@ void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString,
     // tools (Function Calling) の追加
     m_toolsArray = QJsonArray();
 
-    if (manager && manager->importState() == KnowledgeImportState::QandAMode) {
+    bool isQandA = false;
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "isKnowledgeImportQandAMode",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(bool, isQandA));
+    }
+    if (isQandA) {
         QJsonObject importTool;
         importTool["type"] = "function";
         QJsonObject importFuncObj;
@@ -226,9 +235,11 @@ void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString,
 }
 
 void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        manager->tracker().updateFromReply(QStringLiteral("groq"), reply);
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "updateRateLimitFromReply",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, QStringLiteral("groq")),
+                                  Q_ARG(QNetworkReply*, reply));
     }
 
     reply->deleteLater();
@@ -309,9 +320,12 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
                             // 親の AIClientManager から呼びかけ処理を実行して、AIへ返す結果を取得
                             QString resultText = "Error: Internal manager not found.";
-                            AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-                            if (manager) {
-                                resultText = manager->handleNicknameUpdateRequest(targetUser, nickname);
+                            if (parent()) {
+                                QMetaObject::invokeMethod(parent(), "handleNicknameUpdateRequest",
+                                                          Qt::DirectConnection,
+                                                          Q_RETURN_ARG(QString, resultText),
+                                                          Q_ARG(QString, targetUser),
+                                                          Q_ARG(QString, nickname));
                             }
 
                             // ツール応答 (toolロール) をメッセージ履歴に追加
@@ -364,9 +378,13 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             m_pendingMessages.append(messageObj);
 
                             QString resultText = "Error: Internal manager not found.";
-                            AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-                            if (manager) {
-                                resultText = manager->finalizeKnowledgeImport(title, description, keywords);
+                            if (parent()) {
+                                QMetaObject::invokeMethod(parent(), "finalizeKnowledgeImport",
+                                                          Qt::DirectConnection,
+                                                          Q_RETURN_ARG(QString, resultText),
+                                                          Q_ARG(QString, title),
+                                                          Q_ARG(QString, description),
+                                                          Q_ARG(QStringList, keywords));
                             }
 
                             QJsonObject toolResponse;

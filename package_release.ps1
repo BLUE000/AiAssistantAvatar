@@ -66,6 +66,12 @@ if (Test-Path "build/GeminiChatter.exe") {
 if (Test-Path "build/MistralChatter.exe") {
     Copy-Item "build/MistralChatter.exe" -Destination "$toolsDir/" -Force
 }
+if (Test-Path "build/GroqChatter.exe") {
+    Copy-Item "build/GroqChatter.exe" -Destination "$toolsDir/" -Force
+}
+if (Test-Path "build/SakuraChatter.exe") {
+    Copy-Item "build/SakuraChatter.exe" -Destination "$toolsDir/" -Force
+}
 
 
 # 2. windeployqt による Qt6 依存ファイル・プラグインの一括自動展開

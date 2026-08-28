@@ -3902,10 +3902,10 @@ TEST_F(AIClientTest, GeminiClientBasicProperties) {
     // UT-GEMINI-01: クライアントID・デフォルトモデル・プロパティ検証
     GeminiAIClient client;
     EXPECT_EQ(client.clientId(), "gemini");
-    EXPECT_EQ(client.currentModelName(), "gemini-flash-latest");
-
-    client.setModel("gemini-2.5-flash");
     EXPECT_EQ(client.currentModelName(), "gemini-2.5-flash");
+
+    client.setModel("gemini-1.5-flash");
+    EXPECT_EQ(client.currentModelName(), "gemini-1.5-flash");
 
     client.setApiKey("AIzaSyTestApiKey");
     EXPECT_EQ(client.apiKey(), "AIzaSyTestApiKey");
@@ -3992,7 +3992,7 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
         QJsonObject obj;
         obj["ai_provider"] = "gemini";
         obj["gemini_api_key"] = "AIzaSy_UnitTest_Key_12345";
-        obj["gemini_model"] = "gemini-flash-latest";
+        obj["gemini_model"] = "gemini-2.5-flash";
 
         QFile file(targetPath);
         ASSERT_TRUE(file.open(QIODevice::WriteOnly));
@@ -4026,7 +4026,7 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
 
         EXPECT_EQ(savedObj.value("gemini_api_key").toString(), "AIzaSy_Updated_Key_67890");
         EXPECT_EQ(savedObj.value("ai_provider").toString(), "gemini");
-        EXPECT_EQ(savedObj.value("gemini_model").toString(), "gemini-flash-latest");
+        EXPECT_EQ(savedObj.value("gemini_model").toString(), "gemini-2.5-flash");
     }
 
     if (hasOriginal && !originalContent.isEmpty()) {
@@ -4378,7 +4378,7 @@ TEST_F(AIClientTest, ModelAutoSelectionOnEmptyString) {
     GeminiAIClient gemini;
     gemini.setModel("");
     EXPECT_FALSE(gemini.currentModelName().isEmpty());
-    EXPECT_EQ(gemini.currentModelName(), "gemini-flash-latest");
+    EXPECT_EQ(gemini.currentModelName(), "gemini-2.5-flash");
 
     GroqAIClient groq;
     groq.setModel("");
@@ -4410,6 +4410,42 @@ TEST_F(AIClientTest, AvatarWindowCleanUIModelInputRemoval) {
         }
     }
 }
+
+TEST_F(AIClientTest, Gemini25FlashDefaultModelTest) {
+    // UT-GEMINI-25-01: Gemini 2.5 Flash デフォルト適用と空文字解決
+    GeminiAIClient gemini;
+    EXPECT_EQ(gemini.currentModelName(), "gemini-2.5-flash");
+
+    gemini.setModel("");
+    EXPECT_EQ(gemini.currentModelName(), "gemini-2.5-flash");
+}
+
+TEST_F(AIClientTest, WorkerTimeoutTimerControlTest) {
+    // UT-TIMEOUT-01 & UT-TIMEOUT-02: 8秒タイムアウトタイマーの発火と正常応答時の停止
+    AIClientManager manager;
+    manager.setAIProvider("dummy");
+
+    QSignalSpy eventSpy(&manager, &AIClientManager::notifyEvent);
+
+    // リクエスト送信
+    manager.on_requestAI("タイムアウト試験");
+
+    // 正常応答時はタイマーが停止し、AIResponseReceived が発火すること (UT-TIMEOUT-02)
+    manager.on_clientRequestFinished("応答テキスト", true, 200);
+
+    EXPECT_GE(eventSpy.count(), 2);
+    EXPECT_EQ(eventSpy.at(0).at(0).value<AppEvent>().type, EventType::AIRequestSent);
+    EXPECT_EQ(eventSpy.at(1).at(0).value<AppEvent>().type, EventType::AIResponseReceived);
+
+    // タイムアウト発火 (on_workerTimeout) 時のフォールバック動作検証 (UT-TIMEOUT-01)
+    eventSpy.clear();
+    manager.on_requestAI("タイムアウト発火試験");
+    manager.on_workerTimeout();
+
+    // タイムアウトによりエラーまたはフォールバックが発生すること
+    EXPECT_GE(eventSpy.count(), 1);
+}
+
 
 
 

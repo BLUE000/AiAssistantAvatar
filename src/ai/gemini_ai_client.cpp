@@ -6,10 +6,11 @@
 #include <QJsonArray>
 #include <QUrl>
 #include <QThread>
+#include <QTimer>
 #include <QDebug>
 
 GeminiAIClient::GeminiAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false), m_model("gemini-flash-latest")
+    : IAIClient(parent), m_isToolCalling(false), m_model("gemini-2.5-flash")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,
@@ -73,7 +74,7 @@ void GeminiAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    QString effectiveModel = m_model.trimmed().isEmpty() ? "gemini-flash-latest" : m_model.trimmed();
+    QString effectiveModel = m_model.trimmed().isEmpty() ? "gemini-2.5-flash" : m_model.trimmed();
     requestBody["model"] = effectiveModel;
 
     QJsonArray messages;
@@ -198,12 +199,14 @@ void GeminiAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     QByteArray responseData = reply->readAll();
 
     if (reply->error() != QNetworkReply::NoError) {
-        // 404 (モデル廃止/NotFound) かつ未リトライの場合、最新モデル (gemini-flash-latest) へフォールバックして自動リトライ
+        // 404 (モデル廃止/NotFound) かつ未リトライの場合、安定モデル (gemini-1.5-flash) へフォールバックして自動リトライ
         if (statusCode == 404 && !m_hasRetried404) {
             m_hasRetried404 = true;
-            qDebug() << "GeminiAIClient: 404 received for model" << m_model << "- auto-fallbacking to gemini-flash-latest and retrying...";
-            m_model = "gemini-flash-latest";
-            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            m_model = (m_model == "gemini-2.5-flash") ? "gemini-1.5-flash" : "gemini-2.5-flash";
+            qDebug() << "GeminiAIClient: 404 received - auto-fallbacking to" << m_model << "and retrying...";
+            QTimer::singleShot(0, this, [this]() {
+                sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            });
             return;
         }
 

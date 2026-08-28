@@ -1,5 +1,4 @@
 #include "sakura_ai_client.h"
-#include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -75,9 +74,13 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
     systemMessage["role"] = "system";
 
     QString avatarName = "AIアシスタント";
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        avatarName = manager->avatarName();
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "avatarName",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(QString, avatarName));
+        if (avatarName.isEmpty()) {
+            avatarName = "AIアシスタント";
+        }
     }
 
     QString systemPrompt = buildBaseSystemPrompt(avatarName)
@@ -137,9 +140,11 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
 }
 
 void SakuraAIClient::on_networkReplyFinished(QNetworkReply *reply) {
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        manager->tracker().updateFromReply(QStringLiteral("sakura"), reply);
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "updateRateLimitFromReply",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, QStringLiteral("sakura")),
+                                  Q_ARG(QNetworkReply*, reply));
     }
     reply->deleteLater();
 

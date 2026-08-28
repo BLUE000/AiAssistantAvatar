@@ -28,11 +28,11 @@ int main(int argc, char *argv[]) {
 
     QCommandLineOption promptOption(QStringList() << "p" << "prompt", "Input user prompt text (required)", "prompt");
     QCommandLineOption systemOption(QStringList() << "s" << "system", "System instruction prompt", "system");
-    QCommandLineOption modelOption(QStringList() << "m" << "model", "Gemini model name (default: gemini-flash-latest)", "model", "gemini-flash-latest");
+    QCommandLineOption modelOption(QStringList() << "m" << "model", "Gemini model name (default: from local_settings.json or auto-selected)", "model", "");
     QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "Gemini API key (AIzaSy...)", "key");
     QCommandLineOption configOption(QStringList() << "c" << "config", "Path to local_settings.json", "path");
     QCommandLineOption formatOption(QStringList() << "f" << "format", "Output format ('text' or 'json', default: text)", "format", "text");
-    QCommandLineOption timeoutOption("timeout", "Timeout in milliseconds (default: 15000)", "timeout", "15000");
+    QCommandLineOption timeoutOption("timeout", "Timeout in milliseconds (default: 8000)", "timeout", "8000");
 
     parser.addOption(promptOption);
     parser.addOption(systemOption);
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     QString configPath = parser.value(configOption).trimmed();
     QString format = parser.value(formatOption).trimmed().toLower();
     int timeoutMs = parser.value(timeoutOption).toInt();
-    if (timeoutMs <= 0) timeoutMs = 15000;
+    if (timeoutMs <= 0) timeoutMs = 8000;
 
     if (prompt.isEmpty()) {
         std::cerr << "Error: --prompt is required." << std::endl;
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
         configPath = ConfigUtils::resolveConfigFilePath("local_settings.json");
     }
 
-    if (apiKey.isEmpty() && QFile::exists(configPath)) {
+    if (QFile::exists(configPath)) {
         QFile file(configPath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QByteArray data = JsonCommentRemover::stripHashComments(file.readAll());
@@ -71,8 +71,10 @@ int main(int argc, char *argv[]) {
             QJsonDocument doc = QJsonDocument::fromJson(data);
             if (!doc.isNull() && doc.isObject()) {
                 QJsonObject obj = doc.object();
-                apiKey = obj.value("gemini_api_key").toString().trimmed();
-                if (model == "gemini-flash-latest" && obj.contains("gemini_model") && !obj.value("gemini_model").toString().trimmed().isEmpty()) {
+                if (apiKey.isEmpty()) {
+                    apiKey = obj.value("gemini_api_key").toString().trimmed();
+                }
+                if (model.isEmpty() && obj.contains("gemini_model")) {
                     model = obj.value("gemini_model").toString().trimmed();
                 }
             }

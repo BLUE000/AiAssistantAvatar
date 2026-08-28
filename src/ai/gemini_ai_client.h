@@ -12,7 +12,7 @@ class GeminiAIClient : public IAIClient {
 private:
     QNetworkAccessManager *m_networkManager;
     QString m_apiKey;
-    QString m_model;           // デフォルト: "gemini-flash-latest"
+    QString m_model;           // デフォルト: "gemini-2.5-flash"
     SearchManager *m_searchManager;
 
     // Function Calling 状態管理用
