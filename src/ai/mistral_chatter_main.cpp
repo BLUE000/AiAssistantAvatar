@@ -8,7 +8,7 @@
 #include <QFile>
 #include <iostream>
 
-#include "gemini_ai_client.h"
+#include "mistral_ai_client.h"
 #include "../utils/config_utils.h"
 #include "../utils/json_comment_remover.h"
 
@@ -18,18 +18,18 @@ int main(int argc, char *argv[]) {
 #endif
 
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName("GeminiChatter");
+    QCoreApplication::setApplicationName("MistralChatter");
     QCoreApplication::setApplicationVersion("1.0.0");
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("AI Assistant Avatar - Google Gemini CLI Chatter");
+    parser.setApplicationDescription("AI Assistant Avatar - Mistral AI CLI Chatter");
     parser.addHelpOption();
     parser.addVersionOption();
 
     QCommandLineOption promptOption(QStringList() << "p" << "prompt", "Input user prompt text (required)", "prompt");
     QCommandLineOption systemOption(QStringList() << "s" << "system", "System instruction prompt", "system");
-    QCommandLineOption modelOption(QStringList() << "m" << "model", "Gemini model name (default: gemini-flash-latest)", "model", "gemini-flash-latest");
-    QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "Gemini API key (AIzaSy...)", "key");
+    QCommandLineOption modelOption(QStringList() << "m" << "model", "Mistral model name (default: mistral-small-latest)", "model", "mistral-small-latest");
+    QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "Mistral API key", "key");
     QCommandLineOption configOption(QStringList() << "c" << "config", "Path to local_settings.json", "path");
     QCommandLineOption formatOption(QStringList() << "f" << "format", "Output format ('text' or 'json', default: text)", "format", "text");
     QCommandLineOption timeoutOption("timeout", "Timeout in milliseconds (default: 15000)", "timeout", "15000");
@@ -71,16 +71,16 @@ int main(int argc, char *argv[]) {
             QJsonDocument doc = QJsonDocument::fromJson(data);
             if (!doc.isNull() && doc.isObject()) {
                 QJsonObject obj = doc.object();
-                apiKey = obj.value("gemini_api_key").toString().trimmed();
-                if (model == "gemini-flash-latest" && obj.contains("gemini_model") && !obj.value("gemini_model").toString().trimmed().isEmpty()) {
-                    model = obj.value("gemini_model").toString().trimmed();
+                apiKey = obj.value("mistral_api_key").toString().trimmed();
+                if (model == "mistral-small-latest" && obj.contains("mistral_model") && !obj.value("mistral_model").toString().trimmed().isEmpty()) {
+                    model = obj.value("mistral_model").toString().trimmed();
                 }
             }
         }
     }
 
     if (apiKey.isEmpty()) {
-        std::cerr << "Error: Gemini API key is missing. Specify --api-key or configure gemini_api_key in local_settings.json" << std::endl;
+        std::cerr << "Error: Mistral API key is missing. Specify --api-key or configure mistral_api_key in local_settings.json" << std::endl;
         return 1;
     }
 
@@ -103,11 +103,11 @@ int main(int argc, char *argv[]) {
     };
 
     QObject::connect(&timeoutTimer, &QTimer::timeout, &app, [&]() {
-        outputResult("Gemini推論タイムアウト", false);
+        outputResult("Mistral推論タイムアウト", false);
     });
     timeoutTimer.start(timeoutMs);
 
-    auto *client = new GeminiAIClient(&app);
+    auto *client = new MistralAIClient(&app);
     client->setApiKey(apiKey);
     client->setModel(model);
 
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
         if (reqSuccess && !response.trimmed().isEmpty()) {
             outputResult(response.trimmed(), true);
         } else {
-            outputResult(response.trimmed().isEmpty() ? "Gemini推論エラー" : response.trimmed(), false);
+            outputResult(response.trimmed().isEmpty() ? "Mistral推論エラー" : response.trimmed(), false);
         }
     });
 

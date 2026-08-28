@@ -1,5 +1,4 @@
 #include "mistral_ai_client.h"
-#include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -48,6 +47,9 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
+    m_pendingHistory = history;
+    m_pendingSessionContext = sessionContext;
+    m_pendingSystemInstruction = systemInstruction;
 
     QUrl url("https://api.mistral.ai/v1/chat/completions");
     QNetworkRequest request(url);
@@ -55,16 +57,21 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = m_model;
+    QString effectiveModel = m_model.trimmed().isEmpty() ? "mistral-small-latest" : m_model.trimmed();
+    requestBody["model"] = effectiveModel;
 
     QJsonArray messages;
     QJsonObject systemMessage;
     systemMessage["role"] = "system";
 
     QString avatarName = "AIアシスタント";
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        avatarName = manager->avatarName();
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "avatarName",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(QString, avatarName));
+        if (avatarName.isEmpty()) {
+            avatarName = "AIアシスタント";
+        }
     }
 
     QString systemPrompt = buildBaseSystemPrompt(avatarName)
@@ -108,10 +115,13 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 
     requestBody["messages"] = messages;
 
-    // tools (Function Calling) の追加
-    m_toolsArray = QJsonArray();
-
-    if (manager && manager->importState() == KnowledgeImportState::QandAMode) {
+    bool isQandA = false;
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "isKnowledgeImportQandAMode",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(bool, isQandA));
+    }
+    if (isQandA) {
         QJsonObject importTool;
         importTool["type"] = "function";
         QJsonObject importFuncObj;
@@ -222,15 +232,27 @@ void MistralAIClient::sendRequest(const QString &prompt, const QList<QPair<QStri
 }
 
 void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        manager->tracker().updateFromReply(QStringLiteral("mistral"), reply);
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "updateRateLimitFromReply",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, QStringLiteral("mistral")),
+                                  Q_ARG(QNetworkReply*, reply));
     }
 
     reply->deleteLater();
 
     if (reply->error() != QNetworkReply::NoError) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+        // 404 (モデル廃止/NotFound) かつ未リトライの場合、フォールバックモデルへ切り替えて自動リトライ
+        if (httpCode == 404 && !m_hasRetried404) {
+            m_hasRetried404 = true;
+            qDebug() << "MistralAIClient: 404 received for model" << m_model << "- auto-fallbacking and retrying...";
+            m_model = (m_model == "mistral-small-latest") ? "open-mistral-nemo" : "mistral-small-latest";
+            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            return;
+        }
+
         QString errorMsg = QString("ネットワークエラー: %1 (%2)")
                             .arg(reply->errorString())
                             .arg(httpCode);
@@ -238,6 +260,8 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         emit requestFinished(errorMsg, false, httpCode);
         return;
     }
+
+    m_hasRetried404 = false;
 
     QByteArray responseData = reply->readAll();
     qDebug() << "MistralAIClient: Received response:" << QString::fromUtf8(responseData);
@@ -293,9 +317,12 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
                             // 親の AIClientManager から呼びかけ処理を実行して、AIへ返す結果を取得
                             QString resultText = "Error: Internal manager not found.";
-                            AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-                            if (manager) {
-                                resultText = manager->handleNicknameUpdateRequest(targetUser, nickname);
+                            if (parent()) {
+                                QMetaObject::invokeMethod(parent(), "handleNicknameUpdateRequest",
+                                                          Qt::DirectConnection,
+                                                          Q_RETURN_ARG(QString, resultText),
+                                                          Q_ARG(QString, targetUser),
+                                                          Q_ARG(QString, nickname));
                             }
 
                             // ツール応答 (toolロール) をメッセージ履歴に追加
@@ -348,9 +375,13 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
                             m_pendingMessages.append(messageObj);
 
                             QString resultText = "Error: Internal manager not found.";
-                            AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-                            if (manager) {
-                                resultText = manager->finalizeKnowledgeImport(title, description, keywords);
+                            if (parent()) {
+                                QMetaObject::invokeMethod(parent(), "finalizeKnowledgeImport",
+                                                          Qt::DirectConnection,
+                                                          Q_RETURN_ARG(QString, resultText),
+                                                          Q_ARG(QString, title),
+                                                          Q_ARG(QString, description),
+                                                          Q_ARG(QStringList, keywords));
                             }
 
                             QJsonObject toolResponse;

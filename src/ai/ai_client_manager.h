@@ -310,7 +310,7 @@ public slots:
     void on_settingsUpdated();
 
     // ニックネーム管理用
-    QString handleNicknameUpdateRequest(const QString &target, const QString &nickname);
+    Q_INVOKABLE QString handleNicknameUpdateRequest(const QString &target, const QString &nickname);
     void saveUserNames();
     void approveNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
     void rejectNicknameRequest(const QString &requester, const QString &target, const QString &nickname);
@@ -324,9 +324,12 @@ public slots:
     void deleteKnowledge(const QString &id);
     void on_requestKnowledgeMetadata();
     void onImportTimeout();
-    QString finalizeKnowledgeImport(const QString &title, const QString &description, const QStringList &keywords);
+    Q_INVOKABLE QString finalizeKnowledgeImport(const QString &title, const QString &description, const QStringList &keywords);
+    Q_INVOKABLE bool isKnowledgeImportQandAMode() const { return m_importState == KnowledgeImportState::QandAMode; }
     void openKnowledgeInputFolder();
     void on_requestProviderStatus(const QString &providerId);
+    Q_INVOKABLE void updateRateLimitFromReply(const QString &providerId, QNetworkReply *reply);
 
     QJsonObject userNamesObj() const { return m_userNamesObj; }
 };
+

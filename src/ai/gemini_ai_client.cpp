@@ -9,7 +9,7 @@
 #include <QDebug>
 
 GeminiAIClient::GeminiAIClient(QObject *parent)
-    : IAIClient(parent), m_isToolCalling(false), m_model("gemini-2.0-flash")
+    : IAIClient(parent), m_isToolCalling(false), m_model("gemini-flash-latest")
 {
     m_networkManager = new QNetworkAccessManager(this);
     connect(m_networkManager, &QNetworkAccessManager::finished,
@@ -63,6 +63,9 @@ void GeminiAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
 
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
+    m_pendingHistory = history;
+    m_pendingSessionContext = sessionContext;
+    m_pendingSystemInstruction = systemInstruction;
 
     QUrl url("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
     QNetworkRequest request(url);
@@ -70,7 +73,8 @@ void GeminiAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = m_model;
+    QString effectiveModel = m_model.trimmed().isEmpty() ? "gemini-flash-latest" : m_model.trimmed();
+    requestBody["model"] = effectiveModel;
 
     QJsonArray messages;
     QJsonObject systemMessage;
@@ -194,6 +198,15 @@ void GeminiAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     QByteArray responseData = reply->readAll();
 
     if (reply->error() != QNetworkReply::NoError) {
+        // 404 (モデル廃止/NotFound) かつ未リトライの場合、最新モデル (gemini-flash-latest) へフォールバックして自動リトライ
+        if (statusCode == 404 && !m_hasRetried404) {
+            m_hasRetried404 = true;
+            qDebug() << "GeminiAIClient: 404 received for model" << m_model << "- auto-fallbacking to gemini-flash-latest and retrying...";
+            m_model = "gemini-flash-latest";
+            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            return;
+        }
+
         QString errorMsg = QString("Gemini APIエラー: HTTP %1 %2").arg(statusCode).arg(reply->errorString());
         if (!responseData.isEmpty()) {
             QJsonDocument errDoc = QJsonDocument::fromJson(responseData);
@@ -210,6 +223,8 @@ void GeminiAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         emit requestFinished(errorMsg, false, statusCode);
         return;
     }
+
+    m_hasRetried404 = false; // 成功時はリトライフラグをリセット
 
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (doc.isNull() || !doc.isObject()) {

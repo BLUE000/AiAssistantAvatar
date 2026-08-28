@@ -1218,13 +1218,13 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     aiLayout->setContentsMargins(10, 10, 10, 10);
     aiLayout->setSpacing(6);
 
-    // プロバイダ構成仕様リストの定義 (拡張がデータ定義1行で完結)
+    // プロバイダ構成仕様リストの定義 (Groq, HuggingFace, OpenRouter, Gemini, Mistral のモデル入力欄は撤去し設定ファイルで管理)
     m_providerSpecs = {
         { "mistral", "Mistral AI", "Mistral API キーを入力...", false, {}, false },
-        { "groq", "Groq AI", "Groq API キーを入力...", true, { "自動選択 (推奨)", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it" }, false },
+        { "groq", "Groq AI", "Groq API キーを入力...", false, {}, false },
         { "gemini", "Gemini (Google AI Studio)", "Gemini API キー (AIzaSy...) を入力...", false, {}, false },
-        { "huggingface", "HuggingFace", "HuggingFace API キー (hf_...) を入力...", true, { "自動選択 (推奨)", "meta-llama/Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3" }, true },
-        { "openrouter", "OpenRouter", "OpenRouter API キー (sk-or-v1-...) を入力...", true, { "自動選択 (推奨)", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "inclusionai/ling-3.0-flash:free", "qwen/qwen-2.5-72b-instruct" }, true },
+        { "huggingface", "HuggingFace", "HuggingFace API キー (hf_...) を入力...", false, {}, false },
+        { "openrouter", "OpenRouter", "OpenRouter API キー (sk-or-v1-...) を入力...", false, {}, false },
         { "sakura", "さくらAI", "さくらAI API キーを入力...", true, { "自動選択 (推奨)", "llm-jp-3.1-8x13b-instruct4", "gpt-oss-120b", "preview/gemma-4-31B-it", "preview/Kimi-K2.6", "preview/Phi-4-mini-instruct-cpu", "preview/Phi-4-multimodal-instruct", "preview/Qwen3-0.6B-cpu", "preview/Qwen3-VL-30B-A3B-Instruct", "preview/Qwen3.6-35B-A3B" }, true }
     };
 
@@ -1267,7 +1267,7 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
 
         aiLayout->addRow(spec.displayName + ":", keyRow);
 
-        // 2行目: モデルコンボ (左端位置を有効CBとピッタリ垂直アラインメント)
+        // 2行目: モデルコンボ (Sakura AI のみ残存)
         if (spec.hasModelCombo && spec.modelCombo) {
             aiLayout->addRow("モデル:", spec.modelCombo);
         }
@@ -1297,32 +1297,30 @@ void AvatarWindow::initAiSettingsTab(QWidget *parent) {
     aiLayout->addRow("Tavily キー (任意):", m_tavilyApiKeyEdit);
     mainLayout->addWidget(aiGroup);
 
-    // 2. Manager AI 設定グループ
+    // 2. Manager AI 設定グループ (F-43: 有効チェックボックスとプロバイダプルダウンを同列横並び配置)
     QGroupBox *managerGroup = new QGroupBox("Manager AI 設定", scrollContent);
-    QFormLayout *managerLayout = new QFormLayout(managerGroup);
+    QHBoxLayout *managerLayout = new QHBoxLayout(managerGroup);
     managerLayout->setContentsMargins(10, 10, 10, 10);
-    managerLayout->setSpacing(6);
+    managerLayout->setSpacing(10);
 
-    m_managerEnabledCheckbox = new QCheckBox("マネージャにAIを使用", scrollContent);
+    m_managerEnabledCheckbox = new QCheckBox("有効:", scrollContent);
     m_managerProviderCombo = new QComboBox(scrollContent);
-    m_managerModelCombo = new QComboBox(scrollContent);
+    m_managerProviderCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    connect(m_managerProviderCombo, &QComboBox::currentTextChanged, this, &AvatarWindow::updateManagerModelComboList);
+    managerLayout->addWidget(m_managerEnabledCheckbox);
+    QLabel *mgrProviderLabel = new QLabel("プロバイダ:", scrollContent);
+    managerLayout->addWidget(mgrProviderLabel);
+    managerLayout->addWidget(m_managerProviderCombo, 1);
 
     updateManagerProviderComboList();
-    updateManagerModelComboList(m_managerProviderCombo->currentText()); // 初期化
 
     // 表示トグルのバインディング
     auto toggleManagerFields = [this](bool checked) {
         m_managerProviderCombo->setEnabled(checked);
-        m_managerModelCombo->setEnabled(checked);
     };
     connect(m_managerEnabledCheckbox, &QCheckBox::toggled, this, toggleManagerFields);
     toggleManagerFields(false); // 初期は無効状態
 
-    managerLayout->addRow("機能有効化:", m_managerEnabledCheckbox);
-    managerLayout->addRow("マネージャAIプロバイダ:", m_managerProviderCombo);
-    managerLayout->addRow("マネージャAIモデル:", m_managerModelCombo);
     mainLayout->addWidget(managerGroup);
 
     // ※ 旧「プロバイダ制限設定 (レートリミット)」グループボックスは F-16-10 により全廃し、
@@ -1581,7 +1579,12 @@ void AvatarWindow::loadSettingsToUI() {
             if (m_aiOpenRouterApiKeyEdit) m_aiOpenRouterApiKeyEdit->setText(obj.value("openrouter_api_key").toString());
             if (m_aiSakuraApiKeyEdit) m_aiSakuraApiKeyEdit->setText(obj.value("sakura_api_key").toString());
 
-            m_geminiModel = obj.value("gemini_model").toString("gemini-2.0-flash");
+            m_mistralModel = obj.value("mistral_model").toString();
+            m_groqModel = obj.value("groq_model").toString();
+            m_geminiModel = obj.value("gemini_model").toString();
+            m_huggingfaceModel = obj.value("huggingface_model").toString();
+            m_openrouterModel = obj.value("openrouter_model").toString();
+            m_managerAiModel = obj.value("manager_ai_model").toString();
 
             if (m_aiHuggingFaceModelCombo && obj.contains("huggingface_model")) {
                 m_aiHuggingFaceModelCombo->setCurrentText(obj.value("huggingface_model").toString("meta-llama/Llama-3.1-8B-Instruct"));
@@ -1780,19 +1783,16 @@ void AvatarWindow::saveSettingsFromUI() {
 
     if (m_aiApiKeyEdit) obj["mistral_api_key"] = m_aiApiKeyEdit->text().trimmed();
     if (m_aiGroqApiKeyEdit) obj["groq_api_key"] = m_aiGroqApiKeyEdit->text().trimmed();
-    if (m_aiGroqModelCombo) {
-        QString groqModel = m_aiGroqModelCombo->currentText();
-        obj["groq_model"] = groqModel.replace(" (推奨)", "").trimmed();
-    }
+    obj["groq_model"] = m_groqModel;
 
     if (m_aiGeminiApiKeyEdit) obj["gemini_api_key"] = m_aiGeminiApiKeyEdit->text().trimmed();
-    obj["gemini_model"] = m_geminiModel.isEmpty() ? "gemini-2.0-flash" : m_geminiModel;
+    obj["gemini_model"] = m_geminiModel;
 
     if (m_aiHuggingFaceApiKeyEdit) obj["huggingface_api_key"] = m_aiHuggingFaceApiKeyEdit->text().trimmed();
-    if (m_aiHuggingFaceModelCombo) obj["huggingface_model"] = m_aiHuggingFaceModelCombo->currentText().trimmed();
+    obj["huggingface_model"] = m_huggingfaceModel;
 
     if (m_aiOpenRouterApiKeyEdit) obj["openrouter_api_key"] = m_aiOpenRouterApiKeyEdit->text().trimmed();
-    if (m_aiOpenRouterModelCombo) obj["openrouter_model"] = m_aiOpenRouterModelCombo->currentText().trimmed();
+    obj["openrouter_model"] = m_openrouterModel;
 
     if (m_aiSakuraApiKeyEdit) obj["sakura_api_key"] = m_aiSakuraApiKeyEdit->text().trimmed();
     if (m_aiSakuraModelCombo) obj["sakura_model"] = m_aiSakuraModelCombo->currentText().trimmed();
@@ -1802,8 +1802,7 @@ void AvatarWindow::saveSettingsFromUI() {
     // マネージャAI設定保存
     obj["manager_ai_enabled"] = m_managerEnabledCheckbox->isChecked();
     obj["manager_ai_provider"] = m_managerProviderCombo->currentText();
-    QString mgrModel = m_managerModelCombo->currentText();
-    obj["manager_ai_model"] = mgrModel.replace(" (推奨)", "").trimmed();
+    obj["manager_ai_model"] = m_managerAiModel;
 
     // プロバイダ制限の保存（旧 UI コントロールが存在する場合のみ上書き。RateLimitTabWidget化に伴い削除済みのため安全化）
     if (m_limitProviderCombo && m_limitRpmEdit && m_limitRpdEdit && m_limitTpmEdit && m_limitTpdEdit && m_limitContextEdit && m_limitToolCallCheckbox && m_limitCostEdit) {

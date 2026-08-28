@@ -73,8 +73,11 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
 
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
+    m_pendingHistory = history;
+    m_pendingSessionContext = sessionContext;
+    m_pendingSystemInstruction = systemInstruction;
 
-    QString modelName = m_model.isEmpty() ? "Qwen/Qwen2.5-Coder-32B-Instruct" : m_model;
+    QString modelName = m_model.trimmed().isEmpty() ? "Qwen/Qwen2.5-Coder-32B-Instruct" : m_model.trimmed();
     QString urlStr = "https://router.huggingface.co/v1/chat/completions";
     QUrl url(urlStr);
     QNetworkRequest request(url);
@@ -233,9 +236,20 @@ void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
             detailedErr = errStr;
         }
 
+        // 404 (モデル廃止/NotFound) かつ未リトライの場合、フォールバックモデルへ切り替えて自動リトライ
+        if (httpCode == 404 && !m_hasRetried404) {
+            m_hasRetried404 = true;
+            qDebug() << "HuggingFaceAIClient: 404 received for model" << m_model << "- auto-fallbacking and retrying...";
+            m_model = (m_model == "Qwen/Qwen2.5-Coder-32B-Instruct") ? "meta-llama/Llama-3.1-8B-Instruct" : "Qwen/Qwen2.5-Coder-32B-Instruct";
+            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            return;
+        }
+
         emit requestFinished(QString("HuggingFace API エラー (%1): %2").arg(httpCode).arg(detailedErr), false, httpCode);
         return;
     }
+
+    m_hasRetried404 = false;
 
     QByteArray responseData = reply->readAll();
     QJsonDocument doc = QJsonDocument::fromJson(responseData);

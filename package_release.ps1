@@ -57,6 +57,10 @@ if (Test-Path "build/TwitchIntroGenerator.exe") {
 if (Test-Path "build/GeminiChatter.exe") {
     Copy-Item "build/GeminiChatter.exe" -Destination "$toolsDir/" -Force
 }
+if (Test-Path "build/MistralChatter.exe") {
+    Copy-Item "build/MistralChatter.exe" -Destination "$toolsDir/" -Force
+}
+
 
 # 2. windeployqt による Qt6 依存ファイル・プラグインの一括自動展開
 $windeployqt = "C:\Qt\6.10.1\mingw_64\bin\windeployqt.exe"

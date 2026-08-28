@@ -3902,10 +3902,10 @@ TEST_F(AIClientTest, GeminiClientBasicProperties) {
     // UT-GEMINI-01: クライアントID・デフォルトモデル・プロパティ検証
     GeminiAIClient client;
     EXPECT_EQ(client.clientId(), "gemini");
-    EXPECT_EQ(client.currentModelName(), "gemini-2.0-flash");
+    EXPECT_EQ(client.currentModelName(), "gemini-flash-latest");
 
-    client.setModel("gemini-1.5-flash");
-    EXPECT_EQ(client.currentModelName(), "gemini-1.5-flash");
+    client.setModel("gemini-2.5-flash");
+    EXPECT_EQ(client.currentModelName(), "gemini-2.5-flash");
 
     client.setApiKey("AIzaSyTestApiKey");
     EXPECT_EQ(client.apiKey(), "AIzaSyTestApiKey");
@@ -3992,7 +3992,7 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
         QJsonObject obj;
         obj["ai_provider"] = "gemini";
         obj["gemini_api_key"] = "AIzaSy_UnitTest_Key_12345";
-        obj["gemini_model"] = "gemini-2.0-flash";
+        obj["gemini_model"] = "gemini-flash-latest";
 
         QFile file(targetPath);
         ASSERT_TRUE(file.open(QIODevice::WriteOnly));
@@ -4026,7 +4026,7 @@ TEST_F(AIClientTest, AvatarWindowGeminiSettingsPersistence) {
 
         EXPECT_EQ(savedObj.value("gemini_api_key").toString(), "AIzaSy_Updated_Key_67890");
         EXPECT_EQ(savedObj.value("ai_provider").toString(), "gemini");
-        EXPECT_EQ(savedObj.value("gemini_model").toString(), "gemini-2.0-flash");
+        EXPECT_EQ(savedObj.value("gemini_model").toString(), "gemini-flash-latest");
     }
 
     if (hasOriginal && !originalContent.isEmpty()) {
@@ -4153,29 +4153,12 @@ TEST_F(AIClientTest, ManagerAIProviderFallbackWhenNoKeysSet) {
     }
 }
 
-TEST_F(AIClientTest, ManagerAIModelListUpdatesOnProviderChange) {
-    // UT-MGR-PROVIDER-03: Manager AIプロバイダ変更時の推奨モデル一覧更新
+TEST_F(AIClientTest, ManagerAIHorizontalLayoutAndModelPersistence) {
+    // UT-MGR-PROVIDER-03: Manager AI の UI 横並びレイアウトとモデル設定ファイル管理
     AvatarWindow window;
-    ASSERT_NE(window.managerModelCombo(), nullptr);
-
-    // 各プロバイダの推奨モデルリスト更新を網羅的に検証
-    window.updateManagerModelComboList("groq");
-    EXPECT_TRUE(window.managerModelCombo()->findText("llama-3.1-8b-instant (推奨)") >= 0);
-
-    window.updateManagerModelComboList("gemini");
-    EXPECT_TRUE(window.managerModelCombo()->findText("gemini-2.0-flash (推奨)") >= 0);
-
-    window.updateManagerModelComboList("sakura");
-    EXPECT_TRUE(window.managerModelCombo()->findText("llm-jp-3.1-8x13b-instruct4 (推奨)") >= 0);
-
-    window.updateManagerModelComboList("mistral");
-    EXPECT_TRUE(window.managerModelCombo()->findText("mistral-small-latest (推奨)") >= 0);
-
-    window.updateManagerModelComboList("openrouter");
-    EXPECT_TRUE(window.managerModelCombo()->findText("google/gemma-4-31b-it:free (推奨)") >= 0);
-
-    window.updateManagerModelComboList("huggingface");
-    EXPECT_TRUE(window.managerModelCombo()->findText("meta-llama/Llama-3.1-8B-Instruct (推奨)") >= 0);
+    // モデルコンボボックスは撤去されていること
+    EXPECT_EQ(window.managerModelCombo(), nullptr);
+    ASSERT_NE(window.managerProviderCombo(), nullptr);
 }
 
 TEST_F(AIClientTest, ManagerContext_ExtractCandidates) {
@@ -4389,6 +4372,45 @@ TEST_F(AIClientTest, ManagerContext_FutureInformationTenseHandling) {
     EXPECT_TRUE(instruction.contains("情報伝達の受け止め指示"));
     EXPECT_TRUE(instruction.contains("未来・予告を『〜した』と過去形に誤認しないでください"));
 }
+
+TEST_F(AIClientTest, ModelAutoSelectionOnEmptyString) {
+    // UT-MODEL-AUTO-01: 空文字指定時の動的最新モデル選定
+    GeminiAIClient gemini;
+    gemini.setModel("");
+    EXPECT_FALSE(gemini.currentModelName().isEmpty());
+    EXPECT_EQ(gemini.currentModelName(), "gemini-flash-latest");
+
+    GroqAIClient groq;
+    groq.setModel("");
+    EXPECT_FALSE(groq.currentModelName().isEmpty());
+    EXPECT_EQ(groq.currentModelName(), "llama-3.1-8b-instant");
+
+    OpenRouterAIClient openRouter;
+    openRouter.setModel("");
+    EXPECT_FALSE(openRouter.currentModelName().isEmpty());
+
+    HuggingFaceAIClient hf;
+    hf.setModel("");
+    EXPECT_FALSE(hf.currentModelName().isEmpty());
+
+    MistralAIClient mistral;
+    mistral.setModel("");
+    EXPECT_FALSE(mistral.currentModelName().isEmpty());
+}
+
+TEST_F(AIClientTest, AvatarWindowCleanUIModelInputRemoval) {
+    // UT-UI-CLEAN-01: UI上でのモデル名入力欄撤去と設定ファイル保持動作
+    AvatarWindow window;
+    const auto &specs = window.providerSpecs();
+    for (const auto &spec : specs) {
+        if (spec.id == "mistral" || spec.id == "groq" || spec.id == "gemini" || spec.id == "huggingface" || spec.id == "openrouter") {
+            // モデル名コンボボックスが撤去されていること
+            EXPECT_EQ(spec.modelCombo, nullptr);
+            EXPECT_FALSE(spec.hasModelCombo);
+        }
+    }
+}
+
 
 
 

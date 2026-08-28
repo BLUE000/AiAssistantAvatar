@@ -18,7 +18,7 @@
   # 各プロバイダの使用モデル指定（空文字の場合は最新推奨モデルを自動選択）
   "mistral_model": "mistral-small-latest",
   "groq_model": "llama-3.3-70b-versatile",
-  "gemini_model": "gemini-2.0-flash",
+  "gemini_model": "",
 
   # マネージャー AI 設定 (マルチAI協調機能)
   "manager_ai_enabled": false,

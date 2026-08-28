@@ -12,11 +12,15 @@ class GeminiAIClient : public IAIClient {
 private:
     QNetworkAccessManager *m_networkManager;
     QString m_apiKey;
-    QString m_model;           // デフォルト: "gemini-2.0-flash"
+    QString m_model;           // デフォルト: "gemini-flash-latest"
     SearchManager *m_searchManager;
 
     // Function Calling 状態管理用
     QString m_pendingPrompt;
+    QList<QPair<QString,QString>> m_pendingHistory;
+    QString m_pendingSessionContext;
+    QString m_pendingSystemInstruction;
+    bool m_hasRetried404 = false;
     QJsonArray m_pendingMessages;
     QString m_activeToolCallId;
     bool m_isToolCalling;

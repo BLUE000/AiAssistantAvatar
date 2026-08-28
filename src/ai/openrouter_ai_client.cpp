@@ -73,8 +73,11 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
 
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
+    m_pendingHistory = history;
+    m_pendingSessionContext = sessionContext;
+    m_pendingSystemInstruction = systemInstruction;
 
-    QString targetModel = m_model.isEmpty() ? "meta-llama/llama-3.1-8b-instruct:free" : m_model;
+    QString targetModel = m_model.trimmed().isEmpty() ? "meta-llama/llama-3.1-8b-instruct:free" : m_model.trimmed();
 
     QUrl url("https://openrouter.ai/api/v1/chat/completions");
     QNetworkRequest request(url);
@@ -202,6 +205,15 @@ void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         QByteArray errBody = reply->readAll();
         qWarning() << "[OpenRouterAIClient] HTTP Error" << httpCode << errStr << "Body:" << errBody;
 
+        // 404 (モデル廃止/NotFound) かつ未リトライの場合、フォールバックモデルへ切り替えて自動リトライ
+        if (httpCode == 404 && !m_hasRetried404) {
+            m_hasRetried404 = true;
+            qDebug() << "OpenRouterAIClient: 404 received for model" << m_model << "- auto-fallbacking and retrying...";
+            m_model = (m_model == "meta-llama/llama-3.1-8b-instruct:free") ? "google/gemma-2-9b-it:free" : "meta-llama/llama-3.1-8b-instruct:free";
+            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            return;
+        }
+
         QString emitText;
         QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
         if (!errBody.isEmpty() && errDoc.isObject()) {
@@ -213,6 +225,8 @@ void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         emit requestFinished(emitText, false, httpCode);
         return;
     }
+
+    m_hasRetried404 = false;
 
     QByteArray responseData = reply->readAll();
     QJsonDocument doc = QJsonDocument::fromJson(responseData);

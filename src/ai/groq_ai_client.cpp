@@ -48,6 +48,9 @@ void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString,
 
     m_isToolCalling = false;
     m_pendingPrompt = prompt;
+    m_pendingHistory = history;
+    m_pendingSessionContext = sessionContext;
+    m_pendingSystemInstruction = systemInstruction;
 
     QUrl url("https://api.groq.com/openai/v1/chat/completions");
     QNetworkRequest request(url);
@@ -55,7 +58,8 @@ void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString,
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     QJsonObject requestBody;
-    requestBody["model"] = m_model;
+    QString effectiveModel = m_model.trimmed().isEmpty() ? "llama-3.3-70b-versatile" : m_model.trimmed();
+    requestBody["model"] = effectiveModel;
 
     QJsonArray messages;
     QJsonObject systemMessage;
@@ -231,6 +235,16 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
 
     if (reply->error() != QNetworkReply::NoError) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+        // 404 (モデル廃止/NotFound) かつ未リトライの場合、フォールバックモデルへ切り替えて自動リトライ
+        if (httpCode == 404 && !m_hasRetried404) {
+            m_hasRetried404 = true;
+            qDebug() << "GroqAIClient: 404 received for model" << m_model << "- auto-fallbacking to llama-3.3-70b-versatile and retrying...";
+            m_model = (m_model == "llama-3.3-70b-versatile") ? "llama-3.1-8b-instant" : "llama-3.3-70b-versatile";
+            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            return;
+        }
+
         QString errorMsg = QString("ネットワークエラー: %1 (%2)")
                             .arg(reply->errorString())
                             .arg(httpCode);
@@ -238,6 +252,8 @@ void GroqAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         emit requestFinished(errorMsg, false, httpCode);
         return;
     }
+
+    m_hasRetried404 = false;
 
     QByteArray responseData = reply->readAll();
     qDebug() << "GroqAIClient: Received response:" << QString::fromUtf8(responseData);

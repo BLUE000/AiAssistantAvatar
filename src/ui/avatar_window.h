@@ -169,9 +169,14 @@ private:
     QCheckBox *m_aiProviderSakuraCheckbox = nullptr; // さくらAI
     QLineEdit *m_aiApiKeyEdit = nullptr;
     QLineEdit *m_aiGroqApiKeyEdit = nullptr; // Groq API Key
-    QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model
+    QComboBox *m_aiGroqModelCombo = nullptr; // Groq Model (非表示/NULL可)
     QLineEdit *m_aiGeminiApiKeyEdit = nullptr; // Gemini API Key
-    QString m_geminiModel = "gemini-2.0-flash"; // Gemini Model (設定ファイルから保持)
+    QString m_geminiModel = ""; // Gemini Model (設定ファイルから保持)
+    QString m_groqModel = ""; // Groq Model (設定ファイルから保持)
+    QString m_huggingfaceModel = ""; // HuggingFace Model (設定ファイルから保持)
+    QString m_openrouterModel = ""; // OpenRouter Model (設定ファイルから保持)
+    QString m_mistralModel = ""; // Mistral Model (設定ファイルから保持)
+    QString m_managerAiModel = ""; // Manager AI Model (設定ファイルから保持)
     QLineEdit *m_aiHuggingFaceApiKeyEdit = nullptr;
     QComboBox *m_aiHuggingFaceModelCombo = nullptr;
     QLineEdit *m_aiOpenRouterApiKeyEdit = nullptr;
@@ -180,10 +185,10 @@ private:
     QComboBox *m_aiSakuraModelCombo = nullptr;
     QLineEdit *m_tavilyApiKeyEdit = nullptr;
 
-    // マネージャAI設定用UI
+    // マネージャAI設定用UI (F-43)
     QCheckBox *m_managerEnabledCheckbox = nullptr;
     QComboBox *m_managerProviderCombo = nullptr;
-    QComboBox *m_managerModelCombo = nullptr;
+    QComboBox *m_managerModelCombo = nullptr; // 後方互換/NULL可
     void updateManagerProviderComboList();
 
     // プロバイダ限界設定用UI

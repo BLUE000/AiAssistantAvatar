@@ -17,6 +17,10 @@ private:
 
     // Function Calling 状態管理用
     QString m_pendingPrompt;
+    QList<QPair<QString,QString>> m_pendingHistory;
+    QString m_pendingSessionContext;
+    QString m_pendingSystemInstruction;
+    bool m_hasRetried404 = false;
     QJsonArray m_pendingMessages;
     QString m_activeToolCallId;
     bool m_isToolCalling;

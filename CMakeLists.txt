@@ -220,8 +220,35 @@ target_link_libraries(GeminiChatter PRIVATE
     Qt6::Network
 )
 
+# 独立CLIツール: MistralChatter (F-44)
+set(MISTRAL_CHATTER_SOURCES
+    src/ai/mistral_chatter_main.cpp
+    src/ai/mistral_ai_client.cpp
+    src/ai/iai_client.cpp
+    src/search/isearch_provider.cpp
+    src/search/search_manager.cpp
+    src/search/tavily_search_provider.cpp
+    src/search/duckduckgo_search_provider.cpp
+    src/search/markdown_table_engine.cpp
+    src/utils/json_comment_remover.cpp
+    src/utils/process_utils.cpp
+)
+add_executable(MistralChatter ${MISTRAL_CHATTER_SOURCES})
+target_include_directories(MistralChatter PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}"
+)
+target_compile_definitions(MistralChatter PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(MistralChatter PRIVATE
+    Qt6::Core
+    Qt6::Network
+)
+
 # テストビルドの有効化
 enable_testing()
 add_subdirectory(test)
+
 
 

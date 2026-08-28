@@ -3926,6 +3926,10 @@ void AIClientManager::addChatLogEntry(const QString &sender, bool isAssistant, c
     }
 }
 
+void AIClientManager::updateRateLimitFromReply(const QString &providerId, QNetworkReply *reply) {
+    m_tracker.updateFromReply(providerId, reply);
+}
+
 
 
 
