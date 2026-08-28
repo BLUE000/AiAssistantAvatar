@@ -777,3 +777,26 @@ MistralChatter [options]
 - `0`: 推論成功（テキストまたはJSONを標準出力に出力）
 - `1`: APIエラー、通信エラー、タイムアウト、認証失敗
 - `2`: 引数不備（`--prompt` の未指定等）
+
+
+## 28. サブプロセス・CLIツール Qt プラグイン探索自動解決詳細設計 (F-47)
+
+### 28.1 対象 CLI ツール
+- `src/search/web_searcher_main.cpp`
+- `src/ai/gemini_chatter_main.cpp`
+- `src/ai/mistral_chatter_main.cpp`
+- `src/ai/groq_chatter_main.cpp`
+- `src/ai/sakura_chatter_main.cpp`
+- `src/observer/community_observer_main.cpp`
+- `src/twitch/twitch_intro_generator_main.cpp`
+
+### 28.2 プラグイン初期化ロジック
+- 各 CLI の `QCoreApplication app(argc, argv);` 生成直後に以下を実行:
+  ```cpp
+  QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath() + "/..");
+  QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
+  ```
+- `ProcessUtils::configureProcessEnvironment(QProcess &process)` において:
+  ```cpp
+  env.insert("QT_PLUGIN_PATH", appDir + ";" + appDir + "/plugins");
+  ```

@@ -1008,3 +1008,12 @@ sequenceDiagram
 - **設定ファイル自動連携 ＆ UTF-8 標準出力**:
   - コマンドラインで API キーが省略された場合、`local_settings.json`（または `Config/local_settings.json`）の `groq_api_key` / `sakura_api_key` を自動読み込みして実行する。
   - Windows環境下でも文字化けせずに UTF-8 で結果を標準出力し、正常終了時は終了コード `0`、エラー時は `1`、引数不備は `2` を返却する。
+
+
+### F-47: サブプロセス・CLIツール Qt プラグイン探索自動解決 ＆ Web検索・HTTPS 通信保証
+- **サブディレクトリ配置ツールのプラグイン探索自動解決**:
+  - `tools/` サブディレクトリに配置されるすべての独立 CLI ツール（`WebSearcher`, `GeminiChatter`, `MistralChatter`, `GroqChatter`, `SakuraChatter`, `CommunityObserver`, `TwitchIntroGenerator`）において、アプリケーション起動時に親ディレクトリ（アプリルート）を `QCoreApplication::addLibraryPath()` に自動登録し、親ディレクトリ内の Qt プラグイン（特に SSL/TLS 通信用の `tls/qschannelbackend.dll`, `tls/qcertonlybackend.dll` 等）を確実にロード・認識可能とする。
+- **プロセス起動環境変数への `QT_PLUGIN_PATH` 自動注入**:
+  - アプリ本体（`SearchManager` 等）から `ProcessUtils::configureProcessEnvironment()` 経由でサブプロセスを起動する際、親ディレクトリおよび `tools/` 配下の双方を `QT_PLUGIN_PATH` 環境変数へ自動注入し、サブプロセス側の HTTPS ネットワーク通信の失敗（SSL ハンドシェイクエラー）を根絶する。
+- **Function Calling Web検索の 100% 稼働保証**:
+  - AI（Gemini, Mistral, Groq 等）が `web_search` ツールを呼び出した際、`WebSearcher.exe` のサブプロセス実行が SSL エラーで即死（Exit Code 1）することなく、最新の天気情報やリアルタイムデータを確実に取得して AI へ還元できることを保証する。

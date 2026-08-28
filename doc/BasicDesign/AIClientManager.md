@@ -228,3 +228,16 @@
 ### 2.23.2 アーキテクチャと依存関係
 - `QCoreApplication` ベースの軽量コンソールアプリとし、GUIモジュールに依存せず最小限のフットプリントで動作する。
 - `GroqAIClient` / `SakuraAIClient` と連携し、Function Calling を含む推論処理を単体で完結させる。
+
+
+## 2.24 サブプロセス・CLIツール Qt プラグイン探索自動解決 ＆ Web検索・HTTPS 通信保証 (F-47)
+
+### 2.24.1 概要と目的
+- `tools/` 配下に配置された `WebSearcher.exe` 等の独立 CLI ツールが、親ディレクトリに存在する Qt プラグイン（特に TLS/SSL 通信用プラグイン `tls/qschannelbackend.dll` 等）を検出できず HTTPS 通信が失敗する問題を解決する。
+- 全 CLI ツールの起動ルーチンおよび `ProcessUtils` によるプロセス環境変数設定を強化し、Web 検索や独立 CLI 推論の完全な安定稼働を保証する。
+
+### 2.24.2 解決方針
+1. **CLI ツール側の多段探索パス追加**:
+   - すべての CLI ツールの `main()` 関数で `QCoreApplication::addLibraryPath(app.applicationDirPath() + "/..")` および `QCoreApplication::addLibraryPath(app.applicationDirPath())` を実行。
+2. **ProcessUtils による環境変数設定**:
+   - `QT_PLUGIN_PATH` に親フォルダ（`appDir`）および `appDir/tools` を設定し、`PATH` にも DLL 格納パスを確実に注入。

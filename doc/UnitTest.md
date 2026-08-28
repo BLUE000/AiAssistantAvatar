@@ -726,3 +726,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-GROQ-CLI-02** | GroqChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |
 | **UT-SAKURA-CLI-01** | SakuraChatter 必須引数不足エラー | `--prompt` なしで起動 | 終了コード `2` とヘルプ・エラーメッセージが出力されること |
 | **UT-SAKURA-CLI-02** | SakuraChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |
+
+### 3.20 サブプロセス・CLIツール Qt プラグイン探索自動解決単体試験仕様 (F-47)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-PLUGIN-PATH-01** | ProcessUtils 環境変数設定検証 | `ProcessUtils::configureProcessEnvironment` 実行後の `PATH` および `QT_PLUGIN_PATH` を検証 | 親ディレクトリのパスおよびプラグインパスが正しく注入されていること |
+| **UT-SEARCH-EXEC-01** | WebSearcher サブプロセス同期実行検証 | `SearchManager::executeSearchSync` でテストクエリを実行 | サブプロセスが正常終了（Exit Code 0）または適切に処理されること |
