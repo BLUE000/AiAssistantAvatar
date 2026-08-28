@@ -21,6 +21,10 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationName("MistralChatter");
     QCoreApplication::setApplicationVersion("1.0.0");
 
+    // 親ディレクトリの Qt プラグイン（tls, platforms等）およびカレント探索パスを登録 (F-47)
+    QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath() + "/..");
+    QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
+
     QCommandLineParser parser;
     parser.setApplicationDescription("AI Assistant Avatar - Mistral AI CLI Chatter");
     parser.addHelpOption();

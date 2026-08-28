@@ -326,3 +326,32 @@ TEST(MarkdownTableEngineTest, TriggerMatchingScoringAndResolutionTest) {
     EXPECT_EQ(entryOmikuji.tableName, "Ranks");
 }
 
+#include "../src/utils/process_utils.h"
+#include <QProcess>
+
+TEST(SearchManagerTest, ProcessUtilsEnvironmentConfiguration) {
+    // UT-PLUGIN-PATH-01: ProcessUtils による PATH および QT_PLUGIN_PATH 注入検証
+    QProcess process;
+    ProcessUtils::configureProcessEnvironment(process);
+
+    QProcessEnvironment env = process.processEnvironment();
+    EXPECT_TRUE(env.contains("PATH"));
+    EXPECT_TRUE(env.contains("QT_PLUGIN_PATH"));
+
+    QString pluginPath = env.value("QT_PLUGIN_PATH");
+    EXPECT_FALSE(pluginPath.isEmpty());
+    EXPECT_TRUE(pluginPath.contains(QCoreApplication::applicationDirPath()));
+}
+
+TEST(SearchManagerTest, WebSearcherSyncExecutionHandling) {
+    // UT-SEARCH-EXEC-01: SearchManager::executeSearchSync 実行ハンドリング検証
+    SearchManager manager;
+    manager.setTimeoutMs(1000);
+
+    // テストクエリ実行（結果が取得されるか、または空/エラーハンドリングが正常に行われること）
+    QString result = manager.executeSearchSync("横浜 天気");
+    // クラッシュせずに実行が完了すること
+    SUCCEED();
+}
+
+

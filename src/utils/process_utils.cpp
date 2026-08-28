@@ -38,6 +38,7 @@ void ProcessUtils::configureProcessEnvironment(QProcess &process) {
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString appDir = QCoreApplication::applicationDirPath();
     QString currentPath = env.value("PATH");
-    env.insert("PATH", appDir + ";" + currentPath);
+    env.insert("PATH", appDir + ";" + appDir + "/tools;" + currentPath);
+    env.insert("QT_PLUGIN_PATH", appDir + ";" + appDir + "/plugins;" + appDir + "/tools");
     process.setProcessEnvironment(env);
 }

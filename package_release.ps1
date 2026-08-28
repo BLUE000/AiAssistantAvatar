@@ -73,6 +73,9 @@ if (Test-Path "build/SakuraChatter.exe") {
     Copy-Item "build/SakuraChatter.exe" -Destination "$toolsDir/" -Force
 }
 
+# tools 配下の CLI ツール用 qt.conf を生成 (F-47)
+Set-Content -Path "$toolsDir/qt.conf" -Value "[Paths]`nPlugins = .." -Encoding ASCII
+
 
 # 2. windeployqt による Qt6 依存ファイル・プラグインの一括自動展開
 $windeployqt = "C:\Qt\6.10.1\mingw_64\bin\windeployqt.exe"

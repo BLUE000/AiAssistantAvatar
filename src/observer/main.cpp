@@ -11,6 +11,10 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationName("CommunityObserver");
     QCoreApplication::setApplicationVersion("1.0.0");
 
+    // 親ディレクトリの Qt プラグインおよびカレント探索パスを登録 (F-47)
+    QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath() + "/..");
+    QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
+
     QCommandLineParser parser;
     parser.setApplicationDescription("AiAssistantAvatar CommunityObserver CLI (Log Collection & Anomaly Detection)");
     parser.addHelpOption();
