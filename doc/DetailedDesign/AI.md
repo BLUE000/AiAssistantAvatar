@@ -526,7 +526,7 @@ OpenAI 互換エンドポイントを使用する。
 - **エンドポイント**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
 - **認証**: HTTP ヘッダー `Authorization: Bearer <gemini_api_key>`
 - **モデル選定仕様**:
-  - **自動選定（デフォルト）**: 無料利用枠（15 RPM / 1,500 RPD）および応答速度が最良となる `gemini-2.0-flash` を自動使用。
+  - **自動選定（デフォルト）**: 無料利用枠（15 RPM / 1,500 RPD）および応答速度が最良となる `gemini-flash-latest` または動的探索による最新 Flash モデルを自動使用。
   - **UI 仕様**: Mistral と同様に **API キー入力欄のみ** を表示し、モデル選択コンボボックスは配置しない（UIの簡素化）。
   - **設定ファイルオーバーライド**: `local_settings.json` の `"gemini_model"` キーに現在使用しているモデル名を保存・保持し、ユーザーが手動で書き換えた場合はそのモデルを適用する。
 - **レートリミット（無料枠）**: RPM: 15, RPD: 1500, TPM: 1,000,000, コスト: 0.0
@@ -536,7 +536,7 @@ OpenAI 互換エンドポイントを使用する。
 ```json
 // Request
 {
-  "model": "gemini-2.0-flash",
+  "model": "gemini-flash-latest",
   "messages": [
     { "role": "system", "content": "システム指示テキスト..." },
     { "role": "user", "content": "ユーザー質問..." }
@@ -576,7 +576,7 @@ GeminiChatter [options]
 Options:
   --prompt <text>       [必須] 入力プロンプト・質問テキスト
   --system <text>       [任意] システムプロンプト指示
-  --model <model>       [任意] Gemini モデル名 (デフォルト: "gemini-2.0-flash")
+  --model <model>       [任意] Gemini モデル名 (デフォルト: "gemini-flash-latest")
   --api-key <key>       [任意] Gemini API キー (省略時は設定ファイルから取得)
   --config <path>       [任意] 設定ファイルパス (デフォルト: "Config/local_settings.json")
   --format <format>     [任意] 出力形式 ("text" または "json", デフォルト: "text")
@@ -702,3 +702,20 @@ struct ManagerContextResult {
 
 
 
+
+### 24. モデル設定の設定ファイル管理および 404 自己修復機能仕様 (F-43)
+
+#### 24.1 各プロバイダにおける空文字時の最適モデル自動選定仕様
+1. **Gemini (`GeminiAIClient`)**:
+   - デフォルト/空文字時: `gemini-flash-latest`（または `/v1beta/models` で探索した最新 Flash モデル）
+2. **Groq (`GroqAIClient`)**:
+   - デフォルト/空文字時: `/openai/v1/models` からアクティブな最新モデル（`llama-3.3-70b-versatile` 等）を自動選定。
+3. **OpenRouter (`OpenRouterAIClient`)**:
+   - デフォルト/空文字時: `/api/v1/models` からアクティブな最良 `:free` モデルを動的選定。
+4. **HuggingFace (`HuggingFaceAIClient`)**:
+   - デフォルト/空文字時: 推奨 Instruct モデルを動的選定。
+
+#### 24.2 404 (Not Found / モデル廃止) 時の自動フォールバック＆リトライシーケンス
+1. 各 AI クライアントが HTTP 404 を受信した場合、`m_model` が無効化されたと判定。
+2. 直ちに最新モデル一覧 API を再照会し、代替となる最新の推奨モデルへ `m_model` を更新。
+3. 同一リクエストを 1 回自動リトライし、成功時は正常に対話を継続する。

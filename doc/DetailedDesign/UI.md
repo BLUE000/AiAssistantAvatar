@@ -343,7 +343,7 @@ private:
   - すべてのキーが未入力の場合は全プロバイダ（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface`）をデフォルト表示する。
 - **プロバイダ別推奨モデルマッピング (`updateManagerModelComboList`)**:
   - `groq`: `llama-3.1-8b-instant (推奨)`, `llama-3.3-70b-versatile`, `gemma2-9b-it`
-  - `gemini`: `gemini-2.0-flash (推奨)`, `gemini-1.5-flash`
+  - `gemini`: `gemini-flash-latest (推奨)`, `gemini-1.5-flash`
   - `sakura`: `llm-jp-3.1-8x13b-instruct4 (推奨)`, `gpt-oss-120b`, `preview/Phi-4-mini-instruct-cpu`
   - `mistral`: `mistral-small-latest (推奨)`, `mistral-large-latest`
   - `openrouter`: `google/gemma-4-31b-it:free (推奨)`, `openai/gpt-oss-20b:free`
@@ -351,3 +351,15 @@ private:
 - **キー入力イベント連動**:
   - 各プロバイダの API キー入力変更時（`textChanged`）および設定ロード時（`loadSettingsToUI`）に、Manager AI プロバイダ一覧を再評価・更新する。
 
+
+### 15. AI設定タブのシンプル化（モデル入力欄の撤去と設定ファイル一元管理）(F-43)
+- **Manager AI 設定エリアのレイアウト**:
+  - モデル選択コンボボックス（`m_managerModelCombo`）を撤去。
+  - 「有効チェックボックス」と「プロバイダ選択プルダウン」を同一の水平レイアウト（`QHBoxLayout`）内に同じ高さで横並びに配置。
+    - 表記イメージ: `有効: [✓]  プロバイダ: [ Groq ▽ ]`
+- **各 AI プロバイダ入力欄のレイアウト**:
+  - Groq, HuggingFace, OpenRouter, Gemini 等のモデル名入力欄（`QLineEdit`）を撤去。
+  - 各プロバイダの入力欄は **APIキー入力欄（および有効化チェックボックス）のみ** の直感的な構成に統一。
+- **設定読み書き仕様**:
+  - `loadSettings`: 設定ファイルから各モデル名（`manager_ai_model`, `gemini_model`, `groq_model`, `huggingface_model`, `openrouter_model`）を内部保持。
+  - `saveSettings`: UI上の入力値ではなく、内部保持されたモデル設定文字列（または空文字）をそのまま設定ファイルに保存。

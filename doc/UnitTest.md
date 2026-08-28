@@ -675,7 +675,7 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 
 | 試験ID | 対象機能・シナリオ | 試験条件 | 期待される結果 (アサート項目) |
 | :--- | :--- | :--- | :--- |
-| **UT-GEMINI-01** | `GeminiAIClient` 基本プロパティとモデル自動選定 | `GeminiAIClient` を初期化。 | クライアントIDが `"gemini"` であり、デフォルトモデルが自動的に最良無料枠の `"gemini-2.0-flash"` となること。モデル手動指定時に反映されること。 |
+| **UT-GEMINI-01** | `GeminiAIClient` 基本プロパティとモデル自動選定 | `GeminiAIClient` を初期化。 | クライアントIDが `"gemini"` であり、デフォルトモデルが自動的に最良無料枠の `"gemini-flash-latest"` となること。モデル手動指定時に反映されること。 |
 | **UT-GEMINI-02** | `GeminiAIClient` APIキー未設定時エラー | APIキー未設定で `sendRequest` を呼び出す。 | 即座にエラー通知シグナルが発行され、「Gemini APIキーが設定されていません」を含むメッセージが返ること。 |
 | **UT-GEMINI-03** | `RateLimitTracker` Gemini 初期値検証 | トラッカーを初期化。 | Gemini の無料枠（RPM: 15, RPD: 1500, TPM: 1,000,000, コスト: 0.0）が正しく初期設定されること。 |
 | **UT-GEMINI-04** | `AIClientManager` での Gemini 統合・フォールバック順序 | `setAIProvider("gemini")` を実行。 | 優先プロバイダ順序の先頭が `"gemini"` となり、フォールバックリストに正常に含まれること。 |
@@ -691,7 +691,7 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | :--- | :--- | :--- | :--- |
 | **UT-MGR-PROVIDER-01** | 設定済みAPIキーに基づくManager AIプロバイダ一覧の動的抽出 | `gemini_api_key` および `groq_api_key` のみが設定された状態で `loadSettingsToUI` を実行。 | `m_managerProviderCombo` に `gemini` と `groq` がリストアップされ、未設定のプロバイダは除外されること。 |
 | **UT-MGR-PROVIDER-02** | 全キー未設定時のデフォルト全プロバイダフォールバック | すべてのAPIキーが空の状態で初期化。 | `m_managerProviderCombo` にデフォルトの全プロバイダ一覧（`groq`, `gemini`, `sakura`, `mistral`, `openrouter`, `huggingface`）が表示されること。 |
-| **UT-MGR-PROVIDER-03** | Manager AIプロバイダ変更時の推奨モデル一覧更新 | `m_managerProviderCombo` を `gemini` に切り替える。 | `m_managerModelCombo` に `gemini-2.0-flash (推奨)` 等のGemini推奨モデル一覧が表示されること。 |
+| **UT-MGR-PROVIDER-03** | Manager AI の UI 横並びレイアウトとモデル設定ファイル管理 | Manager AI のウィジェット構成を検証し、設定のロード/セーブを実行。 | 有効チェックボックスとプロバイダ選択コンボボックスが同一行に配置され、モデルコンボボックスが存在せず、設定ファイルの `manager_ai_model` が保持されること。 |
 
 ---
 

@@ -134,11 +134,11 @@
 
 ### 2.18 Google Gemini プロバイダ ＆ Gemini コンソールアプリ (`GeminiChatter`) 連携設計
 - **プロバイダ統合アーキテクチャ**:
-  - Google AI Studio の無料枠 API（`gemini-2.0-flash`, `gemini-1.5-flash`、15 RPM / 1,500 RPD）を直接利用可能なクライアントエンジン（`GeminiAIClient`）として統合。
+  - Google AI Studio の無料枠 API（`gemini-flash-latest`, `gemini-2.5-flash`、15 RPM / 1,500 RPD）を直接利用可能なクライアントエンジン（`GeminiAIClient`）として統合。
   - **モデル自動選定仕様**:
-    - 無料利用枠・レスポンス速度・会話性能が最も優れている `gemini-2.0-flash` を自動選択・デフォルトとする。
+    - 無料利用枠・レスポンス速度・会話性能が最も優れている `gemini-flash-latest`（最新安定版 Flash）または動的探索モデルを自動選択・デフォルトとし、404発生時は最新モデルへ自動フォールバックする。
     - UI（AI設定タブ）は Mistral と同様に **API キー入力欄のみ** とし、モデルコンボボックスを廃止して設定をシンプル化する。
-    - 設定ファイル（`local_settings.json`）には現在使用中のモデル名（`"gemini_model": "gemini-2.0-flash"`）を保存・保持し、ユーザーが手動で書き換えた場合はそのモデル指定を優先適用する。
+    - 設定ファイル（`local_settings.json`）には現在使用中のモデル名（`"gemini_model": ""`）を保存・保持し、ユーザーが手動で書き換えた場合はそのモデル指定を優先適用する。
   - **レートリミット監視設計**:
     - `RateLimitTracker` にて 15 RPM / 1,500 RPD / 1,000,000 TPM / コスト 0.0 を初期値として管理。
     - 「レートリミット」タブ（`RateLimitTabWidget`）において、アプリ起動直後およびタブ表示時から Gemini プロバイダカードが確実に可視化され、残リクエスト数をリアルタイム表示する。
@@ -187,3 +187,12 @@
 
 
 
+
+### 2.20 AIプロバイダモデル設定の一元管理および404自己修復設計 (F-43)
+- **モデル設定の一元管理（設定ファイル尊重）**:
+  - UIから Worker AI および Manager AI のモデル選択・入力欄を排除し、`local_settings.json` のキー（`"manager_ai_model"`, `"gemini_model"`, `"groq_model"`, `"huggingface_model"`, `"openrouter_model"`）でのみ管理。
+  - UI上は Manager AI の有効チェックボックスとプロバイダ選択プルダウンのみを同列横並びで配置。
+  - UIからモデル名入力欄を排除し、`local_settings.json` のキー（`"gemini_model"`, `"groq_model"`, `"huggingface_model"`, `"openrouter_model"`）でのみ管理。
+  - 設定保存時に固定モデル名で上書きせず、空文字（`""`）時は全自動最新最適選定モードとして動作。
+- **404（モデル廃止・非公開）時の自己修復フォールバック**:
+  - リクエスト送信時にプロバイダから HTTP 404 が返還された場合、直ちにエラー終了させず、各プロバイダのモデル一覧 API 等から現在利用可能な最新・最適モデルを動的再取得して自動リトライを実施する。
