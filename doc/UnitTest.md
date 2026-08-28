@@ -705,6 +705,8 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-CTX-04** | 指示語（それ・そこ）の参照先特定 | 富士山の位置に関する過去AI発言が存在する状態で「そこ違うよ」を入力。 | 過去の富士山発言の `message_id` が `reference_message_id` として特定され、高確信度（$\ge 0.75$）が算出されること。 |
 | **UT-CTX-05** | 低確信度時の短い聞き返し (`ASK_CLARIFICATION`) | 関連候補が複数存在し文脈が曖昧な状態で「それ違うよ」を入力。 | `response_action` が `"ASK_CLARIFICATION"` と判定され、「それってどれのこと？」等の 1 文の短い聞き返しが選定されること。 |
 | **UT-CTX-06** | 聞き返し状態 (`PendingClarification`) の保持と文脈復元 | 聞き返し後にユーザーが「それ！」と返答。 | 直前の `PendingClarification` 状態から対象トピックが引き継がれ、文脈を解決して回答が生成されること。 |
+| **UT-CTX-07** | 複数候補競合・絞り込み不能時の未特定 ＆ 聞き返し選定 | 複数の関連候補が存在し、確信を持って 1 つに特定できない状態で指示語を含む発言を入力。 | 無理に 1 つの `message_id` を選択せず、`refMessageId` が空（未特定）、確信度が低く判定され、`responseAction` が `"ASK_CLARIFICATION"` となること。 |
+
 
 
 

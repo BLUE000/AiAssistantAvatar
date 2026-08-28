@@ -633,6 +633,12 @@ struct ManagerContextResult {
 
 ### 23.3 Manager AI 判定プロンプト ＆ 入出力 JSON 仕様
 
+#### Manager AI システムプロンプト方針
+- **基本原則**:
+  - 指示語（これ・それ・そこ等）の参照先を無理に推測して決定してはならない。参照先を特定できないことは正常な結果である。
+  - 「正解を出すこと」よりも「誤った対象を参照して的外れな回答を行わないこと」を優先する。
+  - 候補がない場合、または複数の候補が存在し会話ログから十分な確信を持って 1 つに絞り込めない場合は、`reference_message_id` を `null` とし、`response_action` に `ASK_CLARIFICATION` を指定する。
+
 #### Manager AI 入力プロンプト
 ```json
 {
@@ -650,6 +656,7 @@ struct ManagerContextResult {
 ```
 
 #### Manager AI 出力 JSON
+明確・高確信度時:
 ```json
 {
   "target": "ASSISTANT",
@@ -660,7 +667,7 @@ struct ManagerContextResult {
 }
 ```
 
-曖昧・低確信度時の出力例:
+曖昧・複数候補競合・低確信度時の出力例 (正常動作):
 ```json
 {
   "target": "ASSISTANT",
@@ -678,6 +685,7 @@ struct ManagerContextResult {
   - 指示: `【情報伝達の受け止め指示】ユーザーはAIへの情報伝達を行っています。質問として解説するのではなく、『へー、〇〇さんはそう言ってたんだ！』のように自然な相槌・リアクションを 1〜2 文で返答してください。`
 - **`ASK_CLARIFICATION`**:
   - 指示: `【聞き返し指示】発言内容の参照先が不明です。『それってどれのこと？』のように 1 文で短く確認・聞き返しを行ってください。`
+
 
 
 
