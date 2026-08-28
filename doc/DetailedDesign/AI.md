@@ -719,3 +719,32 @@ struct ManagerContextResult {
 1. 各 AI クライアントが HTTP 404 を受信した場合、`m_model` が無効化されたと判定。
 2. 直ちに最新モデル一覧 API を再照会し、代替となる最新の推奨モデルへ `m_model` を更新。
 3. 同一リクエストを 1 回自動リトライし、成功時は正常に対話を継続する。
+
+## 25. Mistral コンソールアプリ (`MistralChatter`) 詳細設計 (F-44)
+
+### 25.1 概要
+`MistralChatter` は、Mistral AI API をスタンドアロン環境や外部プロセスから呼び出す独立 CLI ツールである。
+配布環境では `tools/MistralChatter.exe` に配置される。
+
+### 25.2 コマンドライン構文
+```text
+MistralChatter [options]
+```
+
+### 25.3 オプション一覧
+| オプション | 引数 | 必須/任意 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `-p, --prompt` | `<prompt>` | **必須** | AI への入力プロンプトテキスト |
+| `-s, --system` | `<system>` | 任意 | システムプロンプト（指示文） |
+| `-m, --model` | `<model>` | 任意 | Mistral モデル名 (デフォルト: `mistral-small-latest`) |
+| `-k, --api-key` | `<key>` | 任意 | Mistral API キー (未指定時は設定ファイルから取得) |
+| `-c, --config` | `<path>` | 任意 | `local_settings.json` のパス |
+| `-f, --format` | `<text\|json>` | 任意 | 出力フォーマット (デフォルト: `text`) |
+| `--timeout` | `<ms>` | 任意 | タイムアウトミリ秒 (デフォルト: `15000`) |
+| `-h, --help` | なし | 任意 | ヘルプ表示 |
+| `-v, --version` | なし | 任意 | バージョン表示 |
+
+### 25.4 終了コード
+- `0`: 正常終了 (生成テキストを出力)
+- `1`: API エラー / 認証エラー / 通信タイムアウト
+- `2`: コマンドライン引数エラー (必須オプション欠落など)

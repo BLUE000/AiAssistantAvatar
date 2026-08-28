@@ -961,3 +961,23 @@ sequenceDiagram
      - 空文字（`""`）が指定されている場合は「全自動最適選定モード」として動作する。
   3. **モデル廃止（HTTP 404）時の動的自己修復・フォールバック**:
      - ユーザーが指定したモデル名、または過去のデフォルトモデルがプロバイダ側で廃止され HTTP 404 が返された場合、即座にエラー停止させず、各プロバイダのモデル一覧 API 等から現在利用可能な最新・最適モデルを動的に再取得して自動リトライを行う。
+
+### F-44: Mistral AI コンソールアプリ (`MistralChatter`) 独立 CLI ツール
+
+- **背景・目的**:
+  - Mistral AI（Mistral Large / Mistral Small / Codestral 等）による推論を、メインアプリの GUI を起動せずに外部スクリプト、バッチ処理、他ツールから高速かつ独立して呼び出せるスタンドアロン CLI ツール（`MistralChatter.exe`）を提供する。
+- **要件**:
+  1. **独立 CLI コマンド仕様**:
+     - 実行ファイル名: `MistralChatter.exe`（配布環境では `tools/MistralChatter.exe` に配置）。
+     - コマンドライン引数:
+       - `-p, --prompt <text>`: [必須] 入力プロンプト
+       - `-s, --system <text>`: [任意] システムプロンプト（指示文）
+       - `-m, --model <model>`: [任意] Mistral モデル名（デフォルト: `mistral-small-latest`、または設定ファイルの `mistral_model`）
+       - `-k, --api-key <key>`: [任意] Mistral API キー（未指定時は `local_settings.json` の `mistral_api_key` を自動探索）
+       - `-c, --config <path>`: [任意] `local_settings.json` のパス
+       - `-f, --format <text|json>`: [任意] 出力フォーマット（デフォルト: `text`）
+       - `--timeout <ms>`: [任意] タイムアウトミリ秒（デフォルト: 15000）
+  2. **終了ステータスおよびエラーハンドリング**:
+     - 正常終了時は終了コード `0`、引数不正時は `2`、API/通信エラー時は `1` を返却する。
+  3. **配布パッケージング統合**:
+     - リリースパッケージング（`package_release.ps1`）時に `tools/MistralChatter.exe` として同封・配置する。

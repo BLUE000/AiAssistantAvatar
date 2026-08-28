@@ -709,33 +709,3 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-CTX-08** | 挨拶代行指示 (`COMMAND`) の文脈判定と指示生成 | 「配信終了のご挨拶をして」を入力。 | `speech_act` が `"COMMAND"`、`response_action` が `"GREET_ON_BEHALF"` と判定され、個人労いではなく視聴者全体への挨拶指示が生成されること。 |
 | **UT-CTX-09** | 共通システムプロンプトにおける名乗り抑制・質問即応指示の検証 | 各 AI クライアント（Sakura, Gemini, Groq, Mistral, OpenRouter, HuggingFace）のプロンプトを生成。 | 毎回名乗ることを禁止する指示および定型挨拶での誤魔化しを禁止する指示が含まれていること。 |
 | **UT-CTX-10** | 未来・予告情報伝達 (`INFORMATION`) に対する時制適正化 | 「〇〇が配信終わるって」を入力。 | `speech_act` が `"INFORMATION"`、`response_action` が `"ACKNOWLEDGE"` と判定され、過去形（終わった）への誤認を抑止する指示が注入されること。 |
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
