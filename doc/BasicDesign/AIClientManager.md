@@ -202,3 +202,29 @@
   - `MistralAIClient` をコアエンジンとし、`tools/MistralChatter.exe` としてビルド・配置。
   - メイン GUI アプリとは独立して動作し、CLI 引数または `local_settings.json` から API キーとモデルをロードして推論を実行。
   - テキスト出力および JSON 出力（`{"status": "success", "model": "...", "text": "..."}`）を標準出力へ返却。
+
+
+## 2.22 AIプロバイダ高速応答保証・短縮タイムアウト（8秒）＆ Gemini 2.5 Flash 正規化 (F-45)
+
+### 2.22.1 Google Gemini 正規モデルの完全統一
+- Google AI Studio の OpenAI 互換エンドポイント（`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`）において、即答性が高く正規サポートされている **`gemini-2.5-flash`**（および予備の `gemini-1.5-flash`）を標準モデルとして採用する。
+- サーバー側でルーティング保留や 404 エラーを引き起こす非対応エイリアス（`gemini-flash-latest` 等）を排除する。
+
+### 2.22.2 プロバイダ短縮タイムアウト（8秒）と自動フォールバック
+1. **リクエストごとの個別タイマー起動**:
+   - `AIClientManager` から Worker AI クライアントへのリクエスト送出時、8秒（8,000ms）の `QTimer` を起動する。
+2. **タイムアウト発生時の Abort と即時スイッチ**:
+   - 8秒以内に応答シグナル（`requestFinished`）を受信しなかった場合、通信を即座に中断（`abort()`）し、待機することなく即座に次のフォールバック先プロバイダ（例: Groq）へリクエストを転送する。
+3. **生配信アシスタントとしての低遅延保証**:
+   - 生配信中のコメント応答において、1つのプロバイダの遅延によって数分間待たされる事態を完全に排除し、最長でも数秒以内で別プロバイダから回答を出力する。
+
+
+## 2.23 GroqChatter および SakuraChatter 独立CLIツール (F-46)
+
+### 2.23.1 概要と目的
+- `GroqAIClient` および `SakuraAIClient` の推論機能をスタンドアロン実行可能とする独立CLIツール `tools/GroqChatter.exe` および `tools/SakuraChatter.exe` を構築する。
+- 外部スクリプト、配信自動化ツール、バッチ処理から超高速な Groq 推論や国内サーバーのさくらAI推論を単体で直接呼び出せるようにする。
+
+### 2.23.2 アーキテクチャと依存関係
+- `QCoreApplication` ベースの軽量コンソールアプリとし、GUIモジュールに依存せず最小限のフットプリントで動作する。
+- `GroqAIClient` / `SakuraAIClient` と連携し、Function Calling を含む推論処理を単体で完結させる。

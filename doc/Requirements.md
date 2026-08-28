@@ -981,3 +981,30 @@ sequenceDiagram
      - 正常終了時は終了コード `0`、引数不正時は `2`、API/通信エラー時は `1` を返却する。
   3. **配布パッケージング統合**:
      - リリースパッケージング（`package_release.ps1`）時に `tools/MistralChatter.exe` として同封・配置する。
+
+
+### F-45: AIプロバイダ高速応答保証・短縮タイムアウト（8秒）＆ Gemini 2.5 Flash 正規化
+- **Google Gemini 正規モデルへの完全統一**:
+  - OpenAI 互換エンドポイント（`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`）において確実に動作する正規モデル名 **`gemini-2.5-flash`**（および予備の `gemini-1.5-flash`）をデフォルトおよび推奨モデルとして採用し、サーバー側で保留・404を引き起こす非対応エイリアス（`gemini-flash-latest` 等）を完全排除する。
+  - 設定ファイル（`local_settings.json.sample`, `Config/local_settings.json.sample`）のデフォルト値も `gemini-2.5-flash` に統一する。
+- **プロバイダ単位の短縮タイムアウト制御（8秒制限）と即時フォールバック**:
+  - 各 AI プロバイダ（Gemini, Groq, Mistral, OpenRouter, HuggingFace, Sakura）に対する HTTP リクエスト送出時、8秒（8,000ms）の短縮タイムアウトタイマーを起動する。
+  - 8秒以内に応答が完了しない場合、該当プロバイダの `QNetworkReply` を即座に破棄（`abort()`）し、待たされることなく直ちにフォールバックリストの次のプロバイダ（Groq等）へ自動転送する。
+- **生配信アシスタントとしての超低遅延応答保証**:
+  - プロバイダ側のサーバー遅延や不応答による長時間の待機・フリーズを根絶し、どんな状況でも最大数秒以内で別のプロバイダから確実に回答を出力する。
+
+
+### F-46: GroqChatter および SakuraChatter 独立CLIツール (スタンドアロンAIチャットツール)
+- **独立CLIツールの提供**:
+  - `GeminiChatter` および `MistralChatter` と同様に、アプリ本体（GUI）を起動せずに外部スクリプトやバッチ、コマンドラインから直接 Groq およびさくらAIの推論機能を単体実行できる独立CLIツール `tools/GroqChatter.exe` および `tools/SakuraChatter.exe` を提供する。
+- **共通コマンドラインインターフェース**:
+  - `-p, --prompt <text>`: ユーザー入力プロンプトテキスト（必須）
+  - `-s, --system <text>`: システム指示プロンプト（任意）
+  - `-m, --model <name>`: モデル名指定（任意、省略時は Groq: `llama-3.3-70b-versatile` / Sakura: `llm-jp-3.1-8x13b-instruct4`）
+  - `-k, --api-key <key>`: 各プロバイダの API キー（任意）
+  - `-c, --config <path>`: `local_settings.json` のパス（任意、省略時は自動探索）
+  - `-f, --format <text|json>`: 出力形式（デフォルト: `text`）
+  - `--timeout <ms>`: タイムアウトミリ秒（デフォルト: 8,000ms）
+- **設定ファイル自動連携 ＆ UTF-8 標準出力**:
+  - コマンドラインで API キーが省略された場合、`local_settings.json`（または `Config/local_settings.json`）の `groq_api_key` / `sakura_api_key` を自動読み込みして実行する。
+  - Windows環境下でも文字化けせずに UTF-8 で結果を標準出力し、正常終了時は終了コード `0`、エラー時は `1`、引数不備は `2` を返却する。

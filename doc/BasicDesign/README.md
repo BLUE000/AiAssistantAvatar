@@ -67,3 +67,7 @@ AiAssistantAvatar_Release/
     └── MistralChatter.exe         (Mistral推論実行CLI)
 ```
 
+
+- [2.22 AIプロバイダ高速応答保証・短縮タイムアウト（8秒）＆ Gemini 2.5 Flash 正規化 (F-45)](AIClientManager.md#222-aiプロバイダ高速応答保証短縮タイムアウト8秒-gemini-25-flash-正規化-f-45)
+
+- [2.23 GroqChatter および SakuraChatter 独立CLIツール (F-46)](AIClientManager.md#223-groqchatter-および-sakurachatter-独立cliツール-f-46)

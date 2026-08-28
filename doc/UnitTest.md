@@ -709,3 +709,20 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-CTX-08** | 挨拶代行指示 (`COMMAND`) の文脈判定と指示生成 | 「配信終了のご挨拶をして」を入力。 | `speech_act` が `"COMMAND"`、`response_action` が `"GREET_ON_BEHALF"` と判定され、個人労いではなく視聴者全体への挨拶指示が生成されること。 |
 | **UT-CTX-09** | 共通システムプロンプトにおける名乗り抑制・質問即応指示の検証 | 各 AI クライアント（Sakura, Gemini, Groq, Mistral, OpenRouter, HuggingFace）のプロンプトを生成。 | 毎回名乗ることを禁止する指示および定型挨拶での誤魔化しを禁止する指示が含まれていること。 |
 | **UT-CTX-10** | 未来・予告情報伝達 (`INFORMATION`) に対する時制適正化 | 「〇〇が配信終わるって」を入力。 | `speech_act` が `"INFORMATION"`、`response_action` が `"ACKNOWLEDGE"` と判定され、過去形（終わった）への誤認を抑止する指示が注入されること。 |
+
+### 3.18 AIプロバイダ高速応答保証・短縮タイムアウト＆ Gemini 2.5 Flash 正規化単体試験仕様 (F-45)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-GEMINI-25-01** | Gemini 2.5 Flash デフォルト適用 | GeminiAIClient 初期モデルおよび空文字設定時のモデル名を検証 | `gemini-2.5-flash` が適用されること |
+| **UT-TIMEOUT-01** | 8秒短縮タイムアウト | AIClientManager のリクエスト送信時における 8秒タイムアウト発火と次プロバイダへのフォールバック移行を検証 | 8秒超過時に即座に次のプロバイダへ切り替わること |
+| **UT-TIMEOUT-02** | 正常応答時のタイマー停止 | 8秒以内に応答があった場合、タイムアウトタイマーが安全に停止すること | タイマーが停止し、二重呼び出しが発生しないこと |
+
+### 3.19 GroqChatter および SakuraChatter 独立CLIツール単体試験仕様 (F-46)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-GROQ-CLI-01** | GroqChatter 必須引数不足エラー | `--prompt` なしで起動 | 終了コード `2` とヘルプ・エラーメッセージが出力されること |
+| **UT-GROQ-CLI-02** | GroqChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |
+| **UT-SAKURA-CLI-01** | SakuraChatter 必須引数不足エラー | `--prompt` なしで起動 | 終了コード `2` とヘルプ・エラーメッセージが出力されること |
+| **UT-SAKURA-CLI-02** | SakuraChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |

@@ -748,3 +748,32 @@ MistralChatter [options]
 - `0`: 正常終了 (生成テキストを出力)
 - `1`: API エラー / 認証エラー / 通信タイムアウト
 - `2`: コマンドライン引数エラー (必須オプション欠落など)
+
+
+## 26. AIプロバイダ高速応答保証・短縮タイムアウト＆ Gemini 2.5 Flash 正規化詳細設計 (F-45)
+
+### 26.1 Google Gemini 正規モデル名定義
+- `GeminiAIClient` のデフォルトモデルを `"gemini-2.5-flash"` と定義する。
+- 空文字 `""` が設定されている場合も、自動的に `"gemini-2.5-flash"` を適用する。
+- 404 受信時の自己修復フォールバック先モデルは `"gemini-1.5-flash"` とし、未知のエイリアス（`gemini-flash-latest` 等）を使用しない。
+
+### 26.2 8秒短縮タイムアウト制御シーケンス
+1. `AIClientManager::sendWorkerRequest(provider, prompt, ...)` 呼び出し時に、プロバイダ専用の 8,000ms タイマー（`m_workerTimeoutTimer`）を開始する。
+2. 8,000ms 以内に `on_workerClientFinished` が発火した場合、タイマーを停止して通常どおり処理を進める。
+3. 8,000ms 経過してタイマーが発火（`on_workerTimeout`）した場合：
+   - 現在のクライアントに対して通信中断を要求し、レートリミットトラッカーにレイテンシ遅延を記録。
+   - `buildFallbackList()` から次のプロバイダを取得し、即座に再リクエストを送信する。
+   - すべてのフォールバック先がタイムアウト・エラーとなった場合のみ、ユーザーに自然なエラーメッセージ（「プロバイダの応答がタイムアウトしました」）を返却し、返答待ち状態を解除する。
+
+
+## 27. GroqChatter および SakuraChatter 独立CLIツール詳細設計 (F-46)
+
+### 27.1 ソース構成とエントリポイント
+- **GroqChatter**: `src/ai/groq_chatter_main.cpp`
+- **SakuraChatter**: `src/ai/sakura_chatter_main.cpp`
+- 各ツールは `QCommandLineParser` を利用して引数をパースし、`local_settings.json` のキー自動補完を行う。
+
+### 27.2 終了コード仕様
+- `0`: 推論成功（テキストまたはJSONを標準出力に出力）
+- `1`: APIエラー、通信エラー、タイムアウト、認証失敗
+- `2`: 引数不備（`--prompt` の未指定等）
