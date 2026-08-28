@@ -80,8 +80,10 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
         avatarName = manager->avatarName();
     }
 
-    QString systemPrompt = QString("あなたはデスクトップマスコットのキャラクター「%1」です。自己紹介や名前を聞かれた際は、必ず「%1」と名乗ってください。自分自身を「AIアシスタント」や「AI」といった一般名詞で呼ばず、必ずキャラクター名「%1」または「私」と名乗ってください。それ以外の名前を使用しないでください。フレンドリーで短い日本語で回答してください。ユーザーの入力を回答で反復しないでください。ユーザーの質問に対して独立した回答を生成してください。対話相手のお名前や呼び名が明示的に指定されていない場合は、相手のお名前を推測・捏造せず、お名前を呼ばずにそのまま回答してください。数式や計算式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。")
-                            .arg(avatarName);
+    QString systemPrompt = buildBaseSystemPrompt(avatarName)
+                         + QString("数式や計算式を出力する際は、\\textや\\timesなどのLaTeXコマンドを使用せず、『100 × 162.00 = 16,200円』のように通常の文字・記号でプレーンテキスト記述してください。");
+
+
 
     QString adjustedInstruction = systemInstruction;
     QString searchToolInstruction = "また、ユーザーから天気、為替レート、最新ニュース、リアルタイム情報、またはあなたが最新の正確な知識を持っていない事柄について質問された場合は、自身の過去の知識で回答しようとせず、必ず『web_search』ツールを呼び出して最新情報を検索してください。";

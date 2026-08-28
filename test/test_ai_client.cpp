@@ -4313,6 +4313,84 @@ TEST_F(AIClientTest, ManagerContext_PendingClarificationResume) {
     EXPECT_TRUE(instruction.contains("それってどれのこと？"));
 }
 
+TEST_F(AIClientTest, ManagerContext_AmbiguitySafetyFirstAskClarification) {
+    // UT-CTX-07: 複数候補競合・絞り込み不能時の未特定 ＆ 聞き返し選定
+    QList<ContextCandidate> candidates;
+    candidates.append(ContextCandidate{"msg_001", "userA", false, "富士山ってどこにあるの？", 40});
+    candidates.append(ContextCandidate{"msg_002", "AI", true, "富士山は山梨県にあります！", 35});
+    candidates.append(ContextCandidate{"msg_003", "AI", true, "東京タワーは港区にあります！", 15});
+
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "それ違うよ！",
+        "userB",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.speechAct, "CORRECTION");
+    EXPECT_EQ(result.responseAction, "ASK_CLARIFICATION");
+    EXPECT_TRUE(result.refMessageId.isEmpty());
+    EXPECT_LT(result.referenceConfidence, 0.50);
+    EXPECT_EQ(result.clarificationQuestion, "それってどれのこと？");
+}
+
+TEST_F(AIClientTest, ManagerContext_GreetOnBehalfCommand) {
+    // UT-CTX-08: 挨拶代行指示 (COMMAND) の文脈判定と指示生成
+    QList<ContextCandidate> candidates;
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "ぶるたろう、配信終了のご挨拶をして",
+        "userA",
+        candidates,
+        pending,
+        "ぶるたろう"
+    );
+
+    EXPECT_EQ(result.speechAct, "COMMAND");
+    EXPECT_EQ(result.responseAction, "GREET_ON_BEHALF");
+    EXPECT_GE(result.referenceConfidence, 0.90);
+
+    QString instruction = ManagerContextEvaluator::formatWorkerInstruction(result, pending);
+    EXPECT_TRUE(instruction.contains("挨拶・発話の代行指示"));
+    EXPECT_TRUE(instruction.contains("配信の視聴者・全体に向けた挨拶"));
+}
+
+TEST_F(AIClientTest, AIClient_AntiSelfIntroPromptValidation) {
+    // UT-CTX-09: 共通システムプロンプトにおける名乗り抑制・質問即応指示の検証
+    QString basePrompt = IAIClient::buildBaseSystemPrompt("ぶるたろう");
+
+    EXPECT_TRUE(basePrompt.contains("ぶるたろう"));
+    EXPECT_TRUE(basePrompt.contains("毎回自分の名前を名乗ったり自己紹介（『私は〇〇』など）を挟まないでください"));
+    EXPECT_TRUE(basePrompt.contains("質問に対して定型的な挨拶（『今日も元気ですか？』『お手伝いがんばるよ』など）で誤魔化さず"));
+}
+
+
+
+
+TEST_F(AIClientTest, ManagerContext_FutureInformationTenseHandling) {
+    // UT-CTX-10: 未来・予告情報伝達 (INFORMATION) に対する時制適正化
+    QList<ContextCandidate> candidates;
+    PendingClarification pending;
+
+    ManagerContextResult result = ManagerContextEvaluator::evaluateContextRuleBased(
+        "ぷぃちゃんが配信終わるって",
+        "blue002",
+        candidates,
+        pending
+    );
+
+    EXPECT_EQ(result.speechAct, "INFORMATION");
+    EXPECT_EQ(result.responseAction, "ACKNOWLEDGE");
+
+    QString instruction = ManagerContextEvaluator::formatWorkerInstruction(result, pending);
+    EXPECT_TRUE(instruction.contains("情報伝達の受け止め指示"));
+    EXPECT_TRUE(instruction.contains("未来・予告を『〜した』と過去形に誤認しないでください"));
+}
+
+
 
 
 

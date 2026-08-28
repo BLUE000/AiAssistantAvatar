@@ -55,9 +55,21 @@ ManagerContextResult ManagerContextEvaluator::evaluateContextRuleBased(
         return result;
     }
 
-    // 2. 情報伝達の判定（例: 「〇〇さんが××だって言ってるよ」「〇〇さん曰く〜」「〇〇が〜と言ってた」）
+    // 2. 挨拶・お礼等の代行発話指示の判定（例: 「配信終了のご挨拶をして」「挨拶して」「お礼を言って」）
+    static const QRegularExpression greetOnBehalfRegex(
+        "(?:(?:配信終了|終了|最後|締め|始まり|開始|オープニング|エンディング)?(?:の)?(?:ご挨拶|挨拶|お礼|ことば|メッセージ)(?:をして|お願い|して|を言って|述べて))",
+        QRegularExpression::CaseInsensitiveOption
+    );
+    if (greetOnBehalfRegex.match(trimmed).hasMatch()) {
+        result.speechAct = "COMMAND";
+        result.responseAction = "GREET_ON_BEHALF";
+        result.referenceConfidence = 0.95;
+        return result;
+    }
+
+    // 3. 情報伝達の判定（例: 「〇〇さんが××だって言ってるよ」「〇〇さん曰く〜」「〇〇が配信終わるって」）
     static const QRegularExpression infoRegex(
-        "(?:(?:さん|君|くん|ちゃん|氏)?(?:が|曰く|いわく|から).*?(?:言ってた|言ってる|伝えて|教えてくれた|とのこと|だって|らしいよ))",
+        "(?:(?:さん|君|くん|ちゃん|氏)?(?:が|曰く|いわく|から).*?(?:言ってた|言ってる|伝えて|教えてくれた|とのこと|だって|らしいよ|終わるって|終了するって|行くって|来るって))",
         QRegularExpression::CaseInsensitiveOption
     );
     if (infoRegex.match(trimmed).hasMatch() && !trimmed.contains("？") && !trimmed.contains("?")) {
@@ -67,7 +79,7 @@ ManagerContextResult ManagerContextEvaluator::evaluateContextRuleBased(
         return result;
     }
 
-    // 3. 過去発言訂正・指摘の判定（例: 「そこは▼▼だよ」「それ違うよ」「違います」「間違ってるよ」「そうじゃなくて」）
+    // 4. 過去発言訂正・指摘の判定（例: 「そこは▼▼だよ」「それ違うよ」「違います」「間違ってるよ」「そうじゃなくて」）
     static const QRegularExpression correctionExplicitRegex(
         "(?:そこは|あれは|さっきの|前のは|それは|それ|そこ|あれ|違う|違います|まちが|間違|そうじゃない|じゃなくて)",
         QRegularExpression::CaseInsensitiveOption
@@ -87,10 +99,11 @@ ManagerContextResult ManagerContextEvaluator::evaluateContextRuleBased(
             }
         }
 
-        if (hasAmbiguousDemonstrative && aiCandidateCount > 1) {
-            // 候補が複数あり文脈が曖昧な場合 -> 聞き返し
+        if (hasAmbiguousDemonstrative && (aiCandidateCount > 1 || candidates.size() > 1)) {
+            // 候補が複数あり文脈が曖昧な場合 -> 参照先を特定せず聞き返し（安全性最優先）
             result.speechAct = "CORRECTION";
             result.responseAction = "ASK_CLARIFICATION";
+            result.refMessageId = "";
             result.referenceConfidence = 0.40;
             result.clarificationQuestion = "それってどれのこと？";
             return result;
@@ -104,7 +117,7 @@ ManagerContextResult ManagerContextEvaluator::evaluateContextRuleBased(
         return result;
     }
 
-    // 4. デフォルト判定
+    // 5. デフォルト判定
     result.speechAct = "QUESTION";
     result.responseAction = "ANSWER";
     result.referenceConfidence = 1.0;
@@ -178,6 +191,14 @@ QString ManagerContextEvaluator::formatWorkerInstruction(
         ).arg(pending.questionText);
     }
 
+    if (result.responseAction == "GREET_ON_BEHALF") {
+        return QString(
+            "【挨拶・発話の代行指示】\n"
+            "ユーザーから配信終了の挨拶やお礼などの代行発話指示を受けました。\n"
+            "発言者個人への労いではなく、配信の視聴者・全体に向けた挨拶（例: 『皆さん、本日の配信も見てくれてありがとうございました！また次回の配信でお会いしましょう！』）を明るく発話してください。"
+        );
+    }
+
     if (result.responseAction == "CORRECT_APOLOGY") {
         return QString(
             "【過去発言の訂正受容指示】\n"
@@ -190,7 +211,7 @@ QString ManagerContextEvaluator::formatWorkerInstruction(
     if (result.responseAction == "ACKNOWLEDGE") {
         return QString(
             "【情報伝達の受け止め指示】\n"
-            "ユーザーはAIへの情報伝達を行っています。質問として解説するのではなく、『へー、〇〇さんはそう言ってたんだ！』のように自然な相槌・リアクションを 1〜2 文で返答してください。"
+            "ユーザーはAIへの情報伝達を行っています。質問として解説するのではなく、『へー、〇〇さんはそう言ってたんだ！』のように自然な相槌・リアクションを 1〜2 文で返答してください。『〜するって』などの未来・予告を『〜した』と過去形に誤認しないでください。"
         );
     }
 
@@ -203,3 +224,4 @@ QString ManagerContextEvaluator::formatWorkerInstruction(
 
     return QString();
 }
+
