@@ -110,6 +110,9 @@ void DuckDuckGoSearchProvider::on_replyFinished(QNetworkReply *reply) {
                 rawUrl = "https:" + rawUrl;
             }
 
+            snippet = ISearchProvider::cleanseSnippet(snippet, 350);
+            if (snippet.isEmpty()) continue;
+
             formattedResults.append(QString("[%1] %2 (%3): %4")
                                     .arg(index)
                                     .arg(title)

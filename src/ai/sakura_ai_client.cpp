@@ -94,11 +94,11 @@ void SakuraAIClient::sendRealSakuraRequest(const QString &prompt, const QList<QP
         adjustedInstruction.replace(searchToolInstruction, "");
     }
 
-    if (!adjustedInstruction.isEmpty()) {
-        systemPrompt += "\n" + adjustedInstruction;
-    }
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n" + sessionContext;
+    }
+    if (!adjustedInstruction.isEmpty()) {
+        systemPrompt += "\n" + adjustedInstruction;
     }
 
     systemMessage["content"] = systemPrompt;

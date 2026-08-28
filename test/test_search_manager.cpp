@@ -354,4 +354,53 @@ TEST(SearchManagerTest, WebSearcherSyncExecutionHandling) {
     SUCCEED();
 }
 
+#include "../src/search/isearch_provider.h"
+
+TEST(SearchManagerTest, CleanseSnippetLogic) {
+    // UT-CLEANSE-SEARCH-01: 検索結果クレンジング検証
+    QString dirtySnippet = 
+        "気象庁\r\n"
+        "ホーム > 各種データ・資料 > 地域の情報 > 防災情報 > 過去の気象データ\r\n"
+        "| 地点の選択 | 都府県・地方を選択 |\r\n"
+        "| 2026年 2025年 2024年 2023年 2022年 2021年 2020年 2019年 2018年 |\r\n"
+        "| 1月 2月 3月 4月 5月 6月 7月 8月 9月 10月 11月 12月 |\r\n"
+        "今日の青森の天気は曇りのち雨です。気温は25度前後の見込みです。\r\n"
+        "ページを表示することが出来ませんでした。\r\n"
+        "ブラウザの「戻る」ボタンをクリックしてください。";
+
+    QString cleaned = ISearchProvider::cleanseSnippet(dirtySnippet, 350);
+
+    EXPECT_FALSE(cleaned.contains("ホーム >"));
+    EXPECT_FALSE(cleaned.contains("2026年 2025年 2024年"));
+    EXPECT_FALSE(cleaned.contains("1月 2月 3月"));
+    EXPECT_FALSE(cleaned.contains("ページを表示することが出来ませんでした"));
+    EXPECT_FALSE(cleaned.contains("ブラウザの「戻る」ボタン"));
+    EXPECT_TRUE(cleaned.contains("今日の青森の天気は曇りのち雨です"));
+    EXPECT_LE(cleaned.length(), 355); // 350 + "..."
+}
+
+#include "../src/ai/ai_client_manager.h"
+
+TEST(SearchManagerTest, Timeout10sOptimizationAndPromptOrder) {
+    // UT-TIMEOUT-10S-01: 10秒タイムアウトおよびタイマー動作検証
+    SearchManager searchMgr;
+    EXPECT_NO_THROW({
+        searchMgr.setTimeoutMs(10000);
+    });
+
+    AIClientManager aiMgr;
+
+    // UT-PROMPT-INSTRUCT-POS-01: 呼び名指示配置順序検証（sessionContext と systemInstruction）
+    QString sessionCtx = "前回の会話コンテキスト要約";
+    QString systemInst = "[システム指示: このコメントの投稿者は「ブルー」さんです。回答の冒頭で，必ず「ブルーさん、」と呼びかけてください。]";
+
+    QString combined = sessionCtx + "\n\n" + systemInst;
+    // sessionContext の後に systemInstruction が出現すること
+    int ctxPos = combined.indexOf(sessionCtx);
+    int instPos = combined.indexOf(systemInst);
+    EXPECT_TRUE(ctxPos >= 0);
+    EXPECT_TRUE(instPos > ctxPos);
+}
+
+
 

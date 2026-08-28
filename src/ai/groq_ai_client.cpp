@@ -81,12 +81,12 @@ void GroqAIClient::sendRequest(const QString &prompt, const QList<QPair<QString,
 
 
     
-    if (!systemInstruction.isEmpty()) {
-        systemPrompt += "\n\n" + systemInstruction;
-    }
-    
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n以下のマークダウンは以前の会話のコンテキスト（要約や前提知識）です。これに基づいて応答してください:\n" + sessionContext;
+    }
+    
+    if (!systemInstruction.isEmpty()) {
+        systemPrompt += "\n\n" + systemInstruction;
     }
     systemMessage["content"] = systemPrompt;
     messages.append(systemMessage);

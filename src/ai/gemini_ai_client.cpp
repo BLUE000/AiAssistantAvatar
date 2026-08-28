@@ -98,12 +98,12 @@ void GeminiAIClient::sendRequest(const QString &prompt, const QList<QPair<QStrin
 
 
 
-    if (!systemInstruction.isEmpty()) {
-        systemPrompt = systemInstruction;
-    }
-
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n\n【直近の会話・配信コンテキスト】\n" + sessionContext;
+    }
+
+    if (!systemInstruction.isEmpty()) {
+        systemPrompt += "\n\n" + systemInstruction;
     }
 
     systemMessage["content"] = systemPrompt;

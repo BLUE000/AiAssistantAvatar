@@ -101,11 +101,11 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
 
 
 
-    if (!systemInstruction.isEmpty()) {
-        systemPrompt += "\n" + systemInstruction;
-    }
     if (!sessionContext.isEmpty()) {
         systemPrompt += "\n" + sessionContext;
+    }
+    if (!systemInstruction.isEmpty()) {
+        systemPrompt += "\n" + systemInstruction;
     }
 
     systemMessage["content"] = systemPrompt;

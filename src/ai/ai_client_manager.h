@@ -92,6 +92,7 @@ private:
     QString m_taskFlowApiUrl;
 
     QTimer *m_workerTimeoutTimer = nullptr;
+    int m_activeRequestId = 0; // F-48: リクエスト世代管理（タイムアウト後の遅延応答破棄用）
 
     // TaskFlow外部スケジュールAPI連携RAG
     QString getTaskFlowSchedulesContext();

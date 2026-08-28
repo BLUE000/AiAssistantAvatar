@@ -63,9 +63,10 @@ void TavilySearchProvider::on_replyFinished(QNetworkReply *reply) {
         int index = 1;
         for (const auto &val : results) {
             QJsonObject resObj = val.toObject();
-            QString title = resObj["title"].toString();
-            QString url = resObj["url"].toString();
-            QString content = resObj["content"].toString();
+            QString title = resObj["title"].toString().trimmed();
+            QString url = resObj["url"].toString().trimmed();
+            QString content = ISearchProvider::cleanseSnippet(resObj["content"].toString(), 350);
+            if (content.isEmpty()) continue;
             formattedResults.append(QString("[%1] %2 (%3): %4")
                                     .arg(index)
                                     .arg(title)

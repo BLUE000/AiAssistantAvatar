@@ -1513,7 +1513,8 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
         QThread::msleep(600);
 
         if (m_workerTimeoutTimer) {
-            m_workerTimeoutTimer->start(8000);
+            m_activeRequestId++;
+            m_workerTimeoutTimer->start(10000);
         }
         m_currentClient->sendRequest(finalPrompt, m_chatHistory, m_sessionContext, additionalSystemPrompt);
     }
@@ -1521,13 +1522,13 @@ void AIClientManager::on_requestAI(const QString &prompt, const QString &user, c
 
 void AIClientManager::on_workerTimeout() {
     QString currentClientId = m_currentClient ? m_currentClient->clientId() : "unknown";
-    qWarning() << "[AIClientManager] 8s worker timeout reached for provider:" << currentClientId;
+    qWarning() << "[AIClientManager] 10s worker timeout reached for provider:" << currentClientId;
     if (m_apiCallStartTimeMs > 0 && m_currentClient) {
-        m_tracker.recordLatency(m_currentClient->clientId(), 8000);
+        m_tracker.recordLatency(m_currentClient->clientId(), 10000);
         m_apiCallStartTimeMs = 0;
     }
     // タイムアウト時は即座に失敗（HTTP 408）として通知し、フォールバック処理を走らせる
-    on_clientRequestFinished(QString("AIプロバイダ応答タイムアウト (8秒超過): %1").arg(currentClientId), false, 408);
+    on_clientRequestFinished(QString("AIプロバイダ応答タイムアウト (10秒超過): %1").arg(currentClientId), false, 408);
 }
 
 void AIClientManager::on_clientRequestFinished(const QString &responseText, bool success, int httpCode) {
@@ -1943,7 +1944,8 @@ void AIClientManager::on_clientRequestFinished(const QString &responseText, bool
 
                     // 元プロンプトをそのまま次プロバイダへ再送
                     if (m_workerTimeoutTimer) {
-                        m_workerTimeoutTimer->start(8000);
+                        m_activeRequestId++;
+                        m_workerTimeoutTimer->start(10000);
                     }
                     m_currentClient->sendRequest(m_lastFinalPrompt, m_chatHistory,
                                                   m_sessionContext, m_lastAdditionalSystemPrompt);
