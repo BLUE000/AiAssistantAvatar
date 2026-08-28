@@ -73,3 +73,5 @@ AiAssistantAvatar_Release/
 - [2.23 GroqChatter および SakuraChatter 独立CLIツール (F-46)](AIClientManager.md#223-groqchatter-および-sakurachatter-独立cliツール-f-46)
 
 - [2.24 サブプロセス・CLIツール Qt プラグイン探索自動解決 ＆ Web検索・HTTPS 通信保証 (F-47)](AIClientManager.md#224-サブプロセスcliツール-qt-プラグイン探索自動解決-web検索https-通信保証-f-47)
+
+- [2.25 Web検索結果ノイズ除去・テキストクレンジング ＆ 10秒タイムアウト最適化 ＆ 呼び名指示優先配置 (F-48)](AIClientManager.md#225-web検索結果ノイズ除去テキストクレンジング--10秒タイムアウト最適化--呼び名指示優先配置-f-48)

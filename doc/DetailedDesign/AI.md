@@ -800,3 +800,33 @@ MistralChatter [options]
   ```cpp
   env.insert("QT_PLUGIN_PATH", appDir + ";" + appDir + "/plugins");
   ```
+
+
+## 29. Web検索結果ノイズ除去 ＆ 10秒タイムアウト ＆ 呼び名指示配置詳細設計 (F-48)
+
+### 29.1 検索結果クレンジング処理
+- `TavilySearchProvider::cleanseContent(const QString &text)`:
+  - 連続する空白・改行（`\n+`, `\s{2,}`）を単一の改行/空白に正規化。
+  - 「ページを表示できませんでした」「ブラウザの戻るボタン...」等のエラー定型文を除去。
+  - `| 2026年 2025年...` のような連続年号・日付テーブル行を検知してトリミング。
+  - 最大長 350 文字でスライス。
+
+### 29.2 10秒タイムアウトと Abort 処理
+- `AIClientManager`:
+  ```cpp
+  m_workerTimeoutTimer->setInterval(10000); // 10秒
+  ```
+- タイムアウト発生時の Abort:
+  - クライアントの `QNetworkReply::abort()` を呼び出し、内部の `m_activeReply` を安全に破棄。
+
+### 29.3 プロンプト配置順序
+- 各クライアントの `sendRequest` において:
+  ```cpp
+  QString systemPrompt = buildBaseSystemPrompt(avatarName);
+  if (!sessionContext.isEmpty()) {
+      systemPrompt += "\n\n【以前の会話コンテキスト】\n" + sessionContext;
+  }
+  if (!systemInstruction.isEmpty()) {
+      systemPrompt += "\n\n" + systemInstruction;
+  }
+  ```

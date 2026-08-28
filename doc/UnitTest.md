@@ -733,3 +733,11 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | :--- | :--- | :--- | :--- |
 | **UT-PLUGIN-PATH-01** | ProcessUtils 環境変数設定検証 | `ProcessUtils::configureProcessEnvironment` 実行後の `PATH` および `QT_PLUGIN_PATH` を検証 | 親ディレクトリのパスおよびプラグインパスが正しく注入されていること |
 | **UT-SEARCH-EXEC-01** | WebSearcher サブプロセス同期実行検証 | `SearchManager::executeSearchSync` でテストクエリを実行 | サブプロセスが正常終了（Exit Code 0）または適切に処理されること |
+
+### 3.21 Web検索結果ノイズ除去 ＆ 10秒タイムアウト ＆ 呼び名指示配置単体試験仕様 (F-48)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-CLEANSE-SEARCH-01** | 検索結果クレンジング検証 | 年号テーブルやエラー画面テキストを含む生データをクレンジング関数に入力 | 不要な年号列やエラー定型文が除去され、350文字以内に整形されること |
+| **UT-TIMEOUT-10S-01** | 10秒タイムアウト最適化検証 | AIClientManager のタイムアウト設定値およびタイマー動作を検証 | タイムアウト値が 10,000ms（10秒）として正しく設定・動作すること |
+| **UT-PROMPT-INSTRUCT-POS-01** | 呼び名指示配置順序検証 | 各 AI クライアントのプロンプト構築において、`systemInstruction` が `sessionContext` の後方に配置されることを検証 | `systemInstruction` がプロンプトの最後尾に配置されること |

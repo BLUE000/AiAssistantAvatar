@@ -241,3 +241,20 @@
    - すべての CLI ツールの `main()` 関数で `QCoreApplication::addLibraryPath(app.applicationDirPath() + "/..")` および `QCoreApplication::addLibraryPath(app.applicationDirPath())` を実行。
 2. **ProcessUtils による環境変数設定**:
    - `QT_PLUGIN_PATH` に親フォルダ（`appDir`）および `appDir/tools` を設定し、`PATH` にも DLL 格納パスを確実に注入。
+
+
+## 2.25 Web検索結果ノイズ除去・テキストクレンジング ＆ 10秒タイムアウト最適化 ＆ 呼び名指示優先配置 (F-48)
+
+### 2.25.1 概要と目的
+- Web 検索結果に含まれる大量のナビゲーションやテーブルなどのノイズを除去し、AI への入力品質を向上させ、誤読や推論遅延を根絶する。
+- タイムアウト時間を 10 秒に最適化し、タイムアウト時の確実な通信中断（Abort）と 2 重応答防止を実現する。
+- プロンプト内での呼び名指示の配置を最適化し、地名・固有名詞誤認を防止する。
+
+### 2.25.2 設計方針
+1. **検索結果クレンジング**:
+   - `SearchManager` / `TavilySearchProvider` / `DuckDuckGoSearchProvider` において、正規表現とルールベースで不要なナビゲーション、連続年号列、エラーメッセージをフィルタリングし、1 件あたり 350 文字以内で要約抽出。
+2. **10秒タイムアウト ＆ 通信 Abort**:
+   - `m_workerTimeoutTimer` を 10,000ms に設定。
+   - タイムアウト発生時は対象クライアントのリクエストを中断（`abortRequest()`）し、ハンドラ内でタイムアウト済みリクエストのレスポンスを破棄。
+3. **呼び名指示の最後尾配置**:
+   - `systemPrompt` 構築時に `basePrompt + sessionContext + systemInstruction` の順序で組み立てる。
