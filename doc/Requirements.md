@@ -1028,3 +1028,11 @@ sequenceDiagram
   - タイムアウト発生時は直ちに先行するネットワーク通信を `abort()` し、遅延して返ってきた古いレスポンスを破棄して 2 重回答（幽霊レスポンス）を完全に抑止する。
 - **呼び名・発言者指示の Recency Bias 最適化配置**:
   - 各 AI クライアント（Gemini, Mistral, Groq, Sakura 等）のプロンプト構築において、発言者の呼び名ルール（`systemInstruction`）を長大な過去会話要約（`sessionContext`）の**最後尾**に配置し、LLM が文脈中の地名や固有名詞に惑わされず確実に正しい呼び名（「ブルーさん」等）を使用するよう保証する。
+
+
+### F-49: Twitch シャウトアウト IRC コマンド自動フォールバック ＆ エラーハンドリング強化
+- **Twitch Helix API 失敗時の IRC チャットコマンド自動フォールバック**:
+  - レイド受信時（自動シャウトアウト）および手動シャウトアウト実行時、Twitch Helix REST API（`POST /helix/chat/shoutouts`）の呼び出しが HTTP 401（OAuth トークンの `moderator:manage:shoutouts` スコープ不足等）やネットワークエラーで失敗した場合、自動的に Twitch IRC チャット（`TwitchReader::sendMessage`）へ `/shoutout <username>` コマンドをフォールバック送信する。
+  - これにより、Bot アカウントにモデレーター権限が付与されている環境、または配信者アカウント自身での接続時に、Twitch 側のチャットコマンドとして 100% 確実に公式シャウトアウトを発火させる。
+- **Twitch Helix API エラーログ詳細化**:
+  - `TwitchHelixClient` の各 API 呼び出しにおいて、HTTP ステータスコードおよび Twitch API から返却されたレスポンス本文（エラー JSON: `status`, `message` 等）を詳細にログへ記録し、スコープ不足やパラメータ不正の原因特定を容易化する。

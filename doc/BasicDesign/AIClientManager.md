@@ -258,3 +258,17 @@
    - タイムアウト発生時は対象クライアントのリクエストを中断（`abortRequest()`）し、ハンドラ内でタイムアウト済みリクエストのレスポンスを破棄。
 3. **呼び名指示の最後尾配置**:
    - `systemPrompt` 構築時に `basePrompt + sessionContext + systemInstruction` の順序で組み立てる。
+
+
+## 2.26 Twitch シャウトアウト IRC コマンド自動フォールバック ＆ エラーハンドリング強化 (F-49)
+
+### 2.26.1 概要と目的
+- Twitch Helix REST API による公式シャウトアウトが、OAuth トークンのスコープ不足（`moderator:manage:shoutouts` 未付与）等により HTTP 401 エラーで失敗した場合に、自動で IRC チャットコマンド（`/shoutout <username>`）を送信してシャウトアウトを確実に実行する。
+- 失敗原因の可視化のために詳細な HTTP ステータスと Twitch エラーメッセージをログ出力する。
+
+### 2.26.2 設計方針
+1. **二重化トリガー機構**:
+   - `AIClientManager::triggerShoutout(username)` において、まず `TwitchHelixClient` を呼び出す。
+   - Helix API が失敗した場合、`TwitchReader::sendMessage(channel, "/shoutout " + username)` を即座にフォールバック実行する。
+2. **Helix API エラーロギング**:
+   - `TwitchHelixClient::sendShoutout` のレスポンスハンドラで HTTP ステータスコードと JSON レスポンス本文を出力。

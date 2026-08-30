@@ -75,3 +75,5 @@ AiAssistantAvatar_Release/
 - [2.24 サブプロセス・CLIツール Qt プラグイン探索自動解決 ＆ Web検索・HTTPS 通信保証 (F-47)](AIClientManager.md#224-サブプロセスcliツール-qt-プラグイン探索自動解決-web検索https-通信保証-f-47)
 
 - [2.25 Web検索結果ノイズ除去・テキストクレンジング ＆ 10秒タイムアウト最適化 ＆ 呼び名指示優先配置 (F-48)](AIClientManager.md#225-web検索結果ノイズ除去テキストクレンジング--10秒タイムアウト最適化--呼び名指示優先配置-f-48)
+
+- [2.26 Twitch シャウトアウト IRC コマンド自動フォールバック ＆ エラーハンドリング強化 (F-49)](AIClientManager.md#226-twitch-シャウトアウト-irc-コマンド自動フォールバック--エラーハンドリング強化-f-49)

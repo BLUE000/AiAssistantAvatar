@@ -202,3 +202,25 @@ Options:
 
 
 
+
+
+## 15. Twitch シャウトアウト IRC コマンド自動フォールバック詳細設計 (F-49)
+
+### 15.1 シャウトアウト実行シーケンス
+1. `AIClientManager::triggerShoutout(const QString &username)`:
+   - `m_helixClient->sendShoutoutToUser(fromUser, username, callback)` を実行。
+   - コールバック内で `success == false` の場合:
+     ```cpp
+     qWarning() << "AIClientManager: Twitch Helix Shoutout failed for" << username
+                << "-> Falling back to IRC chat command '/shoutout " << username << "'";
+     // TwitchReader へ IRC コマンド送信を委任
+     emit requestSendTwitchChatMessage(m_twitchChannel, "/shoutout " + username);
+     ```
+2. `TwitchHelixClient::sendShoutout`:
+   - エラー発生時:
+     ```cpp
+     int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+     QByteArray errorBody = reply->readAll();
+     qWarning() << "TwitchHelixClient: Shoutout API error (HTTP" << httpCode << "):"
+                << reply->errorString() << "Body:" << errorBody;
+     ```

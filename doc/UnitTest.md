@@ -741,3 +741,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-CLEANSE-SEARCH-01** | 検索結果クレンジング検証 | 年号テーブルやエラー画面テキストを含む生データをクレンジング関数に入力 | 不要な年号列やエラー定型文が除去され、350文字以内に整形されること |
 | **UT-TIMEOUT-10S-01** | 10秒タイムアウト最適化検証 | AIClientManager のタイムアウト設定値およびタイマー動作を検証 | タイムアウト値が 10,000ms（10秒）として正しく設定・動作すること |
 | **UT-PROMPT-INSTRUCT-POS-01** | 呼び名指示配置順序検証 | 各 AI クライアントのプロンプト構築において、`systemInstruction` が `sessionContext` の後方に配置されることを検証 | `systemInstruction` がプロンプトの最後尾に配置されること |
+
+### 3.22 Twitch シャウトアウト IRC コマンド自動フォールバック単体試験仕様 (F-49)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-SHOUTOUT-FALLBACK-01** | Helix 失敗時 IRC フォールバック検証 | Helix API が失敗（401等）を返した際、IRC コマンド `/shoutout <user>` 送信シグナルが発行されることを検証 | IRC チャットメッセージ送信シグナルが正しく発行されること |
+| **UT-HELIX-ERROR-LOG-01** | Helix API エラーレスポンス詳細ログ検証 | 不正な認証・スコープ不足時のエラーハンドラ動作を検証 | HTTP コードおよびエラーメッセージが安全に処理・記録されること |
