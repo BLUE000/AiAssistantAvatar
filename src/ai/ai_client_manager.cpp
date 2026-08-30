@@ -3520,12 +3520,25 @@ void AIClientManager::handleRaidShoutout(const QString &username, const QVariant
 void AIClientManager::triggerShoutout(const QString &username) {
     if (m_helixClient) {
         QString fromUser = m_twitchChannel.isEmpty() ? m_currentTwitchChannel : m_twitchChannel;
-        m_helixClient->sendShoutoutToUser(fromUser, username, [this, username](bool ok) {
+        m_helixClient->sendShoutoutToUser(fromUser, username, [this, fromUser, username](bool ok) {
             if (ok) {
                 qDebug() << "AIClientManager: Twitch Helix Shoutout API succeeded for" << username;
                 on_shoutoutSuccessReceived(username);
             } else {
-                qWarning() << "AIClientManager: Twitch Helix Shoutout API failed for" << username;
+                qWarning() << "AIClientManager: Twitch Helix Shoutout API failed for" << username
+                           << "-> Falling back to IRC chat command '/shoutout" << username << "'";
+
+                // F-49: Twitch IRC チャットへ /shoutout コマンドをフォールバック送信
+                QString targetChannel = fromUser.isEmpty() ? m_twitchChannel : fromUser;
+                if (!targetChannel.isEmpty()) {
+                    AppEvent shoutoutEvent;
+                    shoutoutEvent.type = EventType::AIResponseReceived;
+                    shoutoutEvent.source = "Twitch";
+                    shoutoutEvent.text = "/shoutout " + username;
+                    shoutoutEvent.extraData["twitch_channel"] = targetChannel;
+                    emit notifyEvent(shoutoutEvent);
+                    qDebug() << "AIClientManager: Sent fallback IRC shoutout command to Twitch channel:" << targetChannel;
+                }
             }
         });
     }

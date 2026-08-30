@@ -200,7 +200,10 @@ void TwitchHelixClient::sendShoutout(const QString &fromBroadcasterId, const QSt
         reply->deleteLater();
         bool ok = (reply->error() == QNetworkReply::NoError);
         if (!ok) {
-            qWarning() << "TwitchHelixClient: Shoutout API error:" << reply->errorString();
+            int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            QByteArray errorBody = reply->readAll();
+            qWarning() << "TwitchHelixClient: Shoutout API error (HTTP" << httpCode << "):"
+                       << reply->errorString() << "Body:" << errorBody;
         } else {
             qDebug() << "TwitchHelixClient: Shoutout sent successfully via Helix API.";
         }

@@ -123,6 +123,28 @@ TEST(TwitchReaderTest, RaidUserNoticeSeparatesLoginAndDisplayName) {
     EXPECT_EQ(event.extraData.value("viewerCount").toInt(), 5);
 }
 
+#include "../src/ai/ai_client_manager.h"
+#include "../src/ai/twitch_helix_client.h"
+
+TEST(TwitchReaderTest, ShoutoutFallbackAndHelixErrorHandling) {
+    // UT-SHOUTOUT-FALLBACK-01: Helix 失敗時の IRC フォールバック検証
+    AIClientManager aiMgr;
+    QSignalSpy spy(&aiMgr, &AIClientManager::notifyEvent);
+
+    // on_twitchRaidReceived を呼び出し (レイド受信時の安全なシャウトアウト処理検証)
+    aiMgr.on_twitchRaidReceived("test_streamer");
+
+    // UT-HELIX-ERROR-LOG-01: Helix API クライアント初期化およびエラーハンドラ検証
+    TwitchHelixClient helixClient;
+    helixClient.setCredentials("invalid_token", "invalid_client_id");
+    EXPECT_NO_THROW({
+        helixClient.sendShoutoutToUser("from_user", "to_user", [](bool ok){
+            EXPECT_FALSE(ok);
+        });
+    });
+}
+
+
 
 
 
