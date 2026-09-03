@@ -4470,6 +4470,47 @@ TEST_F(AIClientTest, MistralProModelAnd403FallbackTest) {
     EXPECT_EQ(client.currentModelName(), "mistral-small-latest");
 }
 
+#include <QProcess>
+#include "../src/utils/process_utils.h"
+
+TEST_F(AIClientTest, HuggingFaceAndOpenRouterCliTests) {
+    QString hfPath = ProcessUtils::resolveExecutablePath("HuggingFaceChatter");
+    QString orPath = ProcessUtils::resolveExecutablePath("OpenRouterChatter");
+
+    // UT-HF-CLI-01: HuggingFaceChatter 必須引数不足エラー
+    if (QFile::exists(hfPath)) {
+        QProcess proc;
+        ProcessUtils::configureProcessEnvironment(proc);
+        proc.start(hfPath, QStringList());
+        EXPECT_TRUE(proc.waitForFinished(5000));
+        EXPECT_EQ(proc.exitCode(), 2);
+
+        // UT-HF-CLI-02: HuggingFaceChatter APIキー未設定エラー
+        QProcess proc2;
+        ProcessUtils::configureProcessEnvironment(proc2);
+        proc2.start(hfPath, QStringList() << "--prompt" << "hello" << "--config" << "non_existent_config.json");
+        EXPECT_TRUE(proc2.waitForFinished(5000));
+        EXPECT_EQ(proc2.exitCode(), 1);
+    }
+
+    // UT-OPENROUTER-CLI-01: OpenRouterChatter 必須引数不足エラー
+    if (QFile::exists(orPath)) {
+        QProcess proc3;
+        ProcessUtils::configureProcessEnvironment(proc3);
+        proc3.start(orPath, QStringList());
+        EXPECT_TRUE(proc3.waitForFinished(5000));
+        EXPECT_EQ(proc3.exitCode(), 2);
+
+        // UT-OPENROUTER-CLI-02: OpenRouterChatter APIキー未設定エラー
+        QProcess proc4;
+        ProcessUtils::configureProcessEnvironment(proc4);
+        proc4.start(orPath, QStringList() << "--prompt" << "hello" << "--config" << "non_existent_config.json");
+        EXPECT_TRUE(proc4.waitForFinished(5000));
+        EXPECT_EQ(proc4.exitCode(), 1);
+    }
+}
+
+
 
 
 

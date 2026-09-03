@@ -1,5 +1,4 @@
 #include "openrouter_ai_client.h"
-#include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -94,9 +93,13 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
     systemMessage["role"] = "system";
 
     QString avatarName = "AIアシスタント";
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        avatarName = manager->avatarName();
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "avatarName",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(QString, avatarName));
+        if (avatarName.isEmpty()) {
+            avatarName = "AIアシスタント";
+        }
     }
 
     QString systemPrompt = buildBaseSystemPrompt(avatarName);
@@ -163,9 +166,11 @@ void OpenRouterAIClient::sendRequest(const QString &prompt, const QList<QPair<QS
 }
 
 void OpenRouterAIClient::on_networkReplyFinished(QNetworkReply *reply) {
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        manager->tracker().updateFromReply(QStringLiteral("openrouter"), reply);
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "updateRateLimitFromReply",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, QStringLiteral("openrouter")),
+                                  Q_ARG(QNetworkReply*, reply));
     }
     reply->deleteLater();
 

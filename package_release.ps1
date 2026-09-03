@@ -72,6 +72,12 @@ if (Test-Path "build/GroqChatter.exe") {
 if (Test-Path "build/SakuraChatter.exe") {
     Copy-Item "build/SakuraChatter.exe" -Destination "$toolsDir/" -Force
 }
+if (Test-Path "build/HuggingFaceChatter.exe") {
+    Copy-Item "build/HuggingFaceChatter.exe" -Destination "$toolsDir/" -Force
+}
+if (Test-Path "build/OpenRouterChatter.exe") {
+    Copy-Item "build/OpenRouterChatter.exe" -Destination "$toolsDir/" -Force
+}
 
 # tools 配下の CLI ツール用 qt.conf を生成 (F-47)
 Set-Content -Path "$toolsDir/qt.conf" -Value "[Paths]`nPlugins = .." -Encoding ASCII

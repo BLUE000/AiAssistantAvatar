@@ -1,5 +1,4 @@
 #include "huggingface_ai_client.h"
-#include "ai_client_manager.h"
 #include "../search/search_manager.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -92,9 +91,13 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
     systemMessage["role"] = "system";
 
     QString avatarName = "AIアシスタント";
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        avatarName = manager->avatarName();
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "avatarName",
+                                  Qt::DirectConnection,
+                                  Q_RETURN_ARG(QString, avatarName));
+        if (avatarName.isEmpty()) {
+            avatarName = "AIアシスタント";
+        }
     }
 
     QString systemPrompt = buildBaseSystemPrompt(avatarName);
@@ -162,9 +165,11 @@ void HuggingFaceAIClient::sendRequest(const QString &prompt, const QList<QPair<Q
 }
 
 void HuggingFaceAIClient::on_networkReplyFinished(QNetworkReply *reply) {
-    AIClientManager *manager = qobject_cast<AIClientManager*>(parent());
-    if (manager) {
-        manager->tracker().updateFromReply(QStringLiteral("huggingface"), reply);
+    if (parent()) {
+        QMetaObject::invokeMethod(parent(), "updateRateLimitFromReply",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, QStringLiteral("huggingface")),
+                                  Q_ARG(QNetworkReply*, reply));
     }
     reply->deleteLater();
 
