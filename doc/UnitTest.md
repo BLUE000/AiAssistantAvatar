@@ -755,3 +755,12 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | :--- | :--- | :--- | :--- |
 | **UT-MISTRAL-PRO-01** | Mistral Pro モデル設定検証 | `MistralAIClient::setModel("mistral-large-latest")` を設定してモデル名の保持を検証 | `mistral-large-latest` が正しく設定・保持されること |
 | **UT-MISTRAL-403-FALLBACK-01** | 403/404 自己修復フォールバック検証 | Pro モデル指定時に 403/404 エラーを受信した場合のモデル自動降格（`mistral-small-latest`）と再試行動作を検証 | `mistral-small-latest` へ自動切り替えが行われ、安全にリトライされること |
+
+### 3.24 HuggingFaceChatter & OpenRouterChatter 独立 CLI 単体試験仕様 (F-51)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-HF-CLI-01** | HuggingFaceChatter 必須引数不足エラー | `--prompt` なしで起動 | 終了コード `2` とヘルプ・エラーメッセージが出力されること |
+| **UT-HF-CLI-02** | HuggingFaceChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |
+| **UT-OPENROUTER-CLI-01** | OpenRouterChatter 必須引数不足エラー | `--prompt` なしで起動 | 終了コード `2` とヘルプ・エラーメッセージが出力されること |
+| **UT-OPENROUTER-CLI-02** | OpenRouterChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |

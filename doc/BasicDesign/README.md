@@ -79,3 +79,5 @@ AiAssistantAvatar_Release/
 - [2.26 Twitch シャウトアウト IRC コマンド自動フォールバック ＆ エラーハンドリング強化 (F-49)](AIClientManager.md#226-twitch-シャウトアウト-irc-コマンド自動フォールバック--エラーハンドリング強化-f-49)
 
 - [2.27 Mistral Pro モデル対応 ＆ 403/404 自動降格フォールバック (F-50)](AIClientManager.md#227-mistral-pro-モデル対応--403404-自動降格フォールバック-f-50)
+
+- [2.28 HuggingFaceChatter & OpenRouterChatter 独立 CLI ツール化およびサブプロセス実行統一 (F-51)](AIClientManager.md#228-huggingfacechatter--openrouterchatter-独立-cli-ツール化およびサブプロセス実行統一-f-51)

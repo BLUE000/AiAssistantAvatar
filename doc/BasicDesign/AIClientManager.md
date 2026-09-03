@@ -286,3 +286,18 @@
 2. **403/404 自己修復フォールバック**:
    - `MistralAIClient::on_networkReplyFinished` において、`httpCode == 403 || httpCode == 404` を検知。
    - 初回エラー時（`!m_hasRetriedFallback`）、現在のモデルが Pro 向けモデルまたは未対応モデルであれば、`m_model = "mistral-small-latest"`（または `open-mistral-nemo`）へ変更して即座に `sendRequest` を再実行する。
+
+
+## 2.28 HuggingFaceChatter & OpenRouterChatter 独立 CLI ツール化およびサブプロセス実行統一 (F-51)
+
+### 2.28.1 概要と目的
+- HuggingFace および OpenRouter に対する推論呼び出しを独立した CLI ツール（`tools/HuggingFaceChatter.exe`, `tools/OpenRouterChatter.exe`）として切り出し、メインアプリケーションとの疎結合化・プロセス分離を全 AI プロバイダにおいて達成する。
+- 実行環境において各 CLI ツールが存在する場合はサブプロセス呼び出しを優先実行し、単体動作・スクリプト連携・障害分離を可能とする。
+
+### 2.28.2 設計方針
+1. **独立 CLI ツールの配置**:
+   - `src/ai/huggingface_chatter_main.cpp` -> `tools/HuggingFaceChatter.exe`
+   - `src/ai/openrouter_chatter_main.cpp` -> `tools/OpenRouterChatter.exe`
+2. **AIClientManager からの呼び出し**:
+   - `AIClientManager::sendRequest` において、`m_aiProvider == "huggingface"` または `"openrouter"` の場合、対応する CLI ツールを `ProcessUtils::resolveExecutablePath` で探索。
+   - 存在時は `QProcess` で起動し、`--prompt`, `--api-key`, `--model`, `--system-prompt`, `--context` を引数に渡して実行。

@@ -853,3 +853,27 @@ MistralChatter [options]
       return;
   }
   ```
+
+
+## 31. HuggingFaceChatter & OpenRouterChatter CLI 詳細設計 (F-51)
+
+### 31.1 コマンドライン引数パーサー設計
+- `QCommandLineParser` を使用し、以下のオプションを処理:
+  - `-p, --prompt <text>`: 必須プロンプト
+  - `-k, --api-key <key>`: APIキー
+  - `-m, --model <model>`: モデル名
+  - `-s, --system-prompt <prompt>`: システムプロンプト
+  - `-c, --context <context>`: 会話コンテキスト
+  - `--raw`: 生テキスト出力
+
+### 31.2 AIClientManager サブプロセス統合
+- `AIClientManager` での実行分岐:
+  ```cpp
+  QString exeName = (m_aiProvider == "huggingface") ? "HuggingFaceChatter" : "OpenRouterChatter";
+  QString exePath = ProcessUtils::resolveExecutablePath(exeName);
+  if (QFile::exists(exePath)) {
+      // QProcess で非同期サブプロセス実行
+  } else {
+      // 内部クラス（HuggingFaceAIClient / OpenRouterAIClient）へフォールバック
+  }
+  ```

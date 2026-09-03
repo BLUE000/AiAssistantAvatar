@@ -934,17 +934,6 @@ sequenceDiagram
       - 「配信終了のご挨拶をして」「みんなにお礼を言って」等の代行発話指示を受けた場合、発言者個人に対して労いを返すのではなく、**「配信の視聴者・全体に向けた挨拶」**を代行発話する（例: 「皆さん、本日の配信も見てくれてありがとうございました！また次回の配信でお会いしましょう！」）。
    9. **状況・情報伝達 (`INFORMATION`) の時制理解**:
       - 「〜するって（これから終了する・終了予告）」などの未来・現在進行の情報を、過去形（「〜が終わったんだね」）と混同せず、状況に応じた自然なリアクションを行う。
-
-
-
-
-
-
-
-
-
-
-
 ### F-43: AIプロバイダモデル設定の設定ファイル一元管理およびモデル廃止時自己修復機能
 
 - **背景・目的**:
@@ -981,8 +970,6 @@ sequenceDiagram
      - 正常終了時は終了コード `0`、引数不正時は `2`、API/通信エラー時は `1` を返却する。
   3. **配布パッケージング統合**:
      - リリースパッケージング（`package_release.ps1`）時に `tools/MistralChatter.exe` として同封・配置する。
-
-
 ### F-45: AIプロバイダ高速応答保証・短縮タイムアウト（8秒）＆ Gemini 2.5 Flash 正規化
 - **Google Gemini 正規モデルへの完全統一**:
   - OpenAI 互換エンドポイント（`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`）において確実に動作する正規モデル名 **`gemini-2.5-flash`**（および予備の `gemini-1.5-flash`）をデフォルトおよび推奨モデルとして採用し、サーバー側で保留・404を引き起こす非対応エイリアス（`gemini-flash-latest` 等）を完全排除する。
@@ -1044,3 +1031,26 @@ sequenceDiagram
 - **無料版アカウントでの Pro モデル指定時における 403/404 自動降格フォールバック（自己修復機能）**:
   - Free 版（無料枠）アカウントの API キーで `mistral-large-latest` や `codestral-latest` 等の Pro 専用モデルをリクエストして **HTTP 403 Forbidden（権限不足）** または **HTTP 404 Not Found** が返却された場合、`MistralAIClient` が即座に検知し、無料版対応モデル（`mistral-small-latest`、または `open-mistral-nemo`）へ自動的にモデル名を切り替えてリクエストを再試行する。
   - これにより、無料版ユーザーが誤って Pro モデルを設定した場合やプラン移行時でも、エラー停止することなく安全に会話を継続できることを保証する。
+
+
+### F-51: HuggingFaceChatter & OpenRouterChatter 独立 CLI ツール化およびサブプロセス実行統一
+- **独立 CLI ツール `tools/HuggingFaceChatter.exe` および `tools/OpenRouterChatter.exe` の新設**:
+  - `GeminiChatter`, `MistralChatter`, `GroqChatter`, `SakuraChatter` と同様の設計に基づき、HuggingFace および OpenRouter との対話を単体で実行できる独立 CLI ツールを新規作成する。
+  - **コマンドライン引数仕様**:
+    - `-p, --prompt <text>`: [必須] ユーザー入力プロンプト
+    - `-k, --api-key <key>`: [任意] APIキー（省略時は `local_settings.json` の設定値を使用）
+    - `-m, --model <model>`: [任意] モデル名（省略時は `local_settings.json` の設定値またはデフォルトモデル）
+    - `-s, --system-prompt <prompt>`: [任意] システムプロンプト・ペルソナ指示
+    - `-c, --context <context>`: [任意] 会話履歴コンテキスト
+    - `--raw`: [任意] JSON形式ではなく生成テキストのみを標準出力するフラグ
+  - **終了コード仕様**:
+    - `0`: 成功（標準出力に応答結果を出力）
+    - `1`: API呼び出しエラー、ネットワークエラー、または認証エラー
+    - `2`: 必須引数不足（ヘルプおよびエラーメッセージを出力）
+  - **出力形式**:
+    - 通常モード: `{"status": "success", "content": "..."}`
+    - エラー時: `{"status": "error", "message": "..."}`（標準エラー出力）
+    - `--raw` モード: 生成されたプレーンテキストのみを出力
+- **AIClientManager サブプロセス実行連携**:
+  - 実行環境（`tools/HuggingFaceChatter.exe` および `tools/OpenRouterChatter.exe` が存在する場合）において、`AIClientManager` は内部クラスに直接依存せず、`ProcessUtils` 経由で CLI ツールを非同期サブプロセス（`QProcess`）として呼び出す。
+  - これにより、全 6 大プロバイダ（Gemini, Mistral, Groq, Sakura, HuggingFace, OpenRouter）のプロセス分離・疎結合化を完全に完了する。
