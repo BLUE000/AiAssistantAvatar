@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <QJsonObject>
 #include <QSet>
+#include <QProcess>
 #include "../app_event.h"
 
 class DiscordReader : public QObject {
@@ -20,6 +21,11 @@ private:
         bool greetingEnabled = false;
     };
     QList<ChannelConfig> m_channels;
+
+    // サブプロセス連携用 (F-52)
+    QProcess *m_process = nullptr;
+    bool m_useProcess = false;
+    bool m_isMock = false;
 
     QWebSocket *m_webSocket = nullptr;
     QNetworkAccessManager *m_networkManager = nullptr;
@@ -42,6 +48,8 @@ private:
     void parseGatewayMessage(const QString &message);
     void sendGreetings();                     // 全対象チャンネルへ挨拶を送信
     void sendChannelGreeting(const QString &channelId); // 指定チャンネルへ挨拶を送信
+    void handleSubprocessLine(const QString &line);
+
 
 public:
     explicit DiscordReader(QObject *parent = nullptr);
@@ -53,6 +61,8 @@ public:
         return false;
     }
     void setConfigPath(const QString &path) { m_configPath = path; }
+    bool isSubprocessRunning() const { return m_useProcess && m_process && m_process->state() == QProcess::Running; }
+    void setMock(bool mock) { m_isMock = mock; }
 
 signals:
     void notifyEvent(const AppEvent &event);
@@ -69,4 +79,7 @@ private slots:
     void onWebSocketDisconnected();
     void onTextMessageReceived(const QString &message);
     void onReplyFinished(QNetworkReply *reply);
+    void onProcessOutputReady();
+    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
 };
+

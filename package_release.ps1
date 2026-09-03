@@ -78,6 +78,10 @@ if (Test-Path "build/HuggingFaceChatter.exe") {
 if (Test-Path "build/OpenRouterChatter.exe") {
     Copy-Item "build/OpenRouterChatter.exe" -Destination "$toolsDir/" -Force
 }
+if (Test-Path "build/DiscordObserver.exe") {
+    Copy-Item "build/DiscordObserver.exe" -Destination "$toolsDir/" -Force
+}
+
 
 # tools 配下の CLI ツール用 qt.conf を生成 (F-47)
 Set-Content -Path "$toolsDir/qt.conf" -Value "[Paths]`nPlugins = .." -Encoding ASCII

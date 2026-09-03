@@ -1,17 +1,23 @@
 #include "discord_reader.h"
 #include "utils/json_comment_remover.h"
 #include "utils/config_utils.h"
+#include "utils/process_utils.h"
 
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QCoreApplication>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QDebug>
 
 DiscordReader::DiscordReader(QObject *parent)
     : QObject(parent), m_isRunning(false), m_enabled(false), m_lastSequence(0), m_hasAck(true)
 {
+    m_process = new QProcess(this);
+    connect(m_process, &QProcess::readyReadStandardOutput, this, &DiscordReader::onProcessOutputReady);
+    connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &DiscordReader::onProcessFinished);
+
     m_webSocket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
     m_networkManager = new QNetworkAccessManager(this);
     m_heartbeatTimer = new QTimer(this);
@@ -28,6 +34,7 @@ DiscordReader::DiscordReader(QObject *parent)
 DiscordReader::~DiscordReader() {
     on_stopReading();
 }
+
 
 void DiscordReader::loadSettings() {
     QString configPath = m_configPath;
@@ -87,12 +94,42 @@ void DiscordReader::on_startReading() {
 
     if (m_isRunning) return;
     m_isRunning = true;
-    qDebug() << "DiscordReader: Starting...";
+
+    QString exePath = ProcessUtils::resolveExecutablePath("DiscordObserver");
+    if (!m_isMock && QFile::exists(exePath)) {
+        m_useProcess = true;
+        ProcessUtils::configureProcessEnvironment(*m_process);
+        QStringList args;
+        args << "--daemon";
+        if (!m_configPath.isEmpty()) {
+            args << "--config" << m_configPath;
+        }
+        qDebug() << "DiscordReader: Starting DiscordObserver subprocess:" << exePath << args;
+        m_process->start(exePath, args);
+        return;
+    }
+
+    m_useProcess = false;
+    qDebug() << "DiscordReader: Starting internal WebSocket connection...";
     connectToDiscord();
 }
 
 void DiscordReader::on_stopReading() {
     m_isRunning = false;
+
+    if (m_useProcess && m_process) {
+        if (m_process->state() == QProcess::Running) {
+            m_process->write("{\"action\":\"stop\"}\n");
+            if (!m_process->waitForFinished(1000)) {
+                m_process->terminate();
+                if (!m_process->waitForFinished(1000)) {
+                    m_process->kill();
+                }
+            }
+        }
+        m_useProcess = false;
+    }
+
     m_heartbeatTimer->stop();
 
     disconnect(m_webSocket, &QWebSocket::disconnected, this, &DiscordReader::onWebSocketDisconnected);
@@ -109,6 +146,12 @@ void DiscordReader::on_stopReading() {
 void DiscordReader::on_settingsUpdated() {
     qDebug() << "DiscordReader: Settings updated, reloading...";
     
+    if (m_useProcess && m_process && m_process->state() == QProcess::Running) {
+        loadSettings();
+        m_process->write("{\"action\":\"reload\"}\n");
+        return;
+    }
+
     QSet<QString> prevChannelIds;
     for (const auto &ch : m_channels) {
         prevChannelIds.insert(ch.id);
@@ -138,6 +181,11 @@ void DiscordReader::on_settingsUpdated() {
 
 void DiscordReader::on_discordConnectRequested() {
     qDebug() << "DiscordReader: /discord connect requested. Greeting scheduled for all channels.";
+    if (m_useProcess && m_process && m_process->state() == QProcess::Running) {
+        m_process->write("{\"action\":\"connect\"}\n");
+        return;
+    }
+
     m_shouldGreet = true;
     m_greetedChannels.clear();
     on_stopReading();
@@ -145,6 +193,7 @@ void DiscordReader::on_discordConnectRequested() {
         on_startReading();
     }
 }
+
 
 void DiscordReader::connectToDiscord() {
     if (!m_isRunning) return;
@@ -353,6 +402,15 @@ void DiscordReader::identify() {
 }
 
 void DiscordReader::on_requestDiscordSend(const QString &channelId, const QString &text) {
+    if (m_useProcess && m_process && m_process->state() == QProcess::Running) {
+        QJsonObject cmd;
+        cmd["action"] = "send";
+        cmd["channel_id"] = channelId;
+        cmd["text"] = text;
+        m_process->write(QJsonDocument(cmd).toJson(QJsonDocument::Compact) + "\n");
+        return;
+    }
+
     if (m_botToken.isEmpty()) return;
 
     QUrl url(QString("https://discord.com/api/v10/channels/%1/messages").arg(channelId));
@@ -421,3 +479,48 @@ void DiscordReader::sendChannelGreeting(const QString &channelId) {
     qDebug() << "DiscordReader: Emitting greeting event for channel" << channelId;
     emit notifyEvent(event);
 }
+
+void DiscordReader::onProcessOutputReady() {
+    while (m_process && m_process->canReadLine()) {
+        QByteArray line = m_process->readLine().trimmed();
+        if (!line.isEmpty()) {
+            handleSubprocessLine(QString::fromUtf8(line));
+        }
+    }
+}
+
+void DiscordReader::handleSubprocessLine(const QString &line) {
+    QJsonDocument doc = QJsonDocument::fromJson(line.toUtf8());
+    if (doc.isNull() || !doc.isObject()) return;
+
+    QJsonObject obj = doc.object();
+    QString eventName = obj.value("event").toString();
+
+    if (eventName == "message") {
+        AppEvent event;
+        event.type = EventType::DiscordMessageReceived;
+        event.source = "DiscordReader";
+        event.text = obj.value("text").toString();
+        event.extraData["channel_id"] = obj.value("channel_id").toString();
+        event.extraData["username"] = obj.value("username").toString();
+        event.extraData["user_id"] = obj.value("user_id").toString();
+        emit notifyEvent(event);
+    } else if (eventName == "greeting") {
+        QString channelId = obj.value("channel_id").toString();
+        sendChannelGreeting(channelId);
+    } else if (eventName == "ready") {
+        qDebug() << "DiscordReader: DiscordObserver ready. Bot User ID:" << obj.value("bot_id").toString();
+    } else if (eventName == "status") {
+        qDebug() << "DiscordReader [Subprocess]:" << obj.value("message").toString();
+    }
+}
+
+void DiscordReader::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    qDebug() << "DiscordReader: DiscordObserver subprocess finished. ExitCode:" << exitCode << "Status:" << exitStatus;
+    if (m_isRunning) {
+        QTimer::singleShot(3000, this, [this]() {
+            if (m_isRunning) on_startReading();
+        });
+    }
+}
+

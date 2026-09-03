@@ -350,6 +350,27 @@ target_link_libraries(OpenRouterChatter PRIVATE
     Qt6::Network
 )
 
+# 独立CLIツール: DiscordObserver (F-52)
+set(DISCORD_OBSERVER_SOURCES
+    src/discord/discord_observer_main.cpp
+    src/utils/json_comment_remover.cpp
+    src/utils/process_utils.cpp
+)
+add_executable(DiscordObserver ${DISCORD_OBSERVER_SOURCES})
+target_include_directories(DiscordObserver PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}"
+)
+target_compile_definitions(DiscordObserver PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(DiscordObserver PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::WebSockets
+)
+
 # テストビルドの有効化
 enable_testing()
 add_subdirectory(test)
+

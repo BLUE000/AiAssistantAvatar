@@ -4510,6 +4510,80 @@ TEST_F(AIClientTest, HuggingFaceAndOpenRouterCliTests) {
     }
 }
 
+TEST_F(AIClientTest, DiscordObserverCliAndReaderTests) {
+    QString discordPath = ProcessUtils::resolveExecutablePath("DiscordObserver");
+
+    if (QFile::exists(discordPath)) {
+        // UT-DISCORD-CLI-01: DiscordObserver 引数バリデーション（ワンショット送信モード）
+        {
+            QProcess proc;
+            ProcessUtils::configureProcessEnvironment(proc);
+            proc.start(discordPath, QStringList() << "--send");
+            EXPECT_TRUE(proc.waitForFinished(5000));
+            EXPECT_EQ(proc.exitCode(), 2);
+        }
+
+        // UT-DISCORD-CLI-02: DiscordObserver トークン未設定エラー（ワンショット送信モード）
+        {
+            QProcess proc;
+            ProcessUtils::configureProcessEnvironment(proc);
+            proc.start(discordPath, QStringList() << "--send" << "--channel" << "123456" << "--text" << "test" << "--config" << "non_existent_config.json");
+            EXPECT_TRUE(proc.waitForFinished(5000));
+            EXPECT_EQ(proc.exitCode(), 1);
+        }
+
+        // UT-DISCORD-CLI-03: DiscordObserver デーモンモード起動・停止コマンド（Exit Code 0）
+        {
+            QProcess proc;
+            ProcessUtils::configureProcessEnvironment(proc);
+            proc.start(discordPath, QStringList() << "--daemon" << "--config" << "non_existent_config.json");
+            EXPECT_TRUE(proc.waitForStarted(5000));
+            
+            // 初回ステータスを読み取り
+            EXPECT_TRUE(proc.waitForReadyRead(5000));
+            QByteArray out = proc.readLine();
+            EXPECT_FALSE(out.isEmpty());
+
+            // 終了コマンドを送信
+            proc.write("{\"action\":\"stop\"}\n");
+            EXPECT_TRUE(proc.waitForFinished(5000));
+            EXPECT_EQ(proc.exitCode(), 0);
+        }
+
+        // UT-DISCORD-CLI-04: 不正なJSONや未知のアクションを標準入力から送信してもクラッシュしない
+        {
+            QProcess proc;
+            ProcessUtils::configureProcessEnvironment(proc);
+            proc.start(discordPath, QStringList() << "--daemon" << "--config" << "non_existent_config.json");
+            EXPECT_TRUE(proc.waitForStarted(5000));
+            EXPECT_TRUE(proc.waitForReadyRead(5000));
+
+            proc.write("invalid json line\n");
+            proc.write("{\"action\":\"unknown_action\"}\n");
+            proc.waitForBytesWritten(1000);
+
+            // クラッシュせず生存していることを確認
+            EXPECT_EQ(proc.state(), QProcess::Running);
+
+            // 正常停止
+            proc.write("{\"action\":\"stop\"}\n");
+            EXPECT_TRUE(proc.waitForFinished(5000));
+            EXPECT_EQ(proc.exitCode(), 0);
+        }
+    }
+
+    // UT-DISCORD-READER-SUBPROC-01: DiscordReader サブプロセス起動・フォールバック検証
+    {
+        DiscordReader reader;
+        reader.setMock(true); // テスト環境では内部フォールバックを検証
+        reader.setConfigPath("non_existent_config.json");
+        reader.on_startReading();
+        EXPECT_FALSE(reader.isSubprocessRunning());
+        reader.on_stopReading();
+    }
+}
+
+
 
 
 
