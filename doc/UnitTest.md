@@ -748,3 +748,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | :--- | :--- | :--- | :--- |
 | **UT-SHOUTOUT-FALLBACK-01** | Helix 失敗時 IRC フォールバック検証 | Helix API が失敗（401等）を返した際、IRC コマンド `/shoutout <user>` 送信シグナルが発行されることを検証 | IRC チャットメッセージ送信シグナルが正しく発行されること |
 | **UT-HELIX-ERROR-LOG-01** | Helix API エラーレスポンス詳細ログ検証 | 不正な認証・スコープ不足時のエラーハンドラ動作を検証 | HTTP コードおよびエラーメッセージが安全に処理・記録されること |
+
+### 3.23 Mistral Pro モデル対応 ＆ 403/404 自動降格フォールバック単体試験仕様 (F-50)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-MISTRAL-PRO-01** | Mistral Pro モデル設定検証 | `MistralAIClient::setModel("mistral-large-latest")` を設定してモデル名の保持を検証 | `mistral-large-latest` が正しく設定・保持されること |
+| **UT-MISTRAL-403-FALLBACK-01** | 403/404 自己修復フォールバック検証 | Pro モデル指定時に 403/404 エラーを受信した場合のモデル自動降格（`mistral-small-latest`）と再試行動作を検証 | `mistral-small-latest` へ自動切り替えが行われ、安全にリトライされること |

@@ -272,3 +272,17 @@
    - Helix API が失敗した場合、`TwitchReader::sendMessage(channel, "/shoutout " + username)` を即座にフォールバック実行する。
 2. **Helix API エラーロギング**:
    - `TwitchHelixClient::sendShoutout` のレスポンスハンドラで HTTP ステータスコードと JSON レスポンス本文を出力。
+
+
+## 2.27 Mistral Pro モデル対応 ＆ 403/404 自動降格フォールバック (F-50)
+
+### 2.27.1 概要と目的
+- Mistral AI の Pro（有料契約）で開放される高性能モデル群（`mistral-large-latest`, `codestral-latest` 等）の利用を可能とする。
+- 無料版アカウントで Pro モデルを呼び出した際に発生する HTTP 403 Forbidden / 404 エラーを自己修復し、無料版モデル（`mistral-small-latest` 等）へ自動降格して透過的にリトライする設計を導入する。
+
+### 2.27.2 設計方針
+1. **モデル設定の一元管理**:
+   - `local_settings.json` の `"mistral_model"` に `mistral-large-latest` や `codestral-latest` を指定可能とする。
+2. **403/404 自己修復フォールバック**:
+   - `MistralAIClient::on_networkReplyFinished` において、`httpCode == 403 || httpCode == 404` を検知。
+   - 初回エラー時（`!m_hasRetriedFallback`）、現在のモデルが Pro 向けモデルまたは未対応モデルであれば、`m_model = "mistral-small-latest"`（または `open-mistral-nemo`）へ変更して即座に `sendRequest` を再実行する。

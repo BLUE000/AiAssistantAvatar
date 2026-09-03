@@ -830,3 +830,26 @@ MistralChatter [options]
       systemPrompt += "\n\n" + systemInstruction;
   }
   ```
+
+
+## 30. MistralAIClient Pro モデル対応 ＆ 403/404 自己修復フォールバック詳細設計 (F-50)
+
+### 30.1 対応モデル定義
+- Pro/Paid 向けモデル: `mistral-large-latest`, `codestral-latest`, `pixtral-large-latest`
+- Free/標準向けモデル: `mistral-small-latest`, `open-mistral-nemo`
+
+### 30.2 403/404 自動降格シーケンス
+- `MistralAIClient::on_networkReplyFinished(QNetworkReply *reply)`:
+  ```cpp
+  int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+  if ((httpCode == 403 || httpCode == 404) && !m_hasRetriedFallback) {
+      m_hasRetriedFallback = true;
+      qWarning() << "MistralAIClient:" << httpCode << "received for model" << m_model
+                 << "-> Auto-fallbacking to free tier model 'mistral-small-latest' and retrying...";
+      m_model = (m_model == "mistral-small-latest") ? "open-mistral-nemo" : "mistral-small-latest";
+      QTimer::singleShot(0, this, [this]() {
+          sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+      });
+      return;
+  }
+  ```

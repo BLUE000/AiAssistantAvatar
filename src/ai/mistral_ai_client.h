@@ -20,7 +20,7 @@ private:
     QList<QPair<QString,QString>> m_pendingHistory;
     QString m_pendingSessionContext;
     QString m_pendingSystemInstruction;
-    bool m_hasRetried404 = false;
+    bool m_hasRetriedFallback = false;
     QJsonArray m_pendingMessages;
     QString m_activeToolCallId;
     bool m_isToolCalling;

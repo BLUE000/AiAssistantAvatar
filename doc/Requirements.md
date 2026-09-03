@@ -1036,3 +1036,11 @@ sequenceDiagram
   - これにより、Bot アカウントにモデレーター権限が付与されている環境、または配信者アカウント自身での接続時に、Twitch 側のチャットコマンドとして 100% 確実に公式シャウトアウトを発火させる。
 - **Twitch Helix API エラーログ詳細化**:
   - `TwitchHelixClient` の各 API 呼び出しにおいて、HTTP ステータスコードおよび Twitch API から返却されたレスポンス本文（エラー JSON: `status`, `message` 等）を詳細にログへ記録し、スコープ不足やパラメータ不正の原因特定を容易化する。
+
+
+### F-50: Mistral Pro モデル対応 ＆ 403/404 自動降格フォールバック（自己修復機能）
+- **Mistral Pro モデル（`mistral-large-latest`, `codestral-latest` 等）の正式サポート**:
+  - Mistral AI の Commercial/Pro 契約で利用可能なフラッグシップモデル `mistral-large-latest`、コード・短文特化モデル `codestral-latest`、マルチモーダルモデル `pixtral-large-latest` を正式サポートし、設定ファイル（`local_settings.json`）の `mistral_model` で指定可能とする。
+- **無料版アカウントでの Pro モデル指定時における 403/404 自動降格フォールバック（自己修復機能）**:
+  - Free 版（無料枠）アカウントの API キーで `mistral-large-latest` や `codestral-latest` 等の Pro 専用モデルをリクエストして **HTTP 403 Forbidden（権限不足）** または **HTTP 404 Not Found** が返却された場合、`MistralAIClient` が即座に検知し、無料版対応モデル（`mistral-small-latest`、または `open-mistral-nemo`）へ自動的にモデル名を切り替えてリクエストを再試行する。
+  - これにより、無料版ユーザーが誤って Pro モデルを設定した場合やプラン移行時でも、エラー停止することなく安全に会話を継続できることを保証する。

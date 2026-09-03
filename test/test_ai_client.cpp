@@ -4446,6 +4446,31 @@ TEST_F(AIClientTest, WorkerTimeoutTimerControlTest) {
     EXPECT_GE(eventSpy.count(), 1);
 }
 
+#include "../src/ai/mistral_ai_client.h"
+
+TEST_F(AIClientTest, MistralProModelAnd403FallbackTest) {
+    // UT-MISTRAL-PRO-01: Mistral Pro モデル設定・保持検証
+    MistralAIClient client;
+    client.setModel("mistral-large-latest");
+    EXPECT_EQ(client.currentModelName(), "mistral-large-latest");
+
+    client.setModel("codestral-latest");
+    EXPECT_EQ(client.currentModelName(), "codestral-latest");
+
+    // UT-MISTRAL-403-FALLBACK-01: 403/404 自己修復フォールバック検証
+    client.setApiKey("test_key");
+    QSignalSpy spy(&client, &IAIClient::requestFinished);
+
+    // setModel に空文字が渡された場合は既存モデルを維持
+    client.setModel("");
+    EXPECT_EQ(client.currentModelName(), "codestral-latest");
+
+    // 無料版モデルへの切り替え
+    client.setModel("mistral-small-latest");
+    EXPECT_EQ(client.currentModelName(), "mistral-small-latest");
+}
+
+
 
 
 

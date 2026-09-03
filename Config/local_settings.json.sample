@@ -15,7 +15,7 @@
   "openrouter_api_key": "sk-or-v1-YOUR_OPENROUTER_API_KEY_HERE",
   "sakura_api_key": "YOUR_SAKURA_API_KEY_HERE",
 
-  # 各プロバイダの使用モデル指定（空文字の場合は最新推奨モデルを自動選択）
+  # 各プロバイダの使用モデル指定（空文字の場合は最新推奨モデルを自動選択。Mistral Pro契約時は mistral-large-latest / codestral-latest 等も指定可）
   "mistral_model": "mistral-small-latest",
   "groq_model": "llama-3.3-70b-versatile",
   "gemini_model": "gemini-2.5-flash",

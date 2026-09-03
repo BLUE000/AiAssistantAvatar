@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QUrl>
 #include <QThread>
+#include <QTimer>
 #include <QDebug>
 
 MistralAIClient::MistralAIClient(QObject *parent)
@@ -244,12 +245,14 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
     if (reply->error() != QNetworkReply::NoError) {
         int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
-        // 404 (モデル廃止/NotFound) かつ未リトライの場合、フォールバックモデルへ切り替えて自動リトライ
-        if (httpCode == 404 && !m_hasRetried404) {
-            m_hasRetried404 = true;
-            qDebug() << "MistralAIClient: 404 received for model" << m_model << "- auto-fallbacking and retrying...";
+        // F-50: 403 (権限不足/Free版制限) または 404 (NotFound/モデル廃止) かつ未リトライの場合、無料版対応モデルへ自動降格してリトライ
+        if ((httpCode == 403 || httpCode == 404) && !m_hasRetriedFallback) {
+            m_hasRetriedFallback = true;
+            qWarning() << "MistralAIClient:" << httpCode << "received for model" << m_model << "- auto-fallbacking to free tier model and retrying...";
             m_model = (m_model == "mistral-small-latest") ? "open-mistral-nemo" : "mistral-small-latest";
-            sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            QTimer::singleShot(0, this, [this]() {
+                sendRequest(m_pendingPrompt, m_pendingHistory, m_pendingSessionContext, m_pendingSystemInstruction);
+            });
             return;
         }
 
@@ -261,7 +264,7 @@ void MistralAIClient::on_networkReplyFinished(QNetworkReply *reply) {
         return;
     }
 
-    m_hasRetried404 = false;
+    m_hasRetriedFallback = false;
 
     QByteArray responseData = reply->readAll();
     qDebug() << "MistralAIClient: Received response:" << QString::fromUtf8(responseData);
