@@ -8,17 +8,18 @@
 #include <QFile>
 #include <iostream>
 
-#include "../ai/twitch_helix_client.h"
-#include "../ai/ai_client_manager.h"
-#include "../ai/mistral_ai_client.h"
-#include "../ai/groq_ai_client.h"
-#include "../ai/gemini_ai_client.h"
-#include "../ai/huggingface_ai_client.h"
-#include "../ai/openrouter_ai_client.h"
-#include "../ai/sakura_ai_client.h"
-#include "../ai/dummy_ai_client.h"
-#include "../utils/config_utils.h"
-#include "../utils/json_comment_remover.h"
+#include "ai/twitch_helix_client.h"
+#include "ai/ai_client_manager.h"
+#include "ai/mistral_ai_client.h"
+#include "ai/groq_ai_client.h"
+#include "ai/gemini_ai_client.h"
+#include "ai/huggingface_ai_client.h"
+#include "ai/openrouter_ai_client.h"
+#include "ai/sakura_ai_client.h"
+#include "ai/dummy_ai_client.h"
+#include "utils/config_utils.h"
+#include "utils/json_comment_remover.h"
+
 
 int main(int argc, char *argv[]) {
 #ifdef Q_OS_WIN

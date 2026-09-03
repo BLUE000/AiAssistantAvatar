@@ -8,9 +8,10 @@
 #include <QFile>
 #include <iostream>
 
-#include "groq_ai_client.h"
-#include "../utils/config_utils.h"
-#include "../utils/json_comment_remover.h"
+#include "ai/huggingface_ai_client.h"
+#include "utils/config_utils.h"
+#include "utils/json_comment_remover.h"
+
 
 int main(int argc, char *argv[]) {
 #ifdef Q_OS_WIN
@@ -18,7 +19,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName("GroqChatter");
+    QCoreApplication::setApplicationName("HuggingFaceChatter");
     QCoreApplication::setApplicationVersion("1.0.0");
 
     // 親ディレクトリの Qt プラグイン（tls, platforms等）およびカレント探索パスを登録 (F-47)
@@ -26,14 +27,14 @@ int main(int argc, char *argv[]) {
     QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("AI Assistant Avatar - Groq AI CLI Chatter");
+    parser.setApplicationDescription("AI Assistant Avatar - HuggingFace AI CLI Chatter");
     parser.addHelpOption();
     parser.addVersionOption();
 
     QCommandLineOption promptOption(QStringList() << "p" << "prompt", "Input user prompt text (required)", "prompt");
     QCommandLineOption systemOption(QStringList() << "s" << "system", "System instruction prompt", "system");
-    QCommandLineOption modelOption(QStringList() << "m" << "model", "Groq model name (default: from local_settings.json or auto-selected)", "model", "");
-    QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "Groq API key (gsk_...)", "key");
+    QCommandLineOption modelOption(QStringList() << "m" << "model", "HuggingFace model name (default: from local_settings.json or auto-selected)", "model", "");
+    QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "HuggingFace API key (hf_...)", "key");
     QCommandLineOption configOption(QStringList() << "c" << "config", "Path to local_settings.json", "path");
     QCommandLineOption formatOption(QStringList() << "f" << "format", "Output format ('text' or 'json', default: text)", "format", "text");
     QCommandLineOption timeoutOption("timeout", "Timeout in milliseconds (default: 8000)", "timeout", "8000");
@@ -76,17 +77,17 @@ int main(int argc, char *argv[]) {
             if (!doc.isNull() && doc.isObject()) {
                 QJsonObject obj = doc.object();
                 if (apiKey.isEmpty()) {
-                    apiKey = obj.value("groq_api_key").toString().trimmed();
+                    apiKey = obj.value("huggingface_api_key").toString().trimmed();
                 }
-                if (model.isEmpty() && obj.contains("groq_model")) {
-                    model = obj.value("groq_model").toString().trimmed();
+                if (model.isEmpty() && obj.contains("huggingface_model")) {
+                    model = obj.value("huggingface_model").toString().trimmed();
                 }
             }
         }
     }
 
     if (apiKey.isEmpty()) {
-        std::cerr << "Error: Groq API key is missing. Specify --api-key or configure groq_api_key in local_settings.json" << std::endl;
+        std::cerr << "Error: HuggingFace API key is missing. Specify --api-key or configure huggingface_api_key in local_settings.json" << std::endl;
         return 1;
     }
 
@@ -109,11 +110,11 @@ int main(int argc, char *argv[]) {
     };
 
     QObject::connect(&timeoutTimer, &QTimer::timeout, &app, [&]() {
-        outputResult("Groq推論タイムアウト", false);
+        outputResult("HuggingFace推論タイムアウト", false);
     });
     timeoutTimer.start(timeoutMs);
 
-    auto *client = new GroqAIClient(&app);
+    auto *client = new HuggingFaceAIClient(&app);
     client->setApiKey(apiKey);
     if (!model.isEmpty()) {
         client->setModel(model);
@@ -124,7 +125,7 @@ int main(int argc, char *argv[]) {
         if (reqSuccess && !response.trimmed().isEmpty()) {
             outputResult(response.trimmed(), true);
         } else {
-            outputResult(response.trimmed().isEmpty() ? "Groq推論エラー" : response.trimmed(), false);
+            outputResult(response.trimmed().isEmpty() ? "HuggingFace推論エラー" : response.trimmed(), false);
         }
     });
 

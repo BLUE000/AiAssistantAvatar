@@ -8,9 +8,10 @@
 #include <QFile>
 #include <iostream>
 
-#include "openrouter_ai_client.h"
-#include "../utils/config_utils.h"
-#include "../utils/json_comment_remover.h"
+#include "ai/gemini_ai_client.h"
+#include "utils/config_utils.h"
+#include "utils/json_comment_remover.h"
+
 
 int main(int argc, char *argv[]) {
 #ifdef Q_OS_WIN
@@ -18,7 +19,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName("OpenRouterChatter");
+    QCoreApplication::setApplicationName("GeminiChatter");
     QCoreApplication::setApplicationVersion("1.0.0");
 
     // 親ディレクトリの Qt プラグイン（tls, platforms等）およびカレント探索パスを登録 (F-47)
@@ -26,14 +27,14 @@ int main(int argc, char *argv[]) {
     QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("AI Assistant Avatar - OpenRouter AI CLI Chatter");
+    parser.setApplicationDescription("AI Assistant Avatar - Google Gemini CLI Chatter");
     parser.addHelpOption();
     parser.addVersionOption();
 
     QCommandLineOption promptOption(QStringList() << "p" << "prompt", "Input user prompt text (required)", "prompt");
     QCommandLineOption systemOption(QStringList() << "s" << "system", "System instruction prompt", "system");
-    QCommandLineOption modelOption(QStringList() << "m" << "model", "OpenRouter model name (default: from local_settings.json or auto-selected)", "model", "");
-    QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "OpenRouter API key (sk-or-v1-...)", "key");
+    QCommandLineOption modelOption(QStringList() << "m" << "model", "Gemini model name (default: from local_settings.json or auto-selected)", "model", "");
+    QCommandLineOption apiKeyOption(QStringList() << "k" << "api-key", "Gemini API key (AIzaSy...)", "key");
     QCommandLineOption configOption(QStringList() << "c" << "config", "Path to local_settings.json", "path");
     QCommandLineOption formatOption(QStringList() << "f" << "format", "Output format ('text' or 'json', default: text)", "format", "text");
     QCommandLineOption timeoutOption("timeout", "Timeout in milliseconds (default: 8000)", "timeout", "8000");
@@ -76,17 +77,17 @@ int main(int argc, char *argv[]) {
             if (!doc.isNull() && doc.isObject()) {
                 QJsonObject obj = doc.object();
                 if (apiKey.isEmpty()) {
-                    apiKey = obj.value("openrouter_api_key").toString().trimmed();
+                    apiKey = obj.value("gemini_api_key").toString().trimmed();
                 }
-                if (model.isEmpty() && obj.contains("openrouter_model")) {
-                    model = obj.value("openrouter_model").toString().trimmed();
+                if (model.isEmpty() && obj.contains("gemini_model")) {
+                    model = obj.value("gemini_model").toString().trimmed();
                 }
             }
         }
     }
 
     if (apiKey.isEmpty()) {
-        std::cerr << "Error: OpenRouter API key is missing. Specify --api-key or configure openrouter_api_key in local_settings.json" << std::endl;
+        std::cerr << "Error: Gemini API key is missing. Specify --api-key or configure gemini_api_key in local_settings.json" << std::endl;
         return 1;
     }
 
@@ -109,22 +110,20 @@ int main(int argc, char *argv[]) {
     };
 
     QObject::connect(&timeoutTimer, &QTimer::timeout, &app, [&]() {
-        outputResult("OpenRouter推論タイムアウト", false);
+        outputResult("Gemini推論タイムアウト", false);
     });
     timeoutTimer.start(timeoutMs);
 
-    auto *client = new OpenRouterAIClient(&app);
+    auto *client = new GeminiAIClient(&app);
     client->setApiKey(apiKey);
-    if (!model.isEmpty()) {
-        client->setModel(model);
-    }
+    client->setModel(model);
 
     QObject::connect(client, &IAIClient::requestFinished, &app, [=](const QString &response, bool reqSuccess, int httpCode) {
         Q_UNUSED(httpCode);
         if (reqSuccess && !response.trimmed().isEmpty()) {
             outputResult(response.trimmed(), true);
         } else {
-            outputResult(response.trimmed().isEmpty() ? "OpenRouter推論エラー" : response.trimmed(), false);
+            outputResult(response.trimmed().isEmpty() ? "Gemini推論エラー" : response.trimmed(), false);
         }
     });
 

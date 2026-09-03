@@ -774,3 +774,10 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-DISCORD-CLI-03** | DiscordObserver デーモンモード起動・終了コマンド | `--daemon` で起動後、標準入力から `{"action":"stop"}` を送信 | プロセスが正常終了（Exit Code `0`）すること |
 | **UT-DISCORD-CLI-04** | DiscordObserver IPC メッセージパース | 不正な JSON や未知のアクションを標準入力から送信 | プロセスがクラッシュせず、エラーメッセージを適切にログ出力すること |
 | **UT-DISCORD-READER-SUBPROC-01** | DiscordReader サブプロセス起動・フォールバック検証 | `DiscordObserver` 実行ファイル存在時のサブプロセス起動および非存在時のフォールバック動作を検証 | 実行ファイルの有無に応じて適切に起動・フォールバックされること |
+
+### 3.26 モジュール(EXE)単位ディレクトリ再編・整合性試験仕様 (F-53)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-DIR-STRUCT-01** | モジュールディレクトリ配置整合性 | 全 10 モジュール（`GeminiChatter`, `MistralChatter`, `GroqChatter`, `SakuraChatter`, `HuggingFaceChatter`, `OpenRouterChatter`, `DiscordObserver`, `WebSearcher`, `TwitchIntroGenerator`, `CommunityObserver`）の新パス存在確認 | 全モジュールのソースファイルが新サブフォルダ内に存在すること |
+| **UT-DIR-BUILD-01** | 再編後全ターゲットビルド・リンク検証 | `CMakeLists.txt` の更新後、全ターゲットのビルドと実行バイナリ生成を検証 | 全バイナリがエラーなくビルドされ、単体テストスイートが正常パスすること |

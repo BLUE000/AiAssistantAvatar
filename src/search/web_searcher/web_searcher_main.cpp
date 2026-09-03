@@ -4,8 +4,10 @@
 #include <QTimer>
 #include <QTextStream>
 #include <iostream>
-#include "tavily_search_provider.h"
-#include "duckduckgo_search_provider.h"
+#include "search/tavily_search_provider.h"
+#include "search/duckduckgo_search_provider.h"
+
+
 
 int main(int argc, char *argv[]) {
     // Windows コンソールで UTF-8 出力を確実にする

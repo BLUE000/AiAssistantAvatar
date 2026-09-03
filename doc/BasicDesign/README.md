@@ -89,3 +89,46 @@ AiAssistantAvatar_Release/
 
 - [2.29 DiscordObserver 独立 CLI ツール化および常駐サブプロセス通信アーキテクチャ (F-52)](../DetailedDesign/Discord.md)
 
+- [2.30 モジュール(EXE)単位のソースディレクトリ構造再編・最適化 (F-53)](#4-モジュールexe単位のソースコードディレクトリ構成-f-53)
+
+---
+
+## 4. モジュール(EXE)単位のソースコードディレクトリ構成 (F-53)
+
+独立バイナリ（CLI ツール）の増加に伴い、メインアプリの共通ロジックと各バイナリのエントリポイントを明確に分離するため、各ドメインディレクトリ配下にモジュール専用サブフォルダを設けて整理する。
+
+```text
+src/
+├── ai/                                    (AI 共通ロジック)
+│   ├── ai_client_manager.cpp, ...
+│   ├── gemini_chatter/                    (GeminiChatter モジュール)
+│   │   └── gemini_chatter_main.cpp
+│   ├── mistral_chatter/                   (MistralChatter モジュール)
+│   │   └── mistral_chatter_main.cpp
+│   ├── groq_chatter/                      (GroqChatter モジュール)
+│   │   └── groq_chatter_main.cpp
+│   ├── sakura_chatter/                    (SakuraChatter モジュール)
+│   │   └── sakura_chatter_main.cpp
+│   ├── huggingface_chatter/               (HuggingFaceChatter モジュール)
+│   │   └── huggingface_chatter_main.cpp
+│   └── openrouter_chatter/                (OpenRouterChatter モジュール)
+│       └── openrouter_chatter_main.cpp
+├── discord/                               (Discord 共通ロジック)
+│   ├── discord_reader.cpp, ...
+│   └── discord_observer/                  (DiscordObserver モジュール)
+│       └── discord_observer_main.cpp
+├── search/                                (Web検索 共通ロジック)
+│   ├── search_manager.cpp, ...
+│   └── web_searcher/                      (WebSearcher モジュール)
+│       └── web_searcher_main.cpp
+├── twitch/                                (Twitch 共通ロジック)
+│   ├── twitch_reader.cpp, ...
+│   └── twitch_intro_generator/            (TwitchIntroGenerator モジュール)
+│       └── twitch_intro_generator_main.cpp
+├── observer/                              (コミュニティ見守り)
+│   └── community_observer/                (CommunityObserver モジュール)
+│       └── main.cpp
+├── obs/, stt/, tts/, ui/, utils/          (その他共通・サブシステム)
+└── main.cpp                               (AiAssistantAvatar メインGUIエントリ)
+```
+

@@ -4583,6 +4583,29 @@ TEST_F(AIClientTest, DiscordObserverCliAndReaderTests) {
     }
 }
 
+TEST_F(AIClientTest, ModuleDirectoryStructureTest) {
+    // UT-DIR-STRUCT-01: モジュールディレクトリ配置整合性
+    QStringList modulePaths = {
+        "src/ai/gemini_chatter/gemini_chatter_main.cpp",
+        "src/ai/mistral_chatter/mistral_chatter_main.cpp",
+        "src/ai/groq_chatter/groq_chatter_main.cpp",
+        "src/ai/sakura_chatter/sakura_chatter_main.cpp",
+        "src/ai/huggingface_chatter/huggingface_chatter_main.cpp",
+        "src/ai/openrouter_chatter/openrouter_chatter_main.cpp",
+        "src/discord/discord_observer/discord_observer_main.cpp",
+        "src/search/web_searcher/web_searcher_main.cpp",
+        "src/twitch/twitch_intro_generator/twitch_intro_generator_main.cpp",
+        "src/observer/community_observer/main.cpp"
+    };
+
+    QString root = QString(PROJECT_SOURCE_DIR);
+    for (const QString &relPath : modulePaths) {
+        QString fullPath = root + "/" + relPath;
+        EXPECT_TRUE(QFile::exists(fullPath)) << "Missing module file: " << fullPath.toStdString();
+    }
+}
+
+
 
 
 

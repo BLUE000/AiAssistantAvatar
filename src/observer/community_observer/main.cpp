@@ -4,7 +4,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <iostream>
-#include "community_observer_engine.h"
+#include "observer/community_observer_engine.h"
+
+
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);

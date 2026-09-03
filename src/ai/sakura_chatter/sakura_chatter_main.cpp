@@ -8,9 +8,10 @@
 #include <QFile>
 #include <iostream>
 
-#include "sakura_ai_client.h"
-#include "../utils/config_utils.h"
-#include "../utils/json_comment_remover.h"
+#include "ai/sakura_ai_client.h"
+#include "utils/config_utils.h"
+#include "utils/json_comment_remover.h"
+
 
 int main(int argc, char *argv[]) {
 #ifdef Q_OS_WIN

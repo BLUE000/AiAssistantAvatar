@@ -1082,3 +1082,26 @@ sequenceDiagram
   - これにより、メインアプリの GUI スレッドや他スレッドへの通信負荷・クラッシュ波及を防止し、Discord アクセスの完全なプロセス隔離・堅牢性を確立する。
   - 実行ファイルが存在しない環境（テスト環境等）では、既存の内部 WebSocket / REST 実装への透過的フォールバックを維持する。
 
+
+### F-53: モジュール(EXE)単位のソースディレクトリ構造再編・最適化
+- **背景・目的**:
+  - 多数のスタンドアロン CLI ツール（`GeminiChatter`, `MistralChatter`, `GroqChatter`, `SakuraChatter`, `HuggingFaceChatter`, `OpenRouterChatter`, `WebSearcher`, `TwitchIntroGenerator`, `CommunityObserver`, `DiscordObserver`）の `*_main.cpp` が各ドメインフォルダ直下に平置きされており、メインアプリの共通コードとの境界や各ツールの保守性が低下している課題を解消する。
+- **要件**:
+  1. **既存ドメイン構造を維持したモジュール単位サブフォルダ化**:
+     - 既存のドメインディレクトリ（`src/ai/`, `src/discord/`, `src/search/`, `src/twitch/`, `src/observer/`）の枠組みを維持しつつ、各モジュール（EXEバイナリ）専用のサブフォルダを作成してメインソースファイルを隔離配置する。
+     - 配置構成一覧:
+       - `src/ai/gemini_chatter/gemini_chatter_main.cpp`
+       - `src/ai/mistral_chatter/mistral_chatter_main.cpp`
+       - `src/ai/groq_chatter/groq_chatter_main.cpp`
+       - `src/ai/sakura_chatter/sakura_chatter_main.cpp`
+       - `src/ai/huggingface_chatter/huggingface_chatter_main.cpp`
+       - `src/ai/openrouter_chatter/openrouter_chatter_main.cpp`
+       - `src/discord/discord_observer/discord_observer_main.cpp`
+       - `src/search/web_searcher/web_searcher_main.cpp`
+       - `src/twitch/twitch_intro_generator/twitch_intro_generator_main.cpp`
+       - `src/observer/community_observer/main.cpp`
+  2. **ビルド定義およびスクリプトとの完全整合性**:
+     - `CMakeLists.txt` 内の全ターゲットソースパス定義を新ディレクトリパスへ追従更新し、ビルドエラーなく全バイナリが生成されること。
+     - 配布パッケージ生成スクリプト（`package_release.ps1`）および単体テストとの整合性を維持すること。
+
+

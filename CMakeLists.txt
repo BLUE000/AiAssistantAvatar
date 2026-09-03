@@ -131,7 +131,7 @@ target_link_libraries(AvatarSkinBuilder PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 
 # 独立CLIツール: CommunityObserver
 set(OBSERVER_SOURCES
-    src/observer/main.cpp
+    src/observer/community_observer/main.cpp
     src/observer/community_observer_engine.cpp
 )
 add_executable(CommunityObserver ${OBSERVER_SOURCES})
@@ -140,7 +140,7 @@ target_link_libraries(CommunityObserver PRIVATE Qt6::Core)
 
 # 独立CLIツール: WebSearcher
 set(WEB_SEARCHER_SOURCES
-    src/search/web_searcher_main.cpp
+    src/search/web_searcher/web_searcher_main.cpp
     src/search/isearch_provider.cpp
     src/search/tavily_search_provider.cpp
     src/search/duckduckgo_search_provider.cpp
@@ -151,7 +151,7 @@ target_link_libraries(WebSearcher PRIVATE Qt6::Core Qt6::Network)
 
 # 独立CLIツール: TwitchIntroGenerator
 set(INTRO_GENERATOR_SOURCES
-    src/twitch/twitch_intro_generator_main.cpp
+    src/twitch/twitch_intro_generator/twitch_intro_generator_main.cpp
     src/ai/twitch_helix_client.cpp
     src/ai/ai_client_manager.cpp
     src/ai/iai_client.cpp
@@ -196,7 +196,7 @@ target_link_libraries(TwitchIntroGenerator PRIVATE
 
 # 独立CLIツール: GeminiChatter
 set(GEMINI_CHATTER_SOURCES
-    src/ai/gemini_chatter_main.cpp
+    src/ai/gemini_chatter/gemini_chatter_main.cpp
     src/ai/gemini_ai_client.cpp
     src/ai/iai_client.cpp
     src/search/isearch_provider.cpp
@@ -222,7 +222,7 @@ target_link_libraries(GeminiChatter PRIVATE
 
 # 独立CLIツール: MistralChatter (F-44)
 set(MISTRAL_CHATTER_SOURCES
-    src/ai/mistral_chatter_main.cpp
+    src/ai/mistral_chatter/mistral_chatter_main.cpp
     src/ai/mistral_ai_client.cpp
     src/ai/iai_client.cpp
     src/search/isearch_provider.cpp
@@ -248,7 +248,7 @@ target_link_libraries(MistralChatter PRIVATE
 
 # 独立CLIツール: GroqChatter (F-46)
 set(GROQ_CHATTER_SOURCES
-    src/ai/groq_chatter_main.cpp
+    src/ai/groq_chatter/groq_chatter_main.cpp
     src/ai/groq_ai_client.cpp
     src/ai/iai_client.cpp
     src/search/isearch_provider.cpp
@@ -274,7 +274,7 @@ target_link_libraries(GroqChatter PRIVATE
 
 # 独立CLIツール: SakuraChatter (F-46)
 set(SAKURA_CHATTER_SOURCES
-    src/ai/sakura_chatter_main.cpp
+    src/ai/sakura_chatter/sakura_chatter_main.cpp
     src/ai/sakura_ai_client.cpp
     src/ai/iai_client.cpp
     src/search/isearch_provider.cpp
@@ -300,7 +300,7 @@ target_link_libraries(SakuraChatter PRIVATE
 
 # 独立CLIツール: HuggingFaceChatter (F-51)
 set(HUGGINGFACE_CHATTER_SOURCES
-    src/ai/huggingface_chatter_main.cpp
+    src/ai/huggingface_chatter/huggingface_chatter_main.cpp
     src/ai/huggingface_ai_client.cpp
     src/ai/iai_client.cpp
     src/search/isearch_provider.cpp
@@ -326,7 +326,7 @@ target_link_libraries(HuggingFaceChatter PRIVATE
 
 # 独立CLIツール: OpenRouterChatter (F-51)
 set(OPENROUTER_CHATTER_SOURCES
-    src/ai/openrouter_chatter_main.cpp
+    src/ai/openrouter_chatter/openrouter_chatter_main.cpp
     src/ai/openrouter_ai_client.cpp
     src/ai/iai_client.cpp
     src/search/isearch_provider.cpp
@@ -352,7 +352,7 @@ target_link_libraries(OpenRouterChatter PRIVATE
 
 # 独立CLIツール: DiscordObserver (F-52)
 set(DISCORD_OBSERVER_SOURCES
-    src/discord/discord_observer_main.cpp
+    src/discord/discord_observer/discord_observer_main.cpp
     src/utils/json_comment_remover.cpp
     src/utils/process_utils.cpp
 )
@@ -369,6 +369,7 @@ target_link_libraries(DiscordObserver PRIVATE
     Qt6::Network
     Qt6::WebSockets
 )
+
 
 # テストビルドの有効化
 enable_testing()
