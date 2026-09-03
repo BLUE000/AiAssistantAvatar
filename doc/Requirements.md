@@ -1054,3 +1054,31 @@ sequenceDiagram
 - **AIClientManager サブプロセス実行連携**:
   - 実行環境（`tools/HuggingFaceChatter.exe` および `tools/OpenRouterChatter.exe` が存在する場合）において、`AIClientManager` は内部クラスに直接依存せず、`ProcessUtils` 経由で CLI ツールを非同期サブプロセス（`QProcess`）として呼び出す。
   - これにより、全 6 大プロバイダ（Gemini, Mistral, Groq, Sakura, HuggingFace, OpenRouter）のプロセス分離・疎結合化を完全に完了する。
+
+
+### F-52: DiscordObserver 独立 CLI ツール化および常駐サブプロセス通信アーキテクチャ
+- **独立 CLI ツール `tools/DiscordObserver.exe` の新設**:
+  - Discord へのアクセス機能（Gateway WebSocket 常時受信および REST API 送信）を、メイン GUI アプリケーションから完全に独立したコンソールアプリケーション `tools/DiscordObserver.exe` として切り出す。
+- **常駐デーモンモード（`--daemon`）**:
+  - メインアプリケーションからバックグラウンド常駐サブプロセスとして起動され、標準入出力（JSON Lines）による双方向 IPC 通信を行う。
+  - **Gateway 受信 ＆ 標準出力通知 (stdout)**:
+    - Discord Gateway WebSocket (`wss://gateway.discord.gg/?v=10&encoding=json`) への接続、Heartbeat/再接続自動制御を行う。
+    - メッセージ着信（`MESSAGE_CREATE`）時に WakeWord / アバター名判定を実行し、合致したイベントを `{"event":"message", "channel_id":"...", "username":"...", "user_id":"...", "text":"..."}` の形式で標準出力へ 1 行 JSON（JSONL）として出力する。
+    - Bot 準備完了時は `{"event":"ready", "bot_id":"..."}`、挨拶要求時は `{"event":"greeting", "channel_id":"..."}` などのイベントを出力する。
+  - **標準入力コマンド制御 (stdin)**:
+    - メインアプリケーションからの指示を標準入力経由で受信し、非同期に実行する。
+    - メッセージ送信: `{"action":"send", "channel_id":"...", "text":"..."}` ──> Discord REST API (`POST /channels/{channel_id}/messages`) を実行。
+    - 設定再読み込み: `{"action":"reload"}` ──> 設定ファイルを再読み込みしチャンネル構成等を動的更新。
+    - 再接続・挨拶要求: `{"action":"connect"}` ──> Gateway 再接続と全有効チャンネルへの挨拶送信をスケジュール。
+- **ワンショット送信モード（`--send`）**:
+  - コマンドラインから直接メッセージ送信を実行できる単発実行モードを提供する。
+  - コマンド書式: `DiscordObserver.exe --send --channel <channel_id> --text <text> [--config <path>]`
+  - 終了コード仕様:
+    - `0`: メッセージ送信成功
+    - `1`: API エラー、ネットワークエラー、または Bot トークン未設定
+    - `2`: 必須引数不足（`--channel` または `--text` の欠落）
+- **メインアプリ側 `DiscordReader` のプロセス分離とフォールバック**:
+  - メインアプリの `DiscordReader` は、`tools/DiscordObserver.exe`（またはビルドフォルダ内のバイナリ）が存在する場合、`QProcess` を起動して `DiscordObserver.exe` と標準入出力で双方向通信を行う。
+  - これにより、メインアプリの GUI スレッドや他スレッドへの通信負荷・クラッシュ波及を防止し、Discord アクセスの完全なプロセス隔離・堅牢性を確立する。
+  - 実行ファイルが存在しない環境（テスト環境等）では、既存の内部 WebSocket / REST 実装への透過的フォールバックを維持する。
+

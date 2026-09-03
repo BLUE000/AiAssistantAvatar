@@ -764,3 +764,13 @@ TEST(CoreModuleTest, DirectInputTriggersAIRequest) {
 | **UT-HF-CLI-02** | HuggingFaceChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |
 | **UT-OPENROUTER-CLI-01** | OpenRouterChatter 必須引数不足エラー | `--prompt` なしで起動 | 終了コード `2` とヘルプ・エラーメッセージが出力されること |
 | **UT-OPENROUTER-CLI-02** | OpenRouterChatter APIキー未設定エラー | キー未指定かつ設定ファイルなしで起動 | 終了コード `1` と APIキー不足エラーが出力されること |
+
+### 3.25 DiscordObserver 独立 CLI ツール単体試験仕様 (F-52)
+
+| テストID | 対象機能 | テスト内容 | 期待結果 |
+| :--- | :--- | :--- | :--- |
+| **UT-DISCORD-CLI-01** | DiscordObserver 引数バリデーション（ワンショット送信モード） | `--send` 指定時に `--channel` または `--text` が欠落している状態で起動 | 終了コード `2` が返却され、エラーメッセージが出力されること |
+| **UT-DISCORD-CLI-02** | DiscordObserver トークン未設定エラー（ワンショット送信モード） | 有効な Bot トークンが存在しない状態で `--send --channel 123 --text hello` を起動 | 終了コード `1` が返却され、トークン未設定エラーが出力されること |
+| **UT-DISCORD-CLI-03** | DiscordObserver デーモンモード起動・終了コマンド | `--daemon` で起動後、標準入力から `{"action":"stop"}` を送信 | プロセスが正常終了（Exit Code `0`）すること |
+| **UT-DISCORD-CLI-04** | DiscordObserver IPC メッセージパース | 不正な JSON や未知のアクションを標準入力から送信 | プロセスがクラッシュせず、エラーメッセージを適切にログ出力すること |
+| **UT-DISCORD-READER-SUBPROC-01** | DiscordReader サブプロセス起動・フォールバック検証 | `DiscordObserver` 実行ファイル存在時のサブプロセス起動および非存在時のフォールバック動作を検証 | 実行ファイルの有無に応じて適切に起動・フォールバックされること |

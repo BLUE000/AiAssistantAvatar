@@ -62,9 +62,14 @@ AiAssistantAvatar_Release/
 └── tools/                         (内部コンソールアプリ集約フォルダ)
     ├── WebSearcher.exe            (Web検索実行CLI)
     ├── CommunityObserver.exe      (コミュニティ監視CLI)
+    ├── DiscordObserver.exe        (Discord連携・Gateway/REST監視CLI)
     ├── TwitchIntroGenerator.exe   (Twitch紹介文生成CLI)
     ├── GeminiChatter.exe          (Gemini推論実行CLI)
-    └── MistralChatter.exe         (Mistral推論実行CLI)
+    ├── MistralChatter.exe         (Mistral推論実行CLI)
+    ├── GroqChatter.exe            (Groq推論実行CLI)
+    ├── SakuraChatter.exe          (Sakura推論実行CLI)
+    ├── HuggingFaceChatter.exe     (HuggingFace推論実行CLI)
+    └── OpenRouterChatter.exe      (OpenRouter推論実行CLI)
 ```
 
 
@@ -81,3 +86,6 @@ AiAssistantAvatar_Release/
 - [2.27 Mistral Pro モデル対応 ＆ 403/404 自動降格フォールバック (F-50)](AIClientManager.md#227-mistral-pro-モデル対応--403404-自動降格フォールバック-f-50)
 
 - [2.28 HuggingFaceChatter & OpenRouterChatter 独立 CLI ツール化およびサブプロセス実行統一 (F-51)](AIClientManager.md#228-huggingfacechatter--openrouterchatter-独立-cli-ツール化およびサブプロセス実行統一-f-51)
+
+- [2.29 DiscordObserver 独立 CLI ツール化および常駐サブプロセス通信アーキテクチャ (F-52)](../DetailedDesign/Discord.md)
+
